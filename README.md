@@ -39,6 +39,11 @@ src/ffmodel/
     legacy.py       the CSVs committed to this repo (weekly 1999-2021, yearly 1970-2021,
                     snapcounts 2013-2020, FantasyPros ADP/ECR)
     loaders.py      load_player_weeks(seasons) — one call, one schema, auto source fallback
+  features/       leak-free usage, efficiency, snap/role, context, and active-set features
+  models/
+    volume_team.py  hierarchical Negative-Binomial plays + Binomial pass rate
+    volume_share.py ragged active-roster Dirichlet-Multinomial target/carry allocation
+    volume_season.py cross-season hierarchical Beta share projection
   simulation/
     scoring.py      stat line → fantasy points (reproduces the CSV point columns exactly)
 ```
@@ -47,7 +52,8 @@ src/ffmodel/
 
 ```bash
 pip install -e ".[dev]"        # add ".[models]" for pymc/arviz when fitting
-pytest                          # network-free test suite
+pytest                          # fast, network-free test suite
+pytest -m slow                  # sampler-heavy Bayesian integration tests
 
 python -c "
 from ffmodel.data import load_player_weeks
@@ -57,6 +63,29 @@ print(df.head())
 ```
 
 `load_player_weeks` tries nflverse first (richer: player ids, real targets, 18-week seasons kept current) and falls back to the committed CSVs per season when offline.
+
+### Within-season volume models (Phase 3B)
+
+```python
+from ffmodel.features import build_features
+from ffmodel.models.volume_team import fit_team_volume
+from ffmodel.models.volume_share import fit_target_share, fit_carry_share
+
+features = build_features(range(2018, 2021), source="legacy", with_context=False)
+team_model = fit_team_volume(features)
+target_model = fit_target_share(features)
+carry_model = fit_carry_share(features)
+```
+
+The team model uses neutral game script by default; Vegas totals and spreads are
+not required. The share models allocate integer targets/carries over each
+team-week's active support. Removing a player at projection time renormalizes
+the posterior concentrations and transfers the full team total to the players
+who remain active.
+
+Use `scripts/validate_volume_models.py` for a final-weeks walk-forward smoke
+test. It reports MAE, CRPS, 80% interval coverage, R-hat, ESS, and verifies that
+every posterior target/carry draw conserves its simulated team total.
 
 ### Data acquisition
 
@@ -121,7 +150,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 1 | Hybrid data layer (nflverse + legacy CSVs, parquet cache) | ✅ |
 | 2 | Features: usage shares, empirical role tiers, trailing efficiency, game script, active-set/injury logic | ✅ |
 | 3A | **Cross-season volume** (year-over-year share via hierarchical Beta) + breakout report | ✅ |
-| 3B | Within-season **volume models** (team plays/pass rate + Dirichlet-Multinomial share) | next |
+| 3B | Within-season **volume models** (team plays/pass rate + Dirichlet-Multinomial share) | core models complete |
 | 4 | Efficiency models (yds/touch, TD, catch rate) | |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | |

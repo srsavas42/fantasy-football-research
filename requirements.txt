@@ -6,7 +6,7 @@ pyarrow>=12
 
 # Bayesian modeling (Phase 3+): pip install -e ".[models]"
 pymc>=5.10
-arviz>=0.17
+arviz>=0.17,<1
 
 # Dev
 pytest>=7.4

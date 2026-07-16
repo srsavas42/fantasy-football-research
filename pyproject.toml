@@ -22,7 +22,7 @@ ffmodel-coaches = "ffmodel.data.wikipedia_coaching:main"
 [project.optional-dependencies]
 models = [
     "pymc>=5.10",
-    "arviz>=0.17",
+    "arviz>=0.17,<1",
 ]
 dev = [
     "pytest>=7.4",
@@ -40,3 +40,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--basetemp=.cache/pytest-tmp -p no:cacheprovider -m 'not slow'"
+markers = [
+    "slow: sampler-heavy Bayesian integration tests; run explicitly with -m slow",
+]

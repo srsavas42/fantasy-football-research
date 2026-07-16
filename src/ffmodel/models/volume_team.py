@@ -1,11 +1,12 @@
-"""Hierarchical model for team play volume and pass rate.
+"""Hierarchical model for team plays, pass attempts, and target totals.
 
 The model is intentionally usable without betting-market inputs.  Team plays
-follow a Negative Binomial distribution and pass attempts are conditional on
-those plays through a Binomial distribution.  Team offense and (when supplied)
+follow a Negative Binomial distribution, pass attempts are conditional on
+those plays through a Binomial distribution, and target totals are conditional
+on pass attempts. Team offense and (when supplied)
 opponent defense effects are partially pooled; home/rest/era terms are small
 population-level adjustments.  Posterior simulation returns coherent integer
-draws with ``pass_attempts <= plays``.
+draws with ``targets <= pass_attempts <= plays``.
 """
 
 from __future__ import annotations
@@ -37,8 +38,11 @@ def prepare_team_weeks(player_weeks: pd.DataFrame) -> pd.DataFrame:
                 "team_pass_att",
                 "team_rush_att",
                 "team_targets",
+                "team_target_support",
                 "team_plays",
                 "team_pass_rate",
+                "team_target_rate",
+                "team_opportunity_valid",
                 "opponent",
                 "is_home",
                 "rest_days",
@@ -73,6 +77,19 @@ def prepare_team_weeks(player_weeks: pd.DataFrame) -> pd.DataFrame:
         out=np.zeros(len(out), dtype=float),
         where=out["team_plays"].to_numpy() > 0,
     )
+    for column in ("team_targets", "team_target_support"):
+        if column in out:
+            out[column] = (
+                pd.to_numeric(out[column], errors="coerce")
+                .fillna(0.0)
+                .round()
+                .clip(lower=0)
+                .astype(int)
+            )
+    if "team_opportunity_valid" in out:
+        out["team_opportunity_valid"] = (
+            out["team_opportunity_valid"].fillna(True).astype(bool)
+        )
     out["is_home"] = pd.to_numeric(
         out.get("is_home", pd.Series(0.0, index=out.index)), errors="coerce"
     ).fillna(0.0)
@@ -105,8 +122,14 @@ class TeamVolumeModel:
     use_opponent: bool = False
     idata: object = None
 
-    def _design(self, frame: pd.DataFrame, *, fit: bool = False):
+    def _design(
+        self, frame: pd.DataFrame, *, fit: bool = False, valid_only: bool = False
+    ):
         d = prepare_team_weeks(frame)
+        if valid_only and "team_opportunity_valid" in d:
+            d = d[d["team_opportunity_valid"]].reset_index(drop=True)
+        if d.empty:
+            raise ValueError("no valid team-weeks are available for the team-volume model")
         if fit:
             self.teams = sorted(d["team"].astype(str).unique())
             has_opponent = "opponent" in d and d["opponent"].notna().any()
@@ -136,11 +159,27 @@ class TeamVolumeModel:
         """Fit both likelihoods in one PyMC posterior."""
         import pymc as pm
 
-        d, X, team_idx, opp_idx = self._design(team_weeks, fit=True)
+        d, X, team_idx, opp_idx = self._design(
+            team_weeks, fit=True, valid_only=True
+        )
         plays = d["team_plays"].to_numpy(dtype=int)
         passes = d["team_pass_att"].to_numpy(dtype=int)
+        target_column = (
+            "team_target_support" if "team_target_support" in d else "team_targets"
+        )
+        if target_column not in d:
+            raise ValueError(
+                "team-volume fitting requires target totals; pass player-week features "
+                "through team_game_totals or build_features first"
+            )
+        targets = d[target_column].to_numpy(dtype=int)
+        if (targets > passes).any():
+            raise ValueError("valid team-weeks must satisfy target totals <= team_pass_att")
         play_center = float(np.log(np.clip(plays.mean(), 1.0, None)))
         pass_center = float(logit(np.array([passes.sum() / plays.sum()]))[0])
+        target_center = float(
+            logit(np.array([targets.sum() / np.clip(passes.sum(), 1, None)]))[0]
+        )
 
         with pm.Model() as model:
             play_intercept = pm.Normal("play_intercept", play_center, 0.35)
@@ -156,6 +195,15 @@ class TeamVolumeModel:
             pass_team = pm.Deterministic("pass_team", pass_team_z * pass_team_sd)
             pass_beta = pm.Normal("pass_beta", 0.0, 0.30, shape=X.shape[1])
             pass_eta = pass_intercept + pass_team[team_idx] + pm.math.dot(X, pass_beta)
+
+            target_intercept = pm.Normal("target_intercept", target_center, 0.5)
+            target_team_sd = pm.HalfNormal("target_team_sd", 0.25)
+            target_team_z = pm.Normal("target_team_z", 0.0, 1.0, shape=len(self.teams))
+            target_team = pm.Deterministic("target_team", target_team_z * target_team_sd)
+            target_beta = pm.Normal("target_beta", 0.0, 0.25, shape=X.shape[1])
+            target_eta = (
+                target_intercept + target_team[team_idx] + pm.math.dot(X, target_beta)
+            )
 
             if self.use_opponent:
                 play_opp_sd = pm.HalfNormal("play_opp_sd", 0.20)
@@ -180,6 +228,9 @@ class TeamVolumeModel:
             pm.Binomial(
                 "passes_obs", n=plays, p=pm.math.sigmoid(pass_eta), observed=passes
             )
+            pm.Binomial(
+                "targets_obs", n=passes, p=pm.math.sigmoid(target_eta), observed=targets
+            )
             sample_kwargs.setdefault("target_accept", 0.92)
             self.idata = sample_model(model, **sample_kwargs)
         return self
@@ -193,7 +244,7 @@ class TeamVolumeModel:
         return out
 
     def predict_samples(self, team_weeks: pd.DataFrame, *, seed: int = 0) -> dict[str, object]:
-        """Simulate coherent posterior team plays and pass attempts."""
+        """Simulate coherent posterior team plays, passes, and targets."""
         if self.idata is None:
             raise RuntimeError("fit the team-volume model before predicting")
         d, X, team_idx, opp_idx = self._design(team_weeks, fit=False)
@@ -215,12 +266,31 @@ class TeamVolumeModel:
         plays = rng.negative_binomial(alpha, prob)
         pass_rate = 1.0 / (1.0 + np.exp(-np.clip(pass_eta, -20.0, 20.0)))
         passes = rng.binomial(plays, pass_rate)
-        return {"rows": d, "plays": plays, "pass_attempts": passes}
+        if "target_intercept" in post:
+            target_eta = _stack(post, "target_intercept")[None, :]
+            target_eta = target_eta + self._known_effect(post, "target_team", team_idx)
+            target_eta = target_eta + X @ _stack(post, "target_beta")
+            target_rate = 1.0 / (1.0 + np.exp(-np.clip(target_eta, -20.0, 20.0)))
+            targets = rng.binomial(passes, target_rate)
+        else:
+            # Compatibility for lightweight synthetic posteriors in tests.
+            # Fitted models always include the explicit target layer.
+            targets = passes.copy()
+        return {
+            "rows": d,
+            "plays": plays,
+            "pass_attempts": passes,
+            "targets": targets,
+        }
 
     def predict_quantiles(self, team_weeks: pd.DataFrame, qs=(0.1, 0.5, 0.9)) -> pd.DataFrame:
         pred = self.predict_samples(team_weeks)
         out = pred["rows"][KEY_COLUMNS].copy()
-        for label, samples in (("plays", pred["plays"]), ("pass_att", pred["pass_attempts"])):
+        for label, samples in (
+            ("plays", pred["plays"]),
+            ("pass_att", pred["pass_attempts"]),
+            ("targets", pred["targets"]),
+        ):
             out[f"{label}_mean"] = samples.mean(axis=1)
             for q in qs:
                 out[f"{label}_p{int(q * 100)}"] = np.quantile(samples, q, axis=1)

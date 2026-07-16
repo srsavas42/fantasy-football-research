@@ -8,6 +8,7 @@ are imported lazily so the data/feature layers stay importable without them.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -51,10 +52,72 @@ def convergence_summary(idata, var_names=None):
     return summ, converged
 
 
+def sampling_quality(
+    idata,
+    var_names=None,
+    *,
+    rhat_threshold: float = 1.01,
+    min_bulk_ess: float = 100.0,
+) -> dict[str, object]:
+    """Summarize convergence, effective samples, and NUTS divergences.
+
+    The quality gate deliberately monitors global/variance terms supplied by
+    the caller. Requiring every sparse individual-player effect to clear the
+    same ESS threshold would make diagnostics noisy without improving a
+    projection decision.
+    """
+    import arviz as az
+
+    summary = az.summary(idata, var_names=var_names)
+    max_rhat = float(summary["r_hat"].max())
+    min_ess = float(summary["ess_bulk"].min())
+    divergences = 0
+    if hasattr(idata, "sample_stats") and "diverging" in idata.sample_stats:
+        divergences = int(idata.sample_stats["diverging"].sum().item())
+    passed = bool(
+        np.isfinite(max_rhat)
+        and max_rhat < rhat_threshold
+        and min_ess >= min_bulk_ess
+        and divergences == 0
+    )
+    return {
+        "summary": summary,
+        "passed": passed,
+        "max_rhat": max_rhat,
+        "min_bulk_ess": min_ess,
+        "divergences": divergences,
+        "rhat_threshold": rhat_threshold,
+        "min_bulk_ess_threshold": min_bulk_ess,
+    }
+
+
 def save_idata(idata, path: str | Path) -> Path:
+    """Write inference data after converting nested sampler metadata to JSON.
+
+    Nutpie records its sampling configuration as nested dictionaries. NetCDF
+    only permits scalar/string attributes, so serialize those values without
+    discarding the provenance needed to reproduce a fit.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    idata.to_netcdf(str(path))
+    clean = idata.copy()
+
+    def safe_attributes(attributes):
+        cleaned = {}
+        for key, value in attributes.items():
+            if isinstance(value, (str, bytes, int, float, bool, np.ndarray)):
+                cleaned[key] = value
+            else:
+                cleaned[key] = json.dumps(value, default=str, sort_keys=True)
+        return cleaned
+
+    clean.attrs = safe_attributes(clean.attrs)
+    for group in clean.groups():
+        dataset = getattr(clean, group)
+        dataset.attrs = safe_attributes(dataset.attrs)
+        for variable in dataset.variables:
+            dataset[variable].attrs = safe_attributes(dataset[variable].attrs)
+    clean.to_netcdf(str(path))
     return path
 
 

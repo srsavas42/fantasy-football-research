@@ -33,6 +33,9 @@ def _posterior(model, draws=12):
             "pass_intercept": np.full((1, draws), 0.25),
             "pass_team": np.zeros((1, draws, n_team)),
             "pass_beta": np.zeros((1, draws, 3)),
+            "target_intercept": np.full((1, draws), 2.5),
+            "target_team": np.zeros((1, draws, n_team)),
+            "target_beta": np.zeros((1, draws, 3)),
             "play_alpha": np.full((1, draws), 20.0),
         }
     )
@@ -55,6 +58,8 @@ def test_posterior_draws_are_nonnegative_and_coherent():
     assert (pred["plays"] >= 0).all()
     assert (pred["pass_attempts"] >= 0).all()
     assert (pred["pass_attempts"] <= pred["plays"]).all()
+    assert (pred["targets"] >= 0).all()
+    assert (pred["targets"] <= pred["pass_attempts"]).all()
 
 
 def test_unseen_team_uses_population_prior():

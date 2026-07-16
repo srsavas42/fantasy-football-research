@@ -16,6 +16,11 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.features.trailing import player_key
+from ffmodel.features.volume import (
+    CARRY_POSITIONS,
+    TARGET_POSITIONS,
+    opportunity_position,
+)
 from ffmodel.models.base import sample_model
 
 GROUP_COLUMNS = ["season", "week", "team"]
@@ -23,24 +28,26 @@ GROUP_COLUMNS = ["season", "week", "team"]
 STREAMS = {
     "target": {
         "outcome": "targets",
-        "positions": ("RB", "WR", "TE"),
+        "positions": TARGET_POSITIONS,
         "features": (
             "ewma_snap_share",
             "ewma_target_share",
             "ewma_opportunity_share",
             "ewma_ypt",
             "ewma_catch_rate",
+            "role_rank",
         ),
     },
     "carry": {
         "outcome": "rush_att",
-        "positions": ("QB", "RB", "WR", "TE"),
+        "positions": CARRY_POSITIONS,
         "features": (
             "ewma_snap_share",
             "ewma_carry_share",
             "ewma_opportunity_share",
             "ewma_ypc",
             "ewma_yds_per_touch",
+            "role_rank",
         ),
     },
 }
@@ -110,12 +117,21 @@ class OpportunityShareModel:
     def outcome_col(self) -> str:
         return STREAMS[self.stream]["outcome"]
 
-    def _eligible_rows(self, frame: pd.DataFrame) -> pd.DataFrame:
+    def _eligible_rows(
+        self, frame: pd.DataFrame, *, valid_only: bool = False
+    ) -> pd.DataFrame:
         required = set(GROUP_COLUMNS + ["player_name", "position", self.outcome_col])
         missing = required - set(frame.columns)
         if missing:
             raise ValueError(f"share model input is missing columns: {sorted(missing)}")
-        d = frame[frame["position"].isin(STREAMS[self.stream]["positions"])].copy()
+        d = frame.copy()
+        # Provider labels such as HB, FB and WR/RS are canonicalized before
+        # defining the allocation support. This keeps team target totals and
+        # player allocation on exactly the same position universe.
+        d["position"] = opportunity_position(d["position"])
+        d = d[d["position"].isin(STREAMS[self.stream]["positions"])].copy()
+        if valid_only and "team_opportunity_valid" in d:
+            d = d[d["team_opportunity_valid"].fillna(True)].copy()
         # When snaps exist, is_active is a genuine active-roster indicator.  On
         # the legacy path it is opportunity-derived, so filtering would erase
         # active zero-opportunity players and bias the likelihood.
@@ -173,7 +189,7 @@ class OpportunityShareModel:
         return np.column_stack(columns)
 
     def _design(self, frame: pd.DataFrame, *, fit: bool = False) -> GroupDesign:
-        d = self._eligible_rows(frame)
+        d = self._eligible_rows(frame, valid_only=fit)
         totals = d.groupby(GROUP_COLUMNS)[self.outcome_col].transform("sum")
         if fit:
             d = d[totals > 0].copy()
@@ -235,23 +251,31 @@ class OpportunityShareModel:
 
         design = self._design(features, fit=True)
         with pm.Model() as model:
-            mu_position = pm.Normal("mu_position", 0.0, 1.0)
-            position_sd = pm.HalfNormal("position_sd", 0.75)
+            # Model relative allocation probabilities separately from the
+            # Dirichlet concentration. The previous exp(logit) construction
+            # left a global location/scale tradeoff that mixed poorly with
+            # sparse player effects, especially for carries.
+            position_sd = pm.HalfNormal("position_sd", 0.50)
             position_z = pm.Normal(
                 "position_z", 0.0, 1.0, shape=len(self.positions)
             )
             position_alpha = pm.Deterministic(
-                "position_alpha", mu_position + position_z * position_sd
+                "position_alpha", position_z * position_sd
             )
-            beta = pm.Normal("beta", 0.0, 0.7, shape=len(self.feature_names))
-            player_sd = pm.HalfNormal("player_sd", 0.5)
+            beta = pm.Normal("beta", 0.0, 0.5, shape=len(self.feature_names))
+            player_sd = pm.HalfNormal("player_sd", 0.35)
             player_z = pm.Normal("player_z", 0.0, 1.0, shape=len(self.players))
             player_effect = pm.Deterministic("player_effect", player_z * player_sd)
 
             eta = position_alpha[design.position_idx]
             eta = eta + pm.math.sum(design.X * beta, axis=2)
             eta = eta + player_effect[design.player_idx]
-            concentration = pm.math.exp(pm.math.clip(eta, -8.0, 8.0))
+            masked_eta = pm.math.switch(design.mask > 0, eta, -20.0)
+            probability = pm.math.softmax(masked_eta, axis=1)
+            allocation_concentration = pm.Gamma(
+                "allocation_concentration", alpha=2.0, beta=0.2
+            )
+            concentration = probability * allocation_concentration
             concentration = concentration * design.mask + (1.0 - design.mask) * 1e-8
             pm.DirichletMultinomial(
                 "obs", n=design.totals, a=concentration, observed=design.counts
@@ -272,11 +296,22 @@ class OpportunityShareModel:
             out[known] = effect[idx[known], :]
         return out
 
+    def allocation_groups(self, features: pd.DataFrame) -> pd.DataFrame:
+        """Return prediction-time team-week keys for supplied active players."""
+        return self._design(features, fit=False).group_keys.copy()
+
     def _prediction_totals(self, design: GroupDesign, team_totals, draws: int) -> np.ndarray:
         if team_totals is None:
             return np.repeat(design.totals[:, None], draws, axis=1)
         if isinstance(team_totals, pd.DataFrame):
-            total_col = "team_targets" if self.stream == "target" else "team_rush_att"
+            if self.stream == "target":
+                total_col = (
+                    "team_target_support"
+                    if "team_target_support" in team_totals
+                    else "team_targets"
+                )
+            else:
+                total_col = "team_rush_att"
             if total_col not in team_totals:
                 raise ValueError(f"team_totals must include {total_col!r}")
             merged = design.group_keys.merge(
@@ -305,13 +340,18 @@ class OpportunityShareModel:
         player = _stack(post, "player_effect")
         beta = _stack(post, "beta")
         draws = beta.shape[-1]
-        position_fallback = _stack(post, "mu_position")
+        position_fallback = np.zeros(draws, dtype=float)
         eta = self._known_effect(
             position, design.position_idx, fallback=position_fallback
         )
         eta = eta + np.einsum("gkf,fs->gks", design.X, beta)
         eta = eta + self._known_effect(player, design.player_idx)
-        concentration = np.exp(np.clip(eta, -8.0, 8.0)) * design.mask[:, :, None]
+        masked_eta = np.where(design.mask[:, :, None] > 0, eta, -20.0)
+        masked_eta = masked_eta - masked_eta.max(axis=1, keepdims=True)
+        probability = np.exp(masked_eta) * design.mask[:, :, None]
+        probability /= probability.sum(axis=1, keepdims=True)
+        allocation_concentration = _stack(post, "allocation_concentration")
+        concentration = probability * allocation_concentration[None, None, :]
         totals = self._prediction_totals(design, team_totals, draws)
 
         rng = np.random.default_rng(seed)

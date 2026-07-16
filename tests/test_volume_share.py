@@ -45,10 +45,10 @@ def _posterior(model, draws=40):
             player_effect[:, :, index] = 1.5
     return az.from_dict(
         posterior={
-            "mu_position": np.zeros((1, draws)),
             "position_alpha": np.zeros((1, draws, len(model.positions))),
             "player_effect": player_effect,
             "beta": np.zeros((1, draws, len(model.feature_names))),
+            "allocation_concentration": np.full((1, draws), 10.0),
         }
     )
 

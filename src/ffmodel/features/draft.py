@@ -91,9 +91,9 @@ def load_draft_capital(seasons: Iterable[int], source: str = "auto") -> pd.DataF
 
 
 def _load_nflverse(seasons: set[int]):
-    from ffmodel.data import ingest
+    import nfl_data_py as nfl
 
-    picks = ingest.load_draft_picks(list(seasons))
+    picks = nfl.import_draft_picks(list(seasons))
     out = picks.rename(
         columns={"pfr_player_name": "player_name", "pick": "overall_pick"}
     )

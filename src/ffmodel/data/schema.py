@@ -1,6 +1,6 @@
 """Canonical column schema shared by every data source.
 
-All loaders (nflverse via nflreadpy, legacy CSVs) map into these columns so
+All loaders (nflverse via nfl_data_py, legacy CSVs) map into these columns so
 downstream features/models never care where a row came from.
 """
 

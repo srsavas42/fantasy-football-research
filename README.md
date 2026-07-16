@@ -34,7 +34,7 @@ src/ffmodel/
   config.py       scoring rules (verified against this repo's CSVs), paths, season coverage
   data/           hybrid data layer:
     schema.py       canonical player-week schema shared by every source
-    ingest.py       nflverse via nflreadpy, parquet-cached (weekly, PBP, snaps, depth charts,
+    ingest.py       nflverse via nfl_data_py, parquet-cached (weekly, snaps, depth charts,
                     injuries, schedules, rosters, id map)
     legacy.py       the CSVs committed to this repo (weekly 1999-2021, yearly 1970-2021,
                     snapcounts 2013-2020, FantasyPros ADP/ECR)
@@ -57,39 +57,6 @@ print(df.head())
 ```
 
 `load_player_weeks` tries nflverse first (richer: player ids, real targets, 18-week seasons kept current) and falls back to the committed CSVs per season when offline.
-
-### Data acquisition
-
-The provider-aware data CLI caches parquet plus provenance manifests and keeps
-mutable inputs as immutable `as_of` snapshots:
-
-```bash
-ffmodel-data doctor
-ffmodel-data bootstrap --seasons 2022 2023 2024 2025
-ffmodel-data nflverse --seasons 2022 2023 2024 2025 --datasets pbp
-ffmodel-data sleeper
-```
-
-CollegeFootballData reads its credential from the Git-ignored project `.env`,
-caches every response as Parquet, and enforces local/per-run quota guards. The
-Odds API is intentionally deferred. Open-Meteo and Sleeper require no key.
-Setup, scheduling, licensing, and point-in-time backtest instructions are in
-[docs/data-sources.md](docs/data-sources.md).
-
-Wikipedia HC/OC assignments and coach lineage use a separate, resumable pull:
-
-```bash
-pip install -e ".[scrape]"
-ffmodel-coaches                       # every committed team-season, 1970-2021
-ffmodel-coaches --seasons 2018:2025  # add nflverse-backed recent seasons
-```
-
-The command archives exact MediaWiki revisions in the ignored cache and writes
-source-attributed assignment, career-history, selected scheme-source, lineage,
-and review tables under `data/coaching/wikipedia/`. Wikipedia job titles are not
-proof of play-calling responsibility; confirmed effective-date overrides remain
-in `data/manual/coach_team_period.csv`. See the coaching section of the data
-source guide before using the lineage as a model prior.
 
 ### Cross-season volume & breakout report (Phase 3A)
 

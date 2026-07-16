@@ -102,23 +102,31 @@ class VolumePipeline:
         """Return comparable quality gates for the three fitted posteriors."""
         if any(model.idata is None for model in (self.team_model, self.target_model, self.carry_model)):
             raise RuntimeError("fit all volume models before requesting diagnostics")
+        team_terms = [
+            "play_intercept",
+            "pass_intercept",
+            "target_intercept",
+            "play_alpha",
+            "play_team_sd",
+            "pass_team_sd",
+            "target_team_sd",
+        ]
+        if self.team_model.use_opponent:
+            team_terms.extend(["play_opp_sd", "pass_opp_sd"])
         return {
             "team": sampling_quality(
                 self.team_model.idata,
-                [
-                    "play_intercept", "pass_intercept", "target_intercept",
-                    "play_alpha", "target_team_sd",
-                ],
+                team_terms,
                 min_bulk_ess=min_bulk_ess,
             ),
             "target": sampling_quality(
                 self.target_model.idata,
-                ["position_sd", "beta", "player_sd", "allocation_concentration"],
+                ["beta", "allocation_concentration"],
                 min_bulk_ess=min_bulk_ess,
             ),
             "carry": sampling_quality(
                 self.carry_model.idata,
-                ["position_sd", "beta", "player_sd", "allocation_concentration"],
+                ["beta", "allocation_concentration"],
                 min_bulk_ess=min_bulk_ess,
             ),
         }
@@ -157,6 +165,7 @@ class VolumePipeline:
             "feature_fill": model.feature_fill,
             "feature_mean": model.feature_mean,
             "feature_scale": model.feature_scale,
+            "position_log_prior": model.position_log_prior,
         }
 
     @classmethod
@@ -176,6 +185,9 @@ class VolumePipeline:
             model.feature_fill = {k: float(v) for k, v in state["feature_fill"].items()}
             model.feature_mean = {k: float(v) for k, v in state["feature_mean"].items()}
             model.feature_scale = {k: float(v) for k, v in state["feature_scale"].items()}
+            model.position_log_prior = {
+                k: float(v) for k, v in state.get("position_log_prior", {}).items()
+            }
             model.idata = load_idata(directory / f"{name}.nc")
             shares.append(model)
         return cls(team_model=team, target_model=shares[0], carry_model=shares[1])

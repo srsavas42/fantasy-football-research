@@ -12,12 +12,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Positions we model opportunity for. QB volume is pass attempts, handled by
-# the team model, so it is excluded from the receiving allocation but retained
-# as a possible carry recipient.
+# The volume layer has one canonical player-position vocabulary. Provider
+# aliases are normalized into these four labels and all other records are kept
+# out of model features rather than acquiring an accidental fifth category.
+MODEL_POSITIONS = ("QB", "RB", "WR", "TE")
 SKILL_POSITIONS = ("RB", "WR", "TE")
-TARGET_POSITIONS = SKILL_POSITIONS
-CARRY_POSITIONS = ("QB", *SKILL_POSITIONS)
+TARGET_POSITIONS = MODEL_POSITIONS
+CARRY_POSITIONS = MODEL_POSITIONS
 
 TEAM_TOTAL_COLUMNS = [
     "team_pass_att",
@@ -57,14 +58,25 @@ def opportunity_position(values: pd.Series) -> pd.Series:
     return out
 
 
+def normalize_model_positions(pw: pd.DataFrame) -> pd.DataFrame:
+    """Return only canonical QB/RB/WR/TE player-week records.
+
+    This belongs in feature construction rather than the raw data loaders so
+    source ingestion remains faithful to provider data while every model sees a
+    stable four-position vocabulary.
+    """
+    out = pw.copy()
+    out["position"] = opportunity_position(out["position"])
+    return out[out["position"].isin(MODEL_POSITIONS)].reset_index(drop=True)
+
+
 def team_game_totals(pw: pd.DataFrame) -> pd.DataFrame:
     """Per-team totals plus explicit opportunity-accounting quality flags.
 
     ``team_targets`` remains the full recorded target total used by generic
-    usage-share features. ``team_target_support`` is the RB/WR/TE total after
-    provider-normalization, and is the response represented by the target
-    allocator. Keeping both prevents rare unmodelled targets from breaking the
-    basic invariant that player target shares sum to one.
+    usage-share features. ``team_target_support`` is the QB/RB/WR/TE total
+    after provider-normalization, and is the response represented by the
+    target allocator.
     """
     work = pw.copy()
     work["_opportunity_position"] = opportunity_position(work["position"])

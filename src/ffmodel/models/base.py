@@ -69,8 +69,18 @@ def sampling_quality(
     import arviz as az
 
     summary = az.summary(idata, var_names=var_names)
-    max_rhat = float(summary["r_hat"].max())
-    min_ess = float(summary["ess_bulk"].min())
+
+    # ``az.summary`` defaults to two decimal places, which is useful for a
+    # human report but not a hard 1.01 quality threshold. Compute gates from
+    # ArviZ's unrounded diagnostics and retain the summary only for display.
+    rhat_values = np.asarray(az.rhat(idata, var_names=var_names).to_array()).ravel()
+    ess_values = np.asarray(
+        az.ess(idata, var_names=var_names, method="bulk").to_array()
+    ).ravel()
+    rhat_values = rhat_values[np.isfinite(rhat_values)]
+    ess_values = ess_values[np.isfinite(ess_values)]
+    max_rhat = float(rhat_values.max()) if len(rhat_values) else float("nan")
+    min_ess = float(ess_values.min()) if len(ess_values) else float("nan")
     divergences = 0
     if hasattr(idata, "sample_stats") and "diverging" in idata.sample_stats:
         divergences = int(idata.sample_stats["diverging"].sum().item())

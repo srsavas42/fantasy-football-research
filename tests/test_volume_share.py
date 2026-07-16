@@ -62,6 +62,12 @@ def test_design_is_ragged_and_counts_conserve_group_totals():
     assert design.totals.tolist() == [10, 10, 10, 10]
 
 
+def test_position_prior_is_fitted_from_training_opportunity():
+    model = OpportunityShareModel("target")
+    model._design(_features(), fit=True)
+    assert model.position_log_prior["WR"] > model.position_log_prior["RB"]
+
+
 def test_starter_removal_reallocates_all_targets_to_remaining_players():
     model = OpportunityShareModel("target")
     model._design(_features(), fit=True)

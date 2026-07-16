@@ -37,6 +37,7 @@ STREAMS = {
             "ewma_catch_rate",
             "role_rank",
         ),
+        "player_effect_scale": 0.60,
     },
     "carry": {
         "outcome": "rush_att",
@@ -44,11 +45,11 @@ STREAMS = {
         "features": (
             "ewma_snap_share",
             "ewma_carry_share",
-            "ewma_opportunity_share",
             "ewma_ypc",
             "ewma_yds_per_touch",
             "role_rank",
         ),
+        "player_effect_scale": 1.00,
     },
 }
 
@@ -107,6 +108,7 @@ class OpportunityShareModel:
     feature_fill: dict[str, float] = field(default_factory=dict)
     feature_mean: dict[str, float] = field(default_factory=dict)
     feature_scale: dict[str, float] = field(default_factory=dict)
+    position_log_prior: dict[str, float] = field(default_factory=dict)
     idata: object = None
 
     def __post_init__(self):
@@ -176,6 +178,23 @@ class OpportunityShareModel:
             self.feature_mean[column] = mean
             self.feature_scale[column] = scale if scale > 1e-8 else 1.0
 
+    def _fit_position_prior(self, d: pd.DataFrame) -> None:
+        """Estimate a centered position prior from training opportunity only."""
+        totals = (
+            d.groupby("position", dropna=False)[self.outcome_col]
+            .sum()
+            .reindex(self.positions, fill_value=0.0)
+            .to_numpy(dtype=float)
+        )
+        # The pseudocount gives a cold or rarely used position a finite but
+        # strongly shrunk allocation prior. Centering is required because the
+        # softmax likelihood identifies only relative logits.
+        logits = np.log(totals + 0.5)
+        logits -= logits.mean()
+        self.position_log_prior = {
+            position: float(logit) for position, logit in zip(self.positions, logits)
+        }
+
     def _matrix(self, d: pd.DataFrame) -> np.ndarray:
         columns = []
         for name in self.feature_names:
@@ -205,6 +224,7 @@ class OpportunityShareModel:
             self.positions = sorted(d["position"].astype(str).unique())
             self.players = sorted(d["_player_key"].unique())
             self._fit_scaler(d)
+            self._fit_position_prior(d)
 
         position_codes = _codes(d["position"], self.positions)
         player_codes = _codes(d["_player_key"], self.players)
@@ -251,23 +271,23 @@ class OpportunityShareModel:
 
         design = self._design(features, fit=True)
         with pm.Model() as model:
-            # Model relative allocation probabilities separately from the
-            # Dirichlet concentration. The previous exp(logit) construction
-            # left a global location/scale tradeoff that mixed poorly with
-            # sparse player effects, especially for carries.
-            position_sd = pm.HalfNormal("position_sd", 0.50)
-            position_z = pm.Normal(
-                "position_z", 0.0, 1.0, shape=len(self.positions)
-            )
-            position_alpha = pm.Deterministic(
-                "position_alpha", position_z * position_sd
+            # Position usage is a stable high-sample signal. Treat its
+            # training-only empirical estimate as a fixed prior, keeping the
+            # sampler focused on player and covariate uncertainty instead of
+            # repeatedly relearning a four-category intercept block.
+            position_prior = np.asarray(
+                [self.position_log_prior[position] for position in self.positions],
+                dtype=float,
             )
             beta = pm.Normal("beta", 0.0, 0.5, shape=len(self.feature_names))
-            player_sd = pm.HalfNormal("player_sd", 0.35)
-            player_z = pm.Normal("player_z", 0.0, 1.0, shape=len(self.players))
-            player_effect = pm.Deterministic("player_effect", player_z * player_sd)
+            player_effect = pm.Normal(
+                "player_effect",
+                0.0,
+                STREAMS[self.stream]["player_effect_scale"],
+                shape=len(self.players),
+            )
 
-            eta = position_alpha[design.position_idx]
+            eta = position_prior[design.position_idx]
             eta = eta + pm.math.sum(design.X * beta, axis=2)
             eta = eta + player_effect[design.player_idx]
             masked_eta = pm.math.switch(design.mask > 0, eta, -20.0)
@@ -336,14 +356,16 @@ class OpportunityShareModel:
             raise RuntimeError("fit the opportunity-share model before predicting")
         design = self._design(features, fit=False)
         post = self.idata.posterior
-        position = _stack(post, "position_alpha")
         player = _stack(post, "player_effect")
         beta = _stack(post, "beta")
         draws = beta.shape[-1]
-        position_fallback = np.zeros(draws, dtype=float)
-        eta = self._known_effect(
-            position, design.position_idx, fallback=position_fallback
+        position_prior = np.asarray(
+            [self.position_log_prior.get(position, 0.0) for position in self.positions],
+            dtype=float,
         )
+        safe_position_idx = np.where(design.position_idx >= 0, design.position_idx, 0)
+        eta = position_prior[safe_position_idx][..., None]
+        eta = eta * (design.position_idx >= 0)[..., None]
         eta = eta + np.einsum("gkf,fs->gks", design.X, beta)
         eta = eta + self._known_effect(player, design.player_idx)
         masked_eta = np.where(design.mask[:, :, None] > 0, eta, -20.0)

@@ -112,6 +112,7 @@ def test_pipeline_save_and_load_preserves_prediction_metadata(tmp_path):
     assert restored.team_model.teams == pipeline.team_model.teams
     assert restored.target_model.feature_names == pipeline.target_model.feature_names
     assert restored.carry_model.players == pipeline.carry_model.players
+    assert restored.target_model.position_log_prior == pipeline.target_model.position_log_prior
 
 
 def test_idata_save_serializes_nested_sampler_metadata(tmp_path):

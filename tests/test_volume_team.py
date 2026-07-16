@@ -6,7 +6,11 @@ import pytest
 
 az = pytest.importorskip("arviz")
 
-from ffmodel.models.volume_team import TeamVolumeModel, prepare_team_weeks
+from ffmodel.models.volume_team import (
+    TeamVolumeModel,
+    _sum_to_zero_basis,
+    prepare_team_weeks,
+)
 
 
 def _team_weeks():
@@ -47,6 +51,14 @@ def test_prepare_team_weeks_needs_no_vegas_columns():
     assert out["team_plays"].tolist() == [60, 61, 62, 62]
     assert "spread" not in out and "implied_team_total" not in out
     assert (out["team_pass_att"] <= out["team_plays"]).all()
+
+
+def test_sum_to_zero_basis_is_orthonormal_and_centered():
+    basis = _sum_to_zero_basis(4)
+
+    assert basis.shape == (4, 3)
+    assert np.allclose(basis.sum(axis=0), 0.0)
+    assert np.allclose(basis.T @ basis, np.eye(3))
 
 
 def test_posterior_draws_are_nonnegative_and_coherent():

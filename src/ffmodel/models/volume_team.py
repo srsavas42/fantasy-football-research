@@ -112,6 +112,24 @@ def _stack(posterior, name: str) -> np.ndarray:
     return posterior[name].stack(sample=("chain", "draw")).to_numpy()
 
 
+def _sum_to_zero_basis(size: int) -> np.ndarray:
+    """Return an orthonormal basis for zero-sum effects of length ``size``.
+
+    Sampling ``size`` independent effects and centering them creates an
+    unidentifiable direction: their common offset has no effect on the
+    likelihood. The Helmert basis represents exactly the ``size - 1``
+    identified directions while retaining the symmetric zero-sum prior.
+    """
+    if size < 1:
+        raise ValueError("zero-sum effect size must be positive")
+    basis = np.zeros((size, max(size - 1, 0)), dtype=float)
+    for column in range(size - 1):
+        scale = np.sqrt((column + 1) * (column + 2))
+        basis[: column + 1, column] = 1.0 / scale
+        basis[column + 1, column] = -(column + 1) / scale
+    return basis
+
+
 @dataclass
 class TeamVolumeModel:
     """Fitted joint team-plays/pass-rate model and prediction metadata."""
@@ -182,24 +200,31 @@ class TeamVolumeModel:
         )
 
         with pm.Model() as model:
+            def zero_sum_effect(name: str, sd, size: int):
+                """Sample an identified, exchangeable zero-sum random effect."""
+                if size == 1:
+                    return pm.Deterministic(name, np.zeros(1, dtype=float))
+                z = pm.Normal(f"{name}_z", 0.0, 1.0, shape=size - 1)
+                return pm.Deterministic(
+                    name,
+                    pm.math.dot(_sum_to_zero_basis(size), z) * sd,
+                )
+
             play_intercept = pm.Normal("play_intercept", play_center, 0.35)
             play_team_sd = pm.HalfNormal("play_team_sd", 0.25)
-            play_team_z = pm.Normal("play_team_z", 0.0, 1.0, shape=len(self.teams))
-            play_team = pm.Deterministic("play_team", play_team_z * play_team_sd)
+            play_team = zero_sum_effect("play_team", play_team_sd, len(self.teams))
             play_beta = pm.Normal("play_beta", 0.0, 0.20, shape=X.shape[1])
             play_eta = play_intercept + play_team[team_idx] + pm.math.dot(X, play_beta)
 
             pass_intercept = pm.Normal("pass_intercept", pass_center, 0.5)
             pass_team_sd = pm.HalfNormal("pass_team_sd", 0.35)
-            pass_team_z = pm.Normal("pass_team_z", 0.0, 1.0, shape=len(self.teams))
-            pass_team = pm.Deterministic("pass_team", pass_team_z * pass_team_sd)
+            pass_team = zero_sum_effect("pass_team", pass_team_sd, len(self.teams))
             pass_beta = pm.Normal("pass_beta", 0.0, 0.30, shape=X.shape[1])
             pass_eta = pass_intercept + pass_team[team_idx] + pm.math.dot(X, pass_beta)
 
             target_intercept = pm.Normal("target_intercept", target_center, 0.5)
             target_team_sd = pm.HalfNormal("target_team_sd", 0.25)
-            target_team_z = pm.Normal("target_team_z", 0.0, 1.0, shape=len(self.teams))
-            target_team = pm.Deterministic("target_team", target_team_z * target_team_sd)
+            target_team = zero_sum_effect("target_team", target_team_sd, len(self.teams))
             target_beta = pm.Normal("target_beta", 0.0, 0.25, shape=X.shape[1])
             target_eta = (
                 target_intercept + target_team[team_idx] + pm.math.dot(X, target_beta)
@@ -207,15 +232,13 @@ class TeamVolumeModel:
 
             if self.use_opponent:
                 play_opp_sd = pm.HalfNormal("play_opp_sd", 0.20)
-                play_opp_z = pm.Normal(
-                    "play_opp_z", 0.0, 1.0, shape=len(self.opponents)
+                play_opp = zero_sum_effect(
+                    "play_opp", play_opp_sd, len(self.opponents)
                 )
-                play_opp = pm.Deterministic("play_opp", play_opp_z * play_opp_sd)
                 pass_opp_sd = pm.HalfNormal("pass_opp_sd", 0.25)
-                pass_opp_z = pm.Normal(
-                    "pass_opp_z", 0.0, 1.0, shape=len(self.opponents)
+                pass_opp = zero_sum_effect(
+                    "pass_opp", pass_opp_sd, len(self.opponents)
                 )
-                pass_opp = pm.Deterministic("pass_opp", pass_opp_z * pass_opp_sd)
                 known = opp_idx >= 0
                 safe_opp_idx = np.where(known, opp_idx, 0)
                 play_eta = play_eta + play_opp[safe_opp_idx] * known

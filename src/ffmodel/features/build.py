@@ -20,7 +20,11 @@ from ffmodel.features import roles as roles_mod
 from ffmodel.features import snaps as snaps_mod
 from ffmodel.features.efficiency_hist import EFFICIENCY_COLUMNS, add_efficiency
 from ffmodel.features.trailing import add_trailing
-from ffmodel.features.volume import USAGE_COLUMNS, usage_shares
+from ffmodel.features.volume import (
+    USAGE_COLUMNS,
+    normalize_model_positions,
+    usage_shares,
+)
 
 # Trailing usage covariates the share model consumes (leak-free EWMAs).
 TRAILING_USAGE = [f"ewma_{c}" for c in ("target_share", "carry_share", "opportunity_share", "wopr")]
@@ -48,6 +52,7 @@ def build_features(
     """Enriched player-week frame ready for the volume model."""
     seasons = list(seasons)
     pw = load_player_weeks(seasons, source=source, cache_dir=cache_dir)
+    pw = normalize_model_positions(pw)
 
     pw = usage_shares(pw)
     pw = add_trailing(

@@ -1,0 +1,11 @@
+venv
+__pycache__
+notebooks
+utils.py
+*.ipynb
+.cache/
+.env
+*.egg-info/
+build/
+dist/
+.pytest_cache/

@@ -1,7 +1,7 @@
 # Core dependencies — prefer `pip install -e ".[dev]"` (see pyproject.toml).
 pandas>=1.5
 numpy>=1.24
-nflreadpy>=0.1.5,<1
+nfl_data_py>=0.3.3
 pyarrow>=12
 
 # Bayesian modeling (Phase 3+): pip install -e ".[models]"
@@ -16,4 +16,3 @@ requests>=2.28
 beautifulsoup4>=4.12
 lxml>=4.9
 html5lib>=1.1
-mwparserfromhell>=0.7

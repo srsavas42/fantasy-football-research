@@ -21,8 +21,6 @@ def add_availability(pw: pd.DataFrame, injuries: pd.DataFrame | None = None) -> 
     activity = (
         out["pass_att"] + out["rush_att"] + out["targets"] + out["receptions"]
     )
-    if "offense_snaps" in out.columns:
-        activity = activity + pd.to_numeric(out["offense_snaps"], errors="coerce").fillna(0)
     out["is_active"] = (activity > 0).astype(int)
 
     if injuries is not None and not injuries.empty:

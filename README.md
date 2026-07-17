@@ -44,6 +44,7 @@ src/ffmodel/
     volume_team.py  hierarchical Negative-Binomial plays + Binomial pass rate
     volume_share.py ragged active-roster Dirichlet-Multinomial target/carry allocation
     volume_season.py cross-season hierarchical Beta share projection
+    volume_season_average.py coherent team-season rates + QB/RB/WR/TE roster allocation
   simulation/
     scoring.py      stat line → fantasy points (reproduces the CSV point columns exactly)
 ```
@@ -86,6 +87,67 @@ who remain active.
 Use `scripts/validate_volume_models.py` for a final-weeks walk-forward smoke
 test. It reports MAE, CRPS, 80% interval coverage, R-hat, ESS, and verifies that
 every posterior target/carry draw conserves its simulated team total.
+
+### Season-average volume model
+
+The primary preseason projection path estimates stable average volume over a
+full season before any matchup adjustments are applied:
+
+```python
+from ffmodel.features.season_average import build_season_average_data, SeasonAverageData
+from ffmodel.models import SeasonAverageVolumePipeline
+
+data = build_season_average_data(
+    range(2014, 2021),
+    source="nflverse",
+    roster_mode="point_in_time",
+)
+train = SeasonAverageData(
+    data.team_rows[data.team_rows.season < 2020],
+    data.player_rows[data.player_rows.season < 2020],
+)
+test = SeasonAverageData(
+    data.team_rows[data.team_rows.season == 2020],
+    data.player_rows[data.player_rows.season == 2020],
+)
+pipeline = SeasonAverageVolumePipeline().fit(train)
+prediction = pipeline.predict_samples(test)
+```
+
+Team opportunity plays, pass attempts, sacks, targets, and rushes use
+prior-season rates with hierarchical team and new-season innovations. Player
+QB offensive-snap workload, target, and carry roles use constrained roster
+Multinomials. QB workload is continuous and sums to one across a team's QBs;
+non-QBs receive zero pass attempts. Every integer posterior draw enforces:
+
+```text
+opportunity plays = pass attempts + player carries
+official plays    = pass attempts + player carries + sacks
+pass attempts     = player targets + no-target attempts
+```
+
+Player pass attempts, targets, and carries each sum to their simulated team
+total. Prior and late-season shares anchor returning players; draft and
+position priors cover cold starts. A Beta-Binomial layer predicts each player's
+games active, while a roster-softmax QB layer predicts continuous offensive-snap
+shares from prior workload, depth chart, and availability. The depth-chart QB1
+designation remains a preseason feature rather than a binary outcome. Those
+posterior draws feed the constrained player allocators, so injuries, benchings,
+and split QB seasons flow into pass attempts, targets, and carries. The final
+season counts are reported as both per-team-game and per-active-game averages.
+
+Historical point-in-time support uses nflverse regular-season week 1 rosters
+and offensive depth charts. This excludes players already cut and preserves
+reserve/PUP players as availability outcomes. Live preseason projections can
+provide an archived roster snapshot through the same feature contract. Legacy
+CSV-only runs remain available with `roster_mode="inferred"`, but are labeled
+`inferred_postseason` because those files cannot reconstruct a leakage-safe
+preseason roster. nflverse also supplies observed sacks; legacy files use a
+conservative league prior rather than a false observed zero.
+
+`scripts/validate_season_average.py` holds out a complete season and compares
+the Bayesian distributions with persistence, regularized linear, and optional
+XGBoost roster-softmax challengers. Install `.[ml]` only when running XGBoost.
 
 ### Data acquisition
 
@@ -149,7 +211,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 0 | Package scaffolding, config, scoring, tests | ✅ |
 | 1 | Hybrid data layer (nflverse + legacy CSVs, parquet cache) | ✅ |
 | 2 | Features: usage shares, empirical role tiers, trailing efficiency, game script, active-set/injury logic | ✅ |
-| 3A | **Cross-season volume** (year-over-year share via hierarchical Beta) + breakout report | ✅ |
+| 3A | **Season-average volume** (coherent team rates + roster shares) and legacy breakout report | core model complete |
 | 3B | Within-season **volume models** (team plays/pass rate + Dirichlet-Multinomial share) | core models complete |
 | 4 | Efficiency models (yds/touch, TD, catch rate) | |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | |

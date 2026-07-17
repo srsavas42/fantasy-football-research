@@ -32,6 +32,14 @@ def test_team_identity_uses_era_correct_names():
     assert wiki.team_identity("HOU", 2024).team_name == "Houston Texans"
 
 
+def test_team_identity_accepts_historical_nflverse_roster_aliases():
+    assert wiki.team_identity("ARZ", 2014).franchise_code == "ARI"
+    assert wiki.team_identity("BLT", 2014).franchise_code == "BAL"
+    assert wiki.team_identity("CLV", 2014).franchise_code == "CLE"
+    assert wiki.team_identity("HST", 2014).franchise_code == "HOU"
+    assert wiki.team_identity("SL", 2014).franchise_code == "LAR"
+
+
 def test_modern_infobox_extracts_midseason_oc_change_and_ignores_citations():
     text = """
 {{Infobox NFL team season

@@ -14,6 +14,7 @@ def test_weekly_schema_and_coverage():
     assert df[df["season"] == 2021]["week"].max() == 18
     assert df[df["season"] == 1999]["week"].max() == 17
     assert (df["source"] == "legacy").all()
+    assert (df["pass_sacks_available"] == 0).all()
     assert df["player_name"].notna().all()
 
 

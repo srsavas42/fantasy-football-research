@@ -22,6 +22,8 @@ ID_COLUMNS = [
 # Stat line
 STAT_COLUMNS = [
     "pass_att",
+    "pass_sacks",
+    "pass_sacks_available",
     "pass_cmp",
     "pass_yds",
     "pass_td",

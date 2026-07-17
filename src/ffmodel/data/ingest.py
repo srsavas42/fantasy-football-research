@@ -85,6 +85,7 @@ _WEEKLY_RENAMES = {
     "player_display_name": "player_name",
     "recent_team": "team",
     "attempts": "pass_att",
+    "sacks_suffered": "pass_sacks",
     "completions": "pass_cmp",
     "passing_yards": "pass_yds",
     "passing_tds": "pass_td",
@@ -133,7 +134,12 @@ def load_weekly(
         return conform(raw)
     if "season_type" in raw.columns:
         raw = raw[raw["season_type"] == "REG"]
+    has_pass_sacks = "sacks_suffered" in raw.columns
     df = _map_weekly_aliases(raw)
+    # Keep an explicit observation flag. The committed legacy files do not
+    # contain sacks, and treating their schema-filled zero as observed would
+    # train an impossible zero-sack offense.
+    df["pass_sacks_available"] = float(has_pass_sacks)
     fumble_columns = [
         column
         for column in (

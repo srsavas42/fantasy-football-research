@@ -97,6 +97,7 @@ _STATIC_TEAMS = {
     "CHI": ("CHI", "Chicago Bears"),
     "CIN": ("CIN", "Cincinnati Bengals"),
     "CLE": ("CLE", "Cleveland Browns"),
+    "CLV": ("CLE", "Cleveland Browns"),
     "DAL": ("DAL", "Dallas Cowboys"),
     "DEN": ("DEN", "Denver Broncos"),
     "DET": ("DET", "Detroit Lions"),
@@ -127,25 +128,25 @@ def team_identity(team_code: str, season: int) -> TeamIdentity:
     if code in _STATIC_TEAMS:
         franchise, name = _STATIC_TEAMS[code]
         return TeamIdentity(code, franchise, name)
-    if code in {"ARI", "PHO"}:
+    if code in {"ARI", "ARZ", "PHO", "CRD"}:
         name = "Phoenix Cardinals" if season <= 1993 else "Arizona Cardinals"
         return TeamIdentity(code, "ARI", name)
     if code == "STL" and season <= 1987:
         return TeamIdentity(code, "ARI", "St. Louis Cardinals")
-    if code in {"BAL"}:
+    if code in {"BAL", "BLT", "RAV"}:
         if season <= 1983:
             return TeamIdentity(code, "IND", "Baltimore Colts")
         return TeamIdentity(code, "BAL", "Baltimore Ravens")
-    if code == "IND":
+    if code in {"IND", "CLT"}:
         return TeamIdentity(code, "IND", "Indianapolis Colts")
     if code in {"BOS", "NWE", "NE"}:
         name = "Boston Patriots" if season <= 1970 else "New England Patriots"
         return TeamIdentity(code, "NE", name)
-    if code == "HOU":
+    if code in {"HOU", "HST", "HTX"}:
         if season <= 1996:
             return TeamIdentity(code, "TEN", "Houston Oilers")
         return TeamIdentity(code, "HOU", "Houston Texans")
-    if code == "TEN":
+    if code in {"TEN", "OTI"}:
         name = "Tennessee Oilers" if season <= 1998 else "Tennessee Titans"
         return TeamIdentity(code, "TEN", name)
     if code in {"SDG", "SD", "LAC"}:
@@ -154,7 +155,7 @@ def team_identity(team_code: str, season: int) -> TeamIdentity:
     if code in {"RAM", "LAR", "LA"}:
         name = "Los Angeles Rams" if season <= 1994 or season >= 2016 else "St. Louis Rams"
         return TeamIdentity(code, "LAR", name)
-    if code == "STL":
+    if code in {"SL", "STL"}:
         return TeamIdentity(code, "LAR", "St. Louis Rams")
     if code in {"OAK", "RAI", "LVR", "LV"}:
         if 1982 <= season <= 1994:

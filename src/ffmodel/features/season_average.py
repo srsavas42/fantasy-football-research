@@ -1,0 +1,877 @@
+"""Preseason features for season-wide per-game volume projections.
+
+The prediction unit is a player-season role, not an individual matchup.  A
+row for season ``Y`` contains roster membership and other information knowable
+before that season, predictors derived from ``Y-1``, and realized ``Y`` counts
+used only as labels during fitting.  This separation lets walk-forward tests
+drop an entire season without changing the feature contract.
+
+The roster in historical backtests is inferred from the player's primary team
+that season.  A live projection should supply the actual preseason roster; the
+model interface deliberately uses the same columns for either source.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Iterable
+
+import numpy as np
+import pandas as pd
+
+from ffmodel.data import load_player_weeks
+from ffmodel.data import ingest, legacy
+from ffmodel.data.wikipedia_coaching import team_identity
+from ffmodel.features import crossseason
+from ffmodel.features.draft import (
+    expected_rookie_claim,
+    expected_rookie_pass_claim,
+    load_draft_capital,
+)
+from ffmodel.features.volume import (
+    MODEL_POSITIONS,
+    normalize_model_positions,
+    opportunity_position,
+)
+
+TEAM_KEYS = ["season", "team"]
+PLAYER_KEYS = ["season", "team", "player_key"]
+ROSTER_STATUSES = frozenset({"ACT", "RES", "INA", "EXE"})
+
+
+@dataclass(frozen=True)
+class SeasonAverageData:
+    """Model-ready team and player season rows."""
+
+    team_rows: pd.DataFrame
+    player_rows: pd.DataFrame
+
+
+def preseason_roster_snapshot(
+    rosters: pd.DataFrame,
+    depth_charts: pd.DataFrame | None = None,
+    *,
+    cutoff_week: int = 1,
+) -> pd.DataFrame:
+    """Build a leakage-safe offensive roster from data available by a week.
+
+    The default uses regular-season week 1, which is the earliest consistently
+    available historical nflverse roster/depth snapshot. Cut, retired, and
+    practice-squad rows are excluded; active, inactive, reserve/PUP, and exempt
+    players remain because they are valid season-long availability outcomes.
+    ``observed_roster_games`` is derived from later weekly rows solely as a
+    training label and is not part of ``PRESEASON_FEATURES``.
+    """
+    required = {"season", "team", "position", "week"}
+    missing = required - set(rosters.columns)
+    if missing:
+        raise ValueError(f"roster rows are missing columns: {sorted(missing)}")
+    all_rosters = rosters.copy()
+    all_rosters = all_rosters.rename(
+        columns={
+            "gsis_id": "player_id",
+            "full_name": "player_name",
+            "status": "roster_status",
+            "years_exp": "experience",
+        }
+    )
+    if "game_type" in all_rosters:
+        all_rosters = all_rosters[
+            all_rosters["game_type"].isna() | all_rosters["game_type"].eq("REG")
+        ]
+    all_rosters["week"] = pd.to_numeric(all_rosters["week"], errors="coerce")
+    status = all_rosters.get(
+        "roster_status", pd.Series("ACT", index=all_rosters.index)
+    )
+    all_rosters["roster_status"] = status.astype(str).str.upper()
+    all_rosters["position"] = opportunity_position(all_rosters["position"])
+    all_rosters = all_rosters[
+        all_rosters["position"].isin(MODEL_POSITIONS)
+    ].copy()
+    all_rosters = _normalize_teams(all_rosters)
+    if "player_id" not in all_rosters:
+        all_rosters["player_id"] = pd.NA
+    if "player_name" not in all_rosters:
+        all_rosters["player_name"] = pd.NA
+    all_rosters["player_key"] = crossseason.player_key(all_rosters)
+    active_games = (
+        all_rosters[all_rosters["roster_status"].eq("ACT")]
+        .groupby(PLAYER_KEYS, dropna=False)["week"]
+        .nunique()
+        .rename("observed_roster_games")
+        .reset_index()
+    )
+
+    out = all_rosters[all_rosters["week"].le(cutoff_week)].copy()
+    out = out[out["roster_status"].isin(ROSTER_STATUSES)].copy()
+    out = (
+        out.sort_values(["season", "team", "player_key", "week"])
+        .drop_duplicates(["season", "team", "player_key"], keep="last")
+        .reset_index(drop=True)
+    )
+    out = out.merge(active_games, on=PLAYER_KEYS, how="left")
+    out["observed_roster_games"] = out["observed_roster_games"].fillna(0.0)
+
+    depth = _preseason_depth_snapshot(depth_charts, cutoff_week=cutoff_week)
+    if not depth.empty:
+        out = out.merge(
+            depth,
+            on=["season", "team", "player_key"],
+            how="left",
+            suffixes=("", "_depth"),
+        )
+    else:
+        out["depth_rank"] = np.nan
+        out["depth_snapshot_week"] = np.nan
+    out["depth_rank"] = pd.to_numeric(out["depth_rank"], errors="coerce")
+    out["qb_depth_rank"] = out["depth_rank"].where(out["position"].eq("QB"))
+    out["qb_listed_starter"] = (
+        out["position"].eq("QB") & out["depth_rank"].eq(1)
+    ).astype(int)
+    out["roster_active"] = out["roster_status"].eq("ACT").astype(int)
+    out["roster_reserve"] = out["roster_status"].isin({"RES", "INA", "EXE"}).astype(int)
+    birth = pd.to_datetime(
+        out.get("birth_date", pd.Series(pd.NaT, index=out.index)), errors="coerce"
+    )
+    reference = pd.to_datetime(out["season"].astype(int).astype(str) + "-09-01")
+    roster_age = (reference - birth).dt.days / 365.25
+    existing_age = pd.to_numeric(
+        out.get("age", pd.Series(np.nan, index=out.index)), errors="coerce"
+    )
+    out["age"] = existing_age.combine_first(roster_age)
+    out["experience"] = pd.to_numeric(
+        out.get("experience", pd.Series(np.nan, index=out.index)), errors="coerce"
+    )
+    out["roster_snapshot_week"] = out["week"].astype(int)
+    out["roster_snapshot_source"] = "nflverse_week1"
+    keep = [
+        "season",
+        "team",
+        "player_key",
+        "player_id",
+        "player_name",
+        "position",
+        "age",
+        "experience",
+        "roster_status",
+        "roster_active",
+        "roster_reserve",
+        "depth_rank",
+        "qb_depth_rank",
+        "qb_listed_starter",
+        "roster_snapshot_week",
+        "depth_snapshot_week",
+        "roster_snapshot_source",
+        "observed_roster_games",
+    ]
+    return out[keep].sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+def load_preseason_roster_snapshot(
+    seasons: Iterable[int], *, cutoff_week: int = 1, cache_dir=None
+) -> pd.DataFrame:
+    """Load nflverse weekly rosters and depth charts at a preseason cutoff."""
+    seasons = sorted(set(map(int, seasons)))
+    rosters = ingest.load_weekly_rosters(seasons, cache_dir=cache_dir)
+    depth = ingest.load_depth_charts(seasons, cache_dir=cache_dir)
+    return preseason_roster_snapshot(rosters, depth, cutoff_week=cutoff_week)
+
+
+def _preseason_depth_snapshot(
+    depth_charts: pd.DataFrame | None, *, cutoff_week: int
+) -> pd.DataFrame:
+    if depth_charts is None or depth_charts.empty:
+        return pd.DataFrame(
+            columns=TEAM_KEYS
+            + ["player_key", "depth_rank", "depth_snapshot_week"]
+        )
+    depth = depth_charts.copy().rename(
+        columns={
+            "club_code": "team",
+            "gsis_id": "player_id",
+            "full_name": "player_name",
+            "depth_team": "depth_rank",
+        }
+    )
+    if "game_type" in depth:
+        depth = depth[depth["game_type"].isna() | depth["game_type"].eq("REG")]
+    if "formation" in depth:
+        depth = depth[depth["formation"].isna() | depth["formation"].eq("Offense")]
+    depth["week"] = pd.to_numeric(depth["week"], errors="coerce")
+    depth = depth[depth["week"].le(cutoff_week)].copy()
+    depth["position"] = opportunity_position(depth["position"])
+    depth = depth[depth["position"].isin(MODEL_POSITIONS)].copy()
+    depth = _normalize_teams(depth)
+    depth["player_key"] = crossseason.player_key(depth)
+    depth["depth_rank"] = pd.to_numeric(depth["depth_rank"], errors="coerce")
+    depth["depth_snapshot_week"] = depth["week"]
+    return (
+        depth.sort_values(["season", "team", "player_key", "week"])
+        .drop_duplicates(["season", "team", "player_key"], keep="last")
+        [TEAM_KEYS + ["player_key", "depth_rank", "depth_snapshot_week"]]
+        .reset_index(drop=True)
+    )
+
+
+def team_season_volume(player_weeks: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate coherent offensive counts and per-game rates by team-season."""
+    pw = normalize_model_positions(player_weeks)
+    pw = _normalize_teams(pw)
+    weekly = (
+        pw.groupby(["season", "week", "team"], dropna=False)
+        .agg(
+            pass_attempts=("pass_att", "sum"),
+            sacks=("pass_sacks", "sum"),
+            sacks_available=("pass_sacks_available", "max"),
+            rush_attempts=("rush_att", "sum"),
+            targets=("targets", "sum"),
+        )
+        .reset_index()
+    )
+    weekly["opportunity_plays"] = (
+        weekly["pass_attempts"] + weekly["rush_attempts"]
+    )
+    weekly["dropbacks"] = weekly["pass_attempts"] + weekly["sacks"]
+    weekly["plays"] = weekly["opportunity_plays"] + weekly["sacks"]
+    # A few legacy games omit a quarterback line. Exclude those games from the
+    # target-rate response while preserving their play/pass information.
+    weekly["target_valid"] = weekly["targets"] <= weekly["pass_attempts"]
+    weekly["valid_target_pass_attempts"] = weekly["pass_attempts"].where(
+        weekly["target_valid"], 0
+    )
+    weekly["valid_targets"] = weekly["targets"].where(
+        weekly["target_valid"], 0
+    )
+
+    rows = (
+        weekly.groupby(TEAM_KEYS, dropna=False)
+        .agg(
+            games=("week", "nunique"),
+            opportunity_plays=("opportunity_plays", "sum"),
+            plays=("plays", "sum"),
+            pass_attempts=("pass_attempts", "sum"),
+            sacks=("sacks", "sum"),
+            sacks_observed=("sacks_available", "min"),
+            dropbacks=("dropbacks", "sum"),
+            rush_attempts=("rush_attempts", "sum"),
+            targets=("targets", "sum"),
+            valid_target_pass_attempts=("valid_target_pass_attempts", "sum"),
+            valid_targets=("valid_targets", "sum"),
+            valid_target_games=("target_valid", "sum"),
+        )
+        .reset_index()
+    )
+    rows["sacks_observed"] = rows["sacks_observed"].astype(bool)
+    # Official plays and dropbacks require sacks. Keep them missing for legacy
+    # sources instead of presenting schema-filled zeros as measured truth.
+    rows.loc[~rows["sacks_observed"], ["plays", "dropbacks"]] = np.nan
+    rows["opportunity_plays_per_game"] = rows["opportunity_plays"] / rows["games"]
+    rows["plays_per_game"] = rows["plays"] / rows["games"]
+    rows["pass_attempts_per_game"] = rows["pass_attempts"] / rows["games"]
+    rows["sacks_per_game"] = rows["sacks"].where(rows["sacks_observed"]) / rows["games"]
+    rows["dropbacks_per_game"] = rows["dropbacks"] / rows["games"]
+    rows["rush_attempts_per_game"] = rows["rush_attempts"] / rows["games"]
+    rows["targets_per_game"] = rows["targets"] / rows["games"]
+    rows["pass_rate"] = _divide(rows["pass_attempts"], rows["opportunity_plays"])
+    rows["sack_rate"] = _divide(rows["sacks"], rows["dropbacks"])
+    rows.loc[~rows["sacks_observed"], "sack_rate"] = np.nan
+    rows["target_rate"] = _divide(
+        rows["valid_targets"], rows["valid_target_pass_attempts"]
+    )
+    rows["no_target_attempts"] = (
+        rows["valid_target_pass_attempts"] - rows["valid_targets"]
+    )
+    return rows.sort_values(TEAM_KEYS).reset_index(drop=True)
+
+
+def team_transition_rows(team_volume: pd.DataFrame) -> pd.DataFrame:
+    """Attach strictly prior-season team rates to each realized team-season."""
+    prior = team_volume[
+        TEAM_KEYS
+        + [
+            "opportunity_plays_per_game",
+            "plays_per_game",
+            "pass_rate",
+            "sack_rate",
+            "target_rate",
+            "pass_attempts_per_game",
+            "sacks_per_game",
+            "dropbacks_per_game",
+            "rush_attempts_per_game",
+            "targets_per_game",
+        ]
+    ].copy()
+    prior["season"] += 1
+    prior = prior.rename(
+        columns={column: f"prior_{column}" for column in prior.columns if column not in TEAM_KEYS}
+    )
+    out = team_volume.merge(prior, on=TEAM_KEYS, how="inner")
+    out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
+    return out.sort_values(TEAM_KEYS).reset_index(drop=True)
+
+
+def player_team_season_usage(player_weeks: pd.DataFrame) -> pd.DataFrame:
+    """Realized labels scoped to the player's preseason team.
+
+    Unlike the cross-season prior builder, this retains one row per player-team
+    so a later trade cannot move full-season labels onto the wrong preseason
+    roster support.
+    """
+    pw = normalize_model_positions(player_weeks)
+    pw = _normalize_teams(pw)
+    pw["player_key"] = crossseason.player_key(pw)
+    pw["is_active"] = (
+        pw["pass_att"] + pw["targets"] + pw["rush_att"] + pw["receptions"] > 0
+    ).astype(int)
+    keys = ["season", "team", "player_key", "player_name", "position"]
+    out = (
+        pw.groupby(keys, dropna=False)
+        .agg(
+            pass_att=("pass_att", "sum"),
+            targets=("targets", "sum"),
+            rush_att=("rush_att", "sum"),
+            games=("is_active", "sum"),
+        )
+        .reset_index()
+    )
+    for count, share in (
+        ("pass_att", "pass_attempt_share"),
+        ("targets", "target_share"),
+        ("rush_att", "carry_share"),
+    ):
+        total = out.groupby(TEAM_KEYS)[count].transform("sum")
+        out[share] = np.divide(
+            out[count], total, out=np.zeros(len(out), dtype=float), where=total > 0
+        )
+
+    late = pw[pw["week"] >= crossseason.LATE_SEASON_START_WEEK]
+    late_counts = (
+        late.groupby(keys, dropna=False)
+        .agg(
+            late_pass_att=("pass_att", "sum"),
+            late_targets=("targets", "sum"),
+            late_rush_att=("rush_att", "sum"),
+        )
+        .reset_index()
+    )
+    for count, share in (
+        ("late_pass_att", "late_pass_attempt_share"),
+        ("late_targets", "late_target_share"),
+        ("late_rush_att", "late_carry_share"),
+    ):
+        total = late_counts.groupby(TEAM_KEYS)[count].transform("sum")
+        late_counts[share] = np.divide(
+            late_counts[count],
+            total,
+            out=np.zeros(len(late_counts), dtype=float),
+            where=total > 0,
+        )
+    keep = keys + [
+        "late_pass_attempt_share",
+        "late_target_share",
+        "late_carry_share",
+    ]
+    out = out.merge(late_counts[keep], on=keys, how="left")
+    out[["late_pass_attempt_share", "late_target_share", "late_carry_share"]] = out[
+        ["late_pass_attempt_share", "late_target_share", "late_carry_share"]
+    ].fillna(0.0)
+    return out.sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+def player_preseason_rows(
+    seasons: Iterable[int],
+    *,
+    source: str = "auto",
+    team_volume: pd.DataFrame | None = None,
+    player_weeks: pd.DataFrame | None = None,
+    roster_snapshot: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Build roster rows with prior-year predictors and current-year labels.
+
+    Current-season target/carry counts, active games, and shares are labels or
+    likelihood exposures. They are never included in ``PRESEASON_FEATURES``.
+    """
+    seasons = sorted(set(int(season) for season in seasons))
+    history = crossseason.season_usage(seasons, source=source).copy()
+    history["position"] = history["position"].astype(str).str.upper()
+    history = history[history["position"].isin(MODEL_POSITIONS)].copy()
+    history = _normalize_teams(history)
+    history["player_key"] = crossseason.player_key(history)
+    if player_weeks is None:
+        player_weeks = load_player_weeks(seasons, source=source)
+    if team_volume is None:
+        team_volume = team_season_volume(player_weeks)
+    team_games = team_volume[TEAM_KEYS + ["games"]].rename(columns={"games": "team_games"})
+    history = history.merge(team_games, on=TEAM_KEYS, how="left")
+    snap_usage = load_season_snap_usage(seasons, source=source)
+    history = _merge_snap_usage(history, snap_usage)
+
+    if roster_snapshot is None:
+        usage = history.copy()
+        usage["roster_status"] = "INFERRED"
+        usage["roster_active"] = 1
+        usage["roster_reserve"] = 0
+        usage["depth_rank"] = np.nan
+        usage["qb_depth_rank"] = np.nan
+        usage["qb_listed_starter"] = 0
+        usage["roster_snapshot_week"] = np.nan
+        usage["depth_snapshot_week"] = np.nan
+        usage["roster_snapshot_source"] = "inferred_postseason"
+        usage["availability_label_source"] = "stat_activity_proxy"
+    else:
+        roster = roster_snapshot.copy()
+        roster = roster[roster["season"].isin(seasons)].copy()
+        roster["position"] = roster["position"].astype(str).str.upper()
+        roster = roster[roster["position"].isin(MODEL_POSITIONS)].copy()
+        labels = player_team_season_usage(player_weeks)
+        label_columns = PLAYER_KEYS + [
+            "pass_att",
+            "targets",
+            "rush_att",
+            "games",
+            "pass_attempt_share",
+            "target_share",
+            "carry_share",
+            "late_pass_attempt_share",
+            "late_target_share",
+            "late_carry_share",
+        ]
+        usage = roster.merge(labels[label_columns], on=PLAYER_KEYS, how="left")
+        outcome_columns = [column for column in label_columns if column not in PLAYER_KEYS]
+        usage[outcome_columns] = usage[outcome_columns].fillna(0.0)
+        demographics = history[
+            ["season", "player_key", "age", "experience"]
+        ].drop_duplicates(["season", "player_key"])
+        usage = usage.merge(
+            demographics,
+            on=["season", "player_key"],
+            how="left",
+            suffixes=("", "_history"),
+        )
+        for column in ("age", "experience"):
+            history_column = f"{column}_history"
+            usage[column] = pd.to_numeric(usage[column], errors="coerce").combine_first(
+                pd.to_numeric(usage[history_column], errors="coerce")
+            )
+            usage = usage.drop(columns=history_column)
+        usage = usage.merge(team_games, on=TEAM_KEYS, how="left")
+        if "observed_roster_games" in usage:
+            usage["stat_activity_games"] = usage["games"]
+            usage["games"] = np.minimum(
+                pd.to_numeric(usage["observed_roster_games"], errors="coerce").fillna(0),
+                pd.to_numeric(usage["team_games"], errors="coerce").fillna(0),
+            )
+            usage["availability_label_source"] = "weekly_roster_active"
+            roster_games = roster[
+                PLAYER_KEYS + ["observed_roster_games"]
+            ].drop_duplicates(PLAYER_KEYS)
+            history = history.merge(
+                roster_games,
+                on=PLAYER_KEYS,
+                how="left",
+                suffixes=("", "_roster"),
+            )
+            observed = pd.to_numeric(
+                history["observed_roster_games"], errors="coerce"
+            )
+            history["games"] = np.where(
+                observed.notna(),
+                np.minimum(observed.fillna(0), history["team_games"]),
+                history["games"],
+            )
+        else:
+            usage["availability_label_source"] = "stat_activity_proxy"
+
+        usage = _merge_snap_usage(usage, snap_usage)
+
+    usage = _merge_draft_capital(usage, seasons, source)
+
+    prior_columns = [
+        "player_key",
+        "season",
+        "team",
+        "pass_attempt_share",
+        "target_share",
+        "carry_share",
+        "late_pass_attempt_share",
+        "late_target_share",
+        "late_carry_share",
+        "games",
+        "team_games",
+        "snap_share",
+        "qb_snap_share",
+    ]
+    prior = history[prior_columns].copy()
+    prior["season"] += 1
+    prior = prior.rename(
+        columns={
+            "team": "prior_team",
+            "pass_attempt_share": "prior_pass_attempt_share",
+            "target_share": "prior_target_share",
+            "carry_share": "prior_carry_share",
+            "late_pass_attempt_share": "prior_late_pass_attempt_share",
+            "late_target_share": "prior_late_target_share",
+            "late_carry_share": "prior_late_carry_share",
+            "games": "prior_games",
+            "team_games": "prior_team_games",
+            "snap_share": "prior_snap_share",
+            "qb_snap_share": "prior_qb_snap_share",
+        }
+    )
+
+    out = usage.merge(prior, on=["player_key", "season"], how="left")
+    out = out[out["season"] > min(seasons)].copy()
+    out["cold_start"] = out["prior_team"].isna().astype(int)
+    out["team_change"] = (
+        out["prior_team"].notna() & (out["prior_team"] != out["team"])
+    ).astype(int)
+    out["prior_availability"] = _divide(out["prior_games"], out["prior_team_games"])
+    out["observed_availability"] = _divide(out["games"], out["team_games"])
+
+    # Blend the stable full-season role with the more responsive late-season
+    # role. Missing values remain missing so the model can apply its learned
+    # position/draft cold-start prior.
+    out["prior_target_role"] = (
+        0.65 * out["prior_target_share"] + 0.35 * out["prior_late_target_share"]
+    )
+    out["prior_carry_role"] = (
+        0.65 * out["prior_carry_share"] + 0.35 * out["prior_late_carry_share"]
+    )
+    out["prior_pass_role"] = (
+        0.65 * out["prior_pass_attempt_share"]
+        + 0.35 * out["prior_late_pass_attempt_share"]
+    )
+    qb_snap_total = out["offense_snaps"].where(out["position"].eq("QB"), 0.0).groupby(
+        [out[key] for key in TEAM_KEYS]
+    ).transform("sum")
+    out["observed_qb_workload_share"] = np.where(
+        out["position"].eq("QB"),
+        np.divide(
+            out["offense_snaps"],
+            qb_snap_total,
+            out=np.zeros(len(out), dtype=float),
+            where=qb_snap_total.to_numpy(dtype=float) > 0,
+        ),
+        0.0,
+    )
+    out = _mark_primary_qb(out)
+
+    rookie_claims = out.apply(
+        lambda row: expected_rookie_claim(row.get("overall_pick"), row["position"]),
+        axis=1,
+        result_type="expand",
+    )
+    out["draft_target_prior"] = rookie_claims[0].to_numpy(dtype=float)
+    out["draft_carry_prior"] = rookie_claims[1].to_numpy(dtype=float)
+    out["draft_pass_prior"] = out.apply(
+        lambda row: expected_rookie_pass_claim(
+            row.get("overall_pick"), row["position"]
+        ),
+        axis=1,
+    ).to_numpy(dtype=float)
+    out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
+    return out.sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+def build_season_average_data(
+    seasons: Iterable[int],
+    source: str = "auto",
+    *,
+    roster_mode: str = "auto",
+    roster_cutoff_week: int = 1,
+    roster_snapshot: pd.DataFrame | None = None,
+    roster_cache_dir=None,
+) -> SeasonAverageData:
+    """Build the complete season-average modeling dataset."""
+    seasons = sorted(set(int(season) for season in seasons))
+    if roster_mode not in {"auto", "point_in_time", "inferred"}:
+        raise ValueError("roster_mode must be 'auto', 'point_in_time', or 'inferred'")
+    player_weeks = load_player_weeks(seasons, source=source)
+    teams = team_season_volume(player_weeks)
+    if roster_snapshot is None and roster_mode != "inferred":
+        should_try = roster_mode == "point_in_time" or source != "legacy"
+        if should_try:
+            try:
+                roster_snapshot = load_preseason_roster_snapshot(
+                    seasons,
+                    cutoff_week=roster_cutoff_week,
+                    cache_dir=roster_cache_dir,
+                )
+            except (ingest.DataUnavailableError, OSError):
+                if roster_mode == "point_in_time":
+                    raise
+    return SeasonAverageData(
+        team_rows=team_transition_rows(teams),
+        player_rows=player_preseason_rows(
+            seasons,
+            source=source,
+            team_volume=teams,
+            player_weeks=player_weeks,
+            roster_snapshot=roster_snapshot,
+        ),
+    )
+
+
+def _mark_primary_qb(rows: pd.DataFrame) -> pd.DataFrame:
+    """Label one realized primary passer per team-season for starter fitting."""
+    out = rows.copy()
+    out["primary_qb"] = 0
+    quarterbacks = out[out["position"].eq("QB")].copy()
+    if quarterbacks.empty:
+        return out
+    quarterbacks["_pass"] = pd.to_numeric(
+        quarterbacks.get("pass_att"), errors="coerce"
+    ).fillna(0.0)
+    quarterbacks["_listed"] = pd.to_numeric(
+        quarterbacks.get("qb_listed_starter"), errors="coerce"
+    ).fillna(0.0)
+    quarterbacks["_depth"] = -pd.to_numeric(
+        quarterbacks.get("qb_depth_rank"), errors="coerce"
+    ).fillna(99.0)
+    selected = (
+        quarterbacks.sort_values(
+            TEAM_KEYS + ["_pass", "_listed", "_depth", "player_key"]
+        )
+        .groupby(TEAM_KEYS, dropna=False)
+        .tail(1)
+        .index
+    )
+    out.loc[selected, "primary_qb"] = 1
+    return out
+
+
+def load_season_snap_usage(
+    seasons: Iterable[int], source: str = "auto"
+) -> pd.DataFrame:
+    """Season offensive-snap labels keyed to the canonical player identity.
+
+    nflverse snap counts use PFR ids, while weekly stats and depth charts use
+    GSIS ids. The nflverse player table bridges those identifiers. Outcomes in
+    this table are labels only; the feature contract exposes only their lagged
+    versions to a projected season.
+    """
+    seasons = sorted(set(map(int, seasons)))
+    if source != "legacy":
+        try:
+            snaps = ingest.load_snap_counts(seasons)
+            players = ingest.load_ids()
+            return _nflverse_season_snap_usage(snaps, players)
+        except (ingest.DataUnavailableError, OSError):
+            if source == "nflverse":
+                raise
+    try:
+        snaps = legacy.load_snapcounts(seasons)
+    except Exception:
+        snaps = pd.DataFrame()
+    return _legacy_season_snap_usage(snaps)
+
+
+def _nflverse_season_snap_usage(
+    snaps: pd.DataFrame, players: pd.DataFrame
+) -> pd.DataFrame:
+    columns = PLAYER_KEYS + [
+        "offense_snaps",
+        "snap_share",
+        "qb_snap_share",
+        "snap_counts_observed",
+    ]
+    if snaps.empty:
+        return pd.DataFrame(columns=columns)
+    out = snaps.copy().rename(columns={"player": "player_name"})
+    if "game_type" in out:
+        out = out[out["game_type"].eq("REG")].copy()
+    out["offense_snaps"] = pd.to_numeric(
+        out.get("offense_snaps"), errors="coerce"
+    ).fillna(0.0)
+    out["offense_pct"] = pd.to_numeric(
+        out.get("offense_pct"), errors="coerce"
+    )
+    # Estimate each team's offensive plays from the published count/percentage
+    # pairs. Percentages are rounded, so the within-game median is more stable
+    # than any one player's ratio; max snaps is a safe fallback.
+    valid_pct = out["offense_pct"].gt(0)
+    out["_team_game_snaps"] = np.where(
+        valid_pct,
+        out["offense_snaps"] / out["offense_pct"],
+        np.nan,
+    )
+    game_keys = ["season", "week", "team"]
+    game_totals = (
+        out.groupby(game_keys, dropna=False)
+        .agg(
+            team_game_snaps=("_team_game_snaps", "median"),
+            max_player_snaps=("offense_snaps", "max"),
+        )
+        .reset_index()
+    )
+    game_totals["team_game_snaps"] = game_totals["team_game_snaps"].fillna(
+        game_totals["max_player_snaps"]
+    )
+    out = out.merge(game_totals[game_keys + ["team_game_snaps"]], on=game_keys)
+    out["position"] = opportunity_position(out["position"])
+    out = out[out["position"].isin(MODEL_POSITIONS)].copy()
+    out = _normalize_teams(out)
+
+    bridge = players[["pfr_id", "gsis_id"]].dropna().drop_duplicates("pfr_id")
+    out = out.merge(
+        bridge,
+        left_on="pfr_player_id",
+        right_on="pfr_id",
+        how="left",
+    )
+    out["player_id"] = out["gsis_id"]
+    out["player_key"] = crossseason.player_key(out)
+    player = (
+        out.groupby(PLAYER_KEYS, dropna=False)
+        .agg(offense_snaps=("offense_snaps", "sum"))
+        .reset_index()
+    )
+    team_snaps = (
+        out[game_keys + ["team_game_snaps"]]
+        .drop_duplicates(game_keys)
+        .groupby(TEAM_KEYS, dropna=False)["team_game_snaps"]
+        .sum()
+        .rename("team_offense_snaps")
+        .reset_index()
+    )
+    player = player.merge(team_snaps, on=TEAM_KEYS, how="left")
+    player["snap_share"] = _divide(
+        player["offense_snaps"], player["team_offense_snaps"]
+    )
+    qb_total = player["offense_snaps"].where(
+        player["player_key"].isin(
+            out.loc[out["position"].eq("QB"), "player_key"].unique()
+        ),
+        0.0,
+    ).groupby([player[key] for key in TEAM_KEYS]).transform("sum")
+    is_qb = player["player_key"].isin(
+        out.loc[out["position"].eq("QB"), "player_key"].unique()
+    )
+    player["qb_snap_share"] = np.where(
+        is_qb,
+        np.divide(
+            player["offense_snaps"],
+            qb_total,
+            out=np.zeros(len(player), dtype=float),
+            where=qb_total.to_numpy(dtype=float) > 0,
+        ),
+        0.0,
+    )
+    player["snap_counts_observed"] = 1
+    return player[columns].sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+def _legacy_season_snap_usage(snaps: pd.DataFrame) -> pd.DataFrame:
+    columns = PLAYER_KEYS + [
+        "offense_snaps",
+        "snap_share",
+        "qb_snap_share",
+        "snap_counts_observed",
+    ]
+    if snaps.empty:
+        return pd.DataFrame(columns=columns)
+    out = snaps.copy()
+    out["position"] = opportunity_position(out["position"])
+    out = out[out["position"].isin(MODEL_POSITIONS)].copy()
+    out = _normalize_teams(out)
+    out["player_key"] = crossseason.player_key(out)
+    out["offense_snaps"] = pd.to_numeric(
+        out.get("snaps"), errors="coerce"
+    ).fillna(0.0)
+    values = out.get("snap_pct", pd.Series(np.nan, index=out.index)).astype(str).str.rstrip("%")
+    out["snap_share"] = pd.to_numeric(values, errors="coerce")
+    if out["snap_share"].dropna().gt(1.0).any():
+        out["snap_share"] /= 100.0
+    qb_total = out["offense_snaps"].where(out["position"].eq("QB"), 0.0).groupby(
+        [out[key] for key in TEAM_KEYS]
+    ).transform("sum")
+    out["qb_snap_share"] = np.where(
+        out["position"].eq("QB"),
+        np.divide(
+            out["offense_snaps"],
+            qb_total,
+            out=np.zeros(len(out), dtype=float),
+            where=qb_total.to_numpy(dtype=float) > 0,
+        ),
+        0.0,
+    )
+    out["snap_counts_observed"] = 1
+    return out[columns].drop_duplicates(PLAYER_KEYS).reset_index(drop=True)
+
+
+def _merge_snap_usage(rows: pd.DataFrame, snaps: pd.DataFrame) -> pd.DataFrame:
+    out = rows.copy()
+    labels = ["offense_snaps", "snap_share", "qb_snap_share", "snap_counts_observed"]
+    out = out.drop(columns=[column for column in labels if column in out], errors="ignore")
+    if snaps.empty:
+        for column in labels:
+            out[column] = np.nan
+        return out
+    out = out.merge(snaps[PLAYER_KEYS + labels], on=PLAYER_KEYS, how="left")
+    observed_teams = snaps[TEAM_KEYS].drop_duplicates().assign(_snaps_available=1)
+    out = out.merge(observed_teams, on=TEAM_KEYS, how="left")
+    available = out["_snaps_available"].eq(1)
+    for column in ("offense_snaps", "snap_share", "qb_snap_share"):
+        out.loc[available, column] = out.loc[available, column].fillna(0.0)
+    out["snap_counts_observed"] = available.astype(int)
+    return out.drop(columns="_snaps_available")
+
+
+def _merge_draft_capital(
+    usage: pd.DataFrame, seasons: list[int], source: str
+) -> pd.DataFrame:
+    try:
+        draft = load_draft_capital(seasons, source=source)
+    except Exception:
+        draft = pd.DataFrame()
+    if draft.empty:
+        usage["overall_pick"] = np.nan
+        return usage
+    draft = _normalize_teams(draft)
+    keep = draft[["player_name", "position", "season", "overall_pick"]].drop_duplicates(
+        ["player_name", "position", "season"]
+    )
+    return usage.merge(keep, on=["player_name", "position", "season"], how="left")
+
+
+def _divide(numerator, denominator) -> np.ndarray:
+    numerator = pd.to_numeric(numerator, errors="coerce").to_numpy(dtype=float)
+    denominator = pd.to_numeric(denominator, errors="coerce").to_numpy(dtype=float)
+    return np.divide(
+        numerator,
+        denominator,
+        out=np.full(len(numerator), np.nan, dtype=float),
+        where=np.isfinite(denominator) & (denominator > 0),
+    )
+
+
+def _normalize_teams(frame: pd.DataFrame) -> pd.DataFrame:
+    """Map era/provider abbreviations onto stable franchise codes."""
+    out = frame.copy()
+    out["team"] = [
+        team_identity(team, int(season)).franchise_code
+        for team, season in zip(out["team"], out["season"])
+    ]
+    return out
+
+
+PRESEASON_FEATURES = (
+    "prior_pass_role",
+    "prior_target_role",
+    "prior_carry_role",
+    "prior_availability",
+    "prior_snap_share",
+    "prior_qb_snap_share",
+    "age",
+    "experience",
+    "team_change",
+    "cold_start",
+    "roster_active",
+    "roster_reserve",
+    "depth_rank",
+    "qb_depth_rank",
+    "qb_listed_starter",
+    "draft_target_prior",
+    "draft_carry_prior",
+    "draft_pass_prior",
+)

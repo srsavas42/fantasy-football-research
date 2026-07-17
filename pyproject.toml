@@ -24,6 +24,9 @@ models = [
     "pymc>=5.10",
     "arviz>=0.17,<1",
 ]
+ml = [
+    "xgboost>=2,<4",
+]
 dev = [
     "pytest>=7.4",
 ]

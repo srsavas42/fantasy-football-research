@@ -121,3 +121,18 @@ def expected_rookie_claim(overall_pick, position: str) -> tuple[float, float]:
     claim = base * math.exp(-(pick - 1) / _CLAIM_SCALE)
     carry_frac = _CARRY_FRACTION.get(position, 0.0)
     return claim * (1 - carry_frac), claim * carry_frac
+
+
+def expected_rookie_pass_claim(overall_pick, position: str) -> float:
+    """Prior share of team attempts for a rookie passer.
+
+    Only quarterbacks receive a material cold-start passing prior. The roster
+    allocator still retains every modeled offensive position so genuine trick
+    attempts remain representable.
+    """
+    import math
+
+    if position != "QB":
+        return 0.0
+    pick = 220 if overall_pick is None or pd.isna(overall_pick) else float(overall_pick)
+    return 0.78 * math.exp(-(pick - 1) / _CLAIM_SCALE)

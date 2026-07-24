@@ -9,7 +9,12 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.features.volume import MODEL_POSITIONS
-from ffmodel.models.volume_season_average import ADJUSTMENT_FEATURES, GROUP_KEYS, STREAMS
+from ffmodel.models.volume_season_average import (
+    BASE_ADJUSTMENT_FEATURES,
+    GROUP_KEYS,
+    STREAMS,
+    volume_adjustment_features,
+)
 
 
 def xgboost_available() -> bool:
@@ -47,6 +52,8 @@ class RidgeRosterBaseline:
 
     stream: str = "target"
     alpha: float = 10.0
+    include_experimental_efficiency: bool = False
+    extra_volume_features: tuple[str, ...] | None = None
     feature_names: list[str] = field(default_factory=list)
     fill: dict[str, float] = field(default_factory=dict)
     mean: dict[str, float] = field(default_factory=dict)
@@ -55,7 +62,15 @@ class RidgeRosterBaseline:
 
     def fit(self, rows: pd.DataFrame) -> "RidgeRosterBaseline":
         d = rows.copy().reset_index(drop=True)
-        self.feature_names = [name for name in ADJUSTMENT_FEATURES if name in d]
+        candidates = (
+            BASE_ADJUSTMENT_FEATURES + self.extra_volume_features
+            if self.extra_volume_features is not None
+            else volume_adjustment_features(
+                self.stream,
+                include_experimental=self.include_experimental_efficiency,
+            )
+        )
+        self.feature_names = [name for name in candidates if name in d]
         X = self._matrix(d, fit=True)
         role = _role_prior(d, self.stream)
         observed = _availability_adjusted_share(d, self.stream)
@@ -103,6 +118,8 @@ class XGBoostRosterBaseline:
 
     stream: str = "target"
     params: dict[str, object] = field(default_factory=dict)
+    include_experimental_efficiency: bool = False
+    extra_volume_features: tuple[str, ...] | None = None
     _ridge_encoder: RidgeRosterBaseline = field(init=False)
     model: object = None
 
@@ -113,10 +130,20 @@ class XGBoostRosterBaseline:
             )
         from xgboost import XGBRegressor
 
-        self._ridge_encoder = RidgeRosterBaseline(self.stream)
-        self._ridge_encoder.feature_names = [
-            name for name in ADJUSTMENT_FEATURES if name in rows
-        ]
+        self._ridge_encoder = RidgeRosterBaseline(
+            self.stream,
+            include_experimental_efficiency=self.include_experimental_efficiency,
+            extra_volume_features=self.extra_volume_features,
+        )
+        candidates = (
+            BASE_ADJUSTMENT_FEATURES + self.extra_volume_features
+            if self.extra_volume_features is not None
+            else volume_adjustment_features(
+                self.stream,
+                include_experimental=self.include_experimental_efficiency,
+            )
+        )
+        self._ridge_encoder.feature_names = [name for name in candidates if name in rows]
         X = self._ridge_encoder._matrix(rows.reset_index(drop=True), fit=True)
         role = _role_prior(rows, self.stream)
         observed = _availability_adjusted_share(rows, self.stream)

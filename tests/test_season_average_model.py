@@ -16,6 +16,8 @@ from ffmodel.models.season_availability import (
     QBWorkloadShareModel,
     SeasonAvailabilityModel,
 )
+from ffmodel.models.season_regime import SeasonRegimeModel
+from ffmodel.models.season_regime_coupling import SeasonRegimeRoleCoupling
 from ffmodel.models.volume_season_average import (
     RosterSharePrediction,
     SeasonAverageVolumePipeline,
@@ -94,6 +96,8 @@ def test_roster_share_draws_sum_to_one(stream):
 
     for _, group in prediction.rows.groupby(["season", "team"]):
         assert np.allclose(prediction.shares[group.index].sum(axis=0), 1.0)
+    if stream == "target":
+        assert np.all(prediction.shares[prediction.rows["position"].eq("QB")] == 0.0)
     assert set(prediction.rows["position"]) == {"QB", "RB", "WR", "TE"}
 
 
@@ -107,6 +111,41 @@ def test_point_baselines_are_roster_coherent():
         idx = group.index.to_numpy(dtype=int)
         assert np.isclose(persistence[idx].sum(), 1.0)
         assert np.isclose(predicted[idx].sum(), 1.0)
+
+
+def test_volume_efficiency_features_are_stream_specific_and_acceptance_gated():
+    rows = _player_rows().assign(
+        prior_pass_yards_per_attempt=7.1,
+        prior_pass_epa_per_attempt=0.08,
+        prior_pass_completion_rate=0.64,
+        prior_pass_td_rate=0.045,
+        prior_pass_quality_signal=0.15,
+        prior_rec_yards_per_target=7.8,
+        prior_rec_epa_per_target=0.12,
+        prior_rec_air_yards_per_target=8.5,
+        prior_rush_yards_per_carry=4.3,
+        prior_rush_epa_per_carry=0.02,
+        prior_rush_first_down_rate=0.22,
+    )
+
+    passer = RidgeRosterBaseline("pass").fit(rows)
+    accepted_target = RidgeRosterBaseline("target").fit(rows)
+    challenger_target = RidgeRosterBaseline(
+        "target", include_experimental_efficiency=True
+    ).fit(rows)
+    carrier = RidgeRosterBaseline("carry").fit(rows)
+    production_carry = SeasonRosterShareModel("carry")
+    production_carry._design(rows, fit=True, use_observed_availability=True)
+    production_target = SeasonRosterShareModel("target")
+    production_target._design(rows, fit=True, use_observed_availability=True)
+
+    assert "prior_pass_quality_signal" in passer.feature_names
+    assert "prior_pass_td_rate" in passer.feature_names
+    assert "prior_rush_epa_per_carry" in carrier.feature_names
+    assert "prior_rush_epa_per_carry" not in production_carry.feature_names
+    assert "prior_rec_yards_per_target" not in production_target.feature_names
+    assert "prior_rec_yards_per_target" not in accepted_target.feature_names
+    assert "prior_rec_yards_per_target" in challenger_target.feature_names
 
 
 def test_integer_season_allocation_conserves_team_totals():
@@ -206,7 +245,11 @@ def test_pipeline_save_load_preserves_prediction_metadata(tmp_path):
     carry = SeasonRosterShareModel("carry")
     carry._design(_player_rows(), fit=True, use_observed_availability=True)
     carry.idata = az.from_dict(posterior={"x": np.zeros((1, 2))})
-    availability = SeasonAvailabilityModel()
+    availability = SeasonAvailabilityModel(
+        extra_features=("prior_availability_3yr",),
+        position_specific_concentration=True,
+    )
+    availability._matrix(availability._prepare(_player_rows()), fit=True)
     availability.idata = az.from_dict(posterior={"x": np.zeros((1, 2))})
     workload = QBWorkloadShareModel()
     workload._design(_player_rows(), fit=True)
@@ -217,12 +260,23 @@ def test_pipeline_save_load_preserves_prediction_metadata(tmp_path):
         carry_model=carry,
         availability_model=availability,
         workload_model=workload,
+        role_regime_coupling=True,
+    )
+    pipeline.regime_model = SeasonRegimeModel(steps=100).fit(_player_rows())
+    pipeline.regime_coupler = SeasonRegimeRoleCoupling().fit(
+        _player_rows(), thresholds=pipeline.regime_model.thresholds
     )
 
     restored = SeasonAverageVolumePipeline.load(pipeline.save(tmp_path / "average"))
 
     assert restored.team_model.teams == team.teams
     assert restored.availability_model.positions == availability.positions
+    assert restored.availability_model.extra_features == availability.extra_features
+    assert restored.availability_model.position_specific_concentration is True
+    assert np.allclose(
+        restored.availability_model.feature_projection,
+        availability.feature_projection,
+    )
     assert restored.workload_model.feature_names == workload.feature_names
     assert np.isclose(
         restored.workload_model.role_innovation_scale,
@@ -231,6 +285,16 @@ def test_pipeline_save_load_preserves_prediction_metadata(tmp_path):
     assert restored.target_model.feature_names == target.feature_names
     assert restored.carry_model.cold_role_prior == carry.cold_role_prior
     assert restored.target_model.availability_prior == target.availability_prior
+    assert np.isclose(restored.target_model.per_snap_weight, 0.75)
+    assert np.isclose(restored.target_model.innovation_cap, 0.50)
+    assert np.isclose(restored.carry_model.innovation_cap, 0.50)
+    assert restored.role_regime_coupling is True
+    assert restored.regime_model is not None
+    assert restored.regime_coupler is not None
+    assert np.allclose(
+        restored.regime_model.predict_proba(_player_rows()),
+        pipeline.regime_model.predict_proba(_player_rows()),
+    )
 
 
 def _team_rows():

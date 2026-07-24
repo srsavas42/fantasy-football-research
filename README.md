@@ -21,7 +21,7 @@ Sampling all layers over posterior draws yields the full outcome distribution; s
 Key modeling choices:
 
 - **Empirical roles over listed depth charts.** Role tiers come from EWMA trailing snap share (route participation where available); listed depth charts + ADP/ECR are only a cold-start fallback for week 1, rookies, and team changes.
-- **Efficiency feeds volume.** Trailing per-opportunity efficiency (yds/route-run, yds/touch) enters the share model — coaches route opportunity to efficient players.
+- **Efficiency enters volume only when it validates in the production architecture.** Broad passing, receiving, and carry-share bundles remain gated off. Volume v3 admits one narrow exception: lagged rushing EPA per carry improves the any-carry eligibility hurdle across all three posterior holdouts.
 - **Partial pooling everywhere.** Small-sample players shrink toward position-level priors.
 - **Calibration is the acceptance gate.** Walk-forward backtests score CRPS/log-score against prior-season-PPG and ECR baselines, with PIT/coverage checks that intervals are honest.
 
@@ -45,8 +45,11 @@ src/ffmodel/
     volume_share.py ragged active-roster Dirichlet-Multinomial target/carry allocation
     volume_season.py cross-season hierarchical Beta share projection
     volume_season_average.py coherent team-season rates + QB/RB/WR/TE roster allocation
+    efficiency_season_average.py exposure-aware posterior season efficiency
+    season_scoring.py volume + efficiency end-to-end season scoring pipeline
   simulation/
     scoring.py      stat line → fantasy points (reproduces the CSV point columns exactly)
+    season_scoring.py coherent posterior season stat lines and fantasy points
 ```
 
 ### Quickstart
@@ -116,9 +119,13 @@ prediction = pipeline.predict_samples(test)
 
 Team opportunity plays, pass attempts, sacks, targets, and rushes use
 prior-season rates with hierarchical team and new-season innovations. Player
-QB offensive-snap workload, target, and carry roles use constrained roster
-Multinomials. QB workload is continuous and sums to one across a team's QBs;
-non-QBs receive zero pass attempts. Every integer posterior draw enforces:
+volume is a bottom-up playing-time stack: a hurdle model projects whether and
+how long a player is active; an all-position model projects offensive-snap
+share conditional on activity; target and carry allocators combine those snap
+draws with lagged per-snap propensity. Carries also use a draw-level any-carry
+hurdle. QB pass shares combine the continuous within-team QB snap workload with
+pass attempts per offensive snap. Non-QBs receive zero pass attempts. Every
+integer posterior draw enforces:
 
 ```text
 opportunity plays = pass attempts + player carries
@@ -127,14 +134,27 @@ pass attempts     = player targets + no-target attempts
 ```
 
 Player pass attempts, targets, and carries each sum to their simulated team
-total. Prior and late-season shares anchor returning players; draft and
-position priors cover cold starts. A Beta-Binomial layer predicts each player's
-games active, while a roster-softmax QB layer predicts continuous offensive-snap
-shares from prior workload, depth chart, and availability. The depth-chart QB1
-designation remains a preseason feature rather than a binary outcome. Those
-posterior draws feed the constrained player allocators, so injuries, benchings,
-and split QB seasons flow into pass attempts, targets, and carries. The final
-season counts are reported as both per-team-game and per-active-game averages.
+total. Prior and late-season roles anchor returning players; draft and position
+priors cover cold starts. The depth-chart QB1 designation remains a preseason
+feature rather than a binary outcome. A synthetic replacement bucket for each
+QB/RB/WR/TE room captures volume earned by players absent from the point-in-time
+roster, preventing later injury replacements from being credited to known Week
+1 players. The final season counts are reported as both per-team-game and
+per-active-game averages.
+
+The availability layer also has a leakage-safe injury candidate: historical
+injury occurrence and completed roster-return episodes form prior burden and
+expected-recovery features, while live projections can use an archived Sleeper
+snapshot. It is currently opt-in pending a longer posterior validation; see
+[injury availability](docs/injury-availability.md).
+
+Efficiency candidates use a directed, leakage-safe dependency: realized
+efficiency through season `Y-1` may enter volume `Y` only after clearing the
+production-architecture gate. Only rushing EPA in the carry-eligibility hurdle
+currently does. The posterior volume `Y`
+distribution and efficiency history through `Y-1` can then become inputs to
+efficiency `Y`. Same-season realized efficiency never feeds its own volume
+projection, and all model-generated training features must be out-of-fold.
 
 Historical point-in-time support uses nflverse regular-season week 1 rosters
 and offensive depth charts. This excludes players already cut and preserves
@@ -148,6 +168,38 @@ conservative league prior rather than a false observed zero.
 `scripts/validate_season_average.py` holds out a complete season and compares
 the Bayesian distributions with persistence, regularized linear, and optional
 XGBoost roster-softmax challengers. Install `.[ml]` only when running XGBoost.
+
+### Posterior efficiency and total-season scoring
+
+Ten exposure-aware efficiency marginals cover passing, receiving, rushing,
+touchdown, interception, completion/catch, and fumble-lost outcomes. The
+validated mean policy retains the accepted point forecast for nine responses;
+only receiving yards per target earned a richer posterior-regression mean.
+See [docs/efficiency-v2-validation.md](docs/efficiency-v2-validation.md) for
+the 2022-2024 walk-forward result and calibration diagnostics.
+
+```python
+from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
+
+pipeline = SeasonAverageScoringPipeline().fit(train)
+scoring = pipeline.predict_samples(test)
+standard = scoring.fantasy_points["standard"]
+half_ppr = scoring.fantasy_points["half_ppr"]
+ppr = scoring.fantasy_points["ppr"]
+```
+
+The simulator enforces count constraints such as completions plus
+interceptions not exceeding pass attempts, receptions not exceeding targets,
+and touchdowns not exceeding the corresponding realized opportunities. The
+first combined total-scoring candidate is implemented but not promoted: its
+small MAE improvement did not produce stable CRPS gains and 95% coverage
+remained below the promotion floor. See
+[docs/season-scoring-v1-validation.md](docs/season-scoring-v1-validation.md).
+
+The next architecture challenger is documented in
+[docs/latent-regime-ablation.md](docs/latent-regime-ablation.md): one
+leakage-safe player-season state is sampled jointly into role/volume and
+efficiency, with role-only and efficiency-only ablations first.
 
 ### Data acquisition
 
@@ -211,11 +263,11 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 0 | Package scaffolding, config, scoring, tests | ✅ |
 | 1 | Hybrid data layer (nflverse + legacy CSVs, parquet cache) | ✅ |
 | 2 | Features: usage shares, empirical role tiers, trailing efficiency, game script, active-set/injury logic | ✅ |
-| 3A | **Season-average volume** (coherent team rates + roster shares) and legacy breakout report | core model complete |
+| 3A | **Season-average volume** (coherent team rates + availability, snaps, per-snap roles, replacement demand) | volume v3 validated and promoted; final all-data fit pending |
 | 3B | Within-season **volume models** (team plays/pass rate + Dirichlet-Multinomial share) | core models complete |
-| 4 | Efficiency models (yds/touch, TD, catch rate) | |
-| 5 | Simulation engine: posterior predictive → weekly & season point distributions | |
-| 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | |
+| 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
+| 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; promotion gate not yet cleared |
+| 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active |
 | 7 | Weekly pillar: start/sit lineup optimization | |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |

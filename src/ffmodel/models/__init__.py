@@ -13,6 +13,13 @@ from ffmodel.models.season_availability import (
     QBWorkloadShareModel,
     SeasonAvailabilityModel,
 )
+from ffmodel.models.season_opportunity import SeasonTargetRoleModel
+from ffmodel.models.efficiency_season_average import (
+    SeasonAveragePosteriorEfficiencyPipeline,
+    SeasonAverageEfficiencyPipeline,
+)
+from ffmodel.models.season_regime import SeasonRegimeModel
+from ffmodel.models.season_regime_coupling import SeasonRegimeRoleCoupling
 
 __all__ = [
     "OpportunityShareModel",
@@ -25,4 +32,9 @@ __all__ = [
     "TeamSeasonAverageModel",
     "QBWorkloadShareModel",
     "SeasonAvailabilityModel",
+    "SeasonTargetRoleModel",
+    "SeasonAverageEfficiencyPipeline",
+    "SeasonAveragePosteriorEfficiencyPipeline",
+    "SeasonRegimeModel",
+    "SeasonRegimeRoleCoupling",
 ]

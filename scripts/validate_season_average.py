@@ -15,7 +15,10 @@ Example:
 from __future__ import annotations
 
 import argparse
+import json
+import os
 from pathlib import Path
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -53,6 +56,8 @@ def _distribution_metrics(label, observed, samples):
 
 def _workload_metrics(rows, workload_share):
     quarterbacks = rows[rows["position"].eq("QB")].copy()
+    if "is_replacement_player" in quarterbacks:
+        quarterbacks = quarterbacks[quarterbacks["is_replacement_player"].ne(1)].copy()
     quarterbacks["predicted"] = workload_share[quarterbacks.index].mean(axis=1)
     quarterbacks["observed"] = pd.to_numeric(
         quarterbacks["observed_qb_workload_share"], errors="coerce"
@@ -129,7 +134,18 @@ def main(argv=None):
     parser.add_argument("--nuts-sampler", choices=("pymc", "nutpie"), default="pymc")
     parser.add_argument("--skip-bayesian", action="store_true")
     parser.add_argument("--xgboost", action="store_true")
+    parser.add_argument(
+        "--role-regime-coupling",
+        action="store_true",
+        help="evaluate the opt-in shared-regime role-allocation challenger",
+    )
+    parser.add_argument(
+        "--regime-likelihood-features",
+        action="store_true",
+        help="fit the upstream out-of-fold regime-probability likelihood challenger",
+    )
     parser.add_argument("--save-dir", type=Path)
+    parser.add_argument("--report-json", type=Path)
     args = parser.parse_args(argv)
 
     data = build_season_average_data(
@@ -222,10 +238,30 @@ def main(argv=None):
         "chains": args.chains,
         "nuts_sampler": args.nuts_sampler,
     }
-    pipeline = SeasonAverageVolumePipeline().fit(train, **fit_kwargs)
+    if args.nuts_sampler == "nutpie" and "NUMBA_CACHE_DIR" not in os.environ:
+        # Windows can exceed its temporary filename limit when Numba caches
+        # generated functions beside a deeply nested virtual environment.
+        cache = Path(tempfile.gettempdir()) / "ffmodel-numba"
+        cache.mkdir(parents=True, exist_ok=True)
+        os.environ["NUMBA_CACHE_DIR"] = str(cache)
+    pipeline = SeasonAverageVolumePipeline(
+        role_regime_coupling=args.role_regime_coupling,
+        regime_likelihood_features=args.regime_likelihood_features,
+    ).fit(train, **fit_kwargs)
     if args.save_dir:
         print(f"saved posterior pipeline to {pipeline.save(args.save_dir)}")
     prediction = pipeline.predict_samples(test, seed=42)
+    if args.role_regime_coupling:
+        if prediction.regime_probability is None or prediction.regime_samples is None:
+            raise AssertionError("role-regime candidate did not return shared regime draws")
+        print(
+            "role-regime coupling: enabled; row alignment and draw-level "
+            "team-count conservation assertions passed"
+        )
+    elif args.regime_likelihood_features:
+        if prediction.regime_probability is None:
+            raise AssertionError("regime-likelihood candidate did not return probabilities")
+        print("regime-likelihood features: enabled with chronological out-of-fold training rows")
     print("\nBayesian fit seconds: " + ", ".join(
         f"{name}={seconds:.1f}" for name, seconds in pipeline.fit_seconds.items()
     ))
@@ -276,40 +312,201 @@ def main(argv=None):
         prediction.player_rows["pass_att"].to_numpy(dtype=float)
         / prediction.player_rows["team_games"].to_numpy(dtype=float)
     )
+    named_player = pd.to_numeric(
+        prediction.player_rows.get(
+            "is_replacement_player", pd.Series(0, index=prediction.player_rows.index)
+        ),
+        errors="coerce",
+    ).fillna(0).ne(1).to_numpy()
     _distribution_metrics(
         "player availability",
-        prediction.player_rows["observed_availability"],
-        prediction.availability,
+        prediction.player_rows.loc[named_player, "observed_availability"],
+        prediction.availability[named_player],
+    )
+    snaps_observed = pd.to_numeric(
+        prediction.player_rows["snap_counts_observed"], errors="coerce"
+    ).fillna(0).gt(0).to_numpy()
+    _distribution_metrics(
+        "player offensive snap share",
+        prediction.player_rows.loc[snaps_observed & named_player, "snap_share"],
+        prediction.snap_share[snaps_observed & named_player],
     )
     _workload_metrics(prediction.player_rows, prediction.qb_workload_share)
+    quarterback = prediction.player_rows["position"].eq("QB").to_numpy()
+    qb_propensity_valid = quarterback & named_player & snaps_observed & prediction.player_rows[
+        "offense_snaps"
+    ].to_numpy(dtype=float).astype(bool)
+    observed_qb_propensity = (
+        prediction.player_rows.loc[qb_propensity_valid, "pass_att"].to_numpy(dtype=float)
+        / prediction.player_rows.loc[
+            qb_propensity_valid, "offense_snaps"
+        ].to_numpy(dtype=float)
+    )
+    _distribution_metrics(
+        "QB pass attempts/offensive snap",
+        observed_qb_propensity,
+        prediction.qb_pass_propensity[qb_propensity_valid],
+    )
+    observed_any_carry = prediction.player_rows.loc[
+        named_player, "rush_att"
+    ].gt(0).to_numpy(dtype=float)
+    predicted_any_carry = prediction.carry_eligibility_probability[
+        named_player
+    ].mean(axis=1)
+    print(
+        "carry eligibility: "
+        f"Brier={np.mean((observed_any_carry - predicted_any_carry) ** 2):.3f}"
+    )
     _distribution_metrics(
         "player pass attempts/team-game",
-        player_observed_pass,
-        prediction.pass_attempts_per_team_game,
+        player_observed_pass[named_player],
+        prediction.pass_attempts_per_team_game[named_player],
     )
-    quarterback = prediction.player_rows["position"].eq("QB").to_numpy()
     _distribution_metrics(
         "player pass attempts/team-game (QB only)",
-        player_observed_pass[quarterback],
-        prediction.pass_attempts_per_team_game[quarterback],
+        player_observed_pass[quarterback & named_player],
+        prediction.pass_attempts_per_team_game[quarterback & named_player],
     )
+    replacement = pd.to_numeric(
+        prediction.player_rows.get(
+            "is_replacement_qb", pd.Series(0, index=prediction.player_rows.index)
+        ),
+        errors="coerce",
+    ).fillna(0).eq(1).to_numpy()
+    if replacement.any():
+        _distribution_metrics(
+            "replacement-QB pass attempts/team-game",
+            player_observed_pass[replacement],
+            prediction.pass_attempts_per_team_game[replacement],
+        )
     _distribution_metrics(
         "player targets/team-game",
-        player_observed_target,
-        prediction.targets_per_team_game,
+        player_observed_target[named_player],
+        prediction.targets_per_team_game[named_player],
     )
     _distribution_metrics(
         "player carries/team-game",
-        player_observed_carry,
-        prediction.carries_per_team_game,
+        player_observed_carry[named_player],
+        prediction.carries_per_team_game[named_player],
     )
-    for name, result in pipeline.diagnostics().items():
+    diagnostics = pipeline.diagnostics()
+    for name, result in diagnostics.items():
         print(
             f"{name} quality: passed={result['passed']} "
             f"max_rhat={result['max_rhat']:.3f} "
             f"min_bulk_ess={result['min_bulk_ess']:.0f} "
             f"divergences={result['divergences']}"
         )
+    if args.report_json:
+        def distribution(observed_values, samples):
+            observed_values = np.asarray(observed_values, dtype=float)
+            mean = samples.mean(axis=1)
+            return {
+                "n": int(len(observed_values)),
+                "mae": float(np.abs(observed_values - mean).mean()),
+                "rmse": float(np.sqrt(np.mean((observed_values - mean) ** 2))),
+                "crps": float(empirical_crps(observed_values, samples).mean()),
+                "coverage_80": float(
+                    interval_coverage(observed_values, samples, level=0.8)["coverage"]
+                ),
+            }
+
+        report = {
+            "holdout": int(holdout),
+            "draws": int(args.draws),
+            "chains": int(args.chains),
+            "role_regime_coupling": bool(args.role_regime_coupling),
+            "regime_likelihood_features": bool(args.regime_likelihood_features),
+            "named_players": int(named_player.sum()),
+            "replacement_buckets": int((~named_player).sum()),
+            "player": {
+                "availability": distribution(
+                    prediction.player_rows.loc[named_player, "observed_availability"],
+                    prediction.availability[named_player],
+                ),
+                "snap_share": distribution(
+                    prediction.player_rows.loc[
+                        snaps_observed & named_player, "snap_share"
+                    ],
+                    prediction.snap_share[snaps_observed & named_player],
+                ),
+                "pass": distribution(
+                    player_observed_pass[named_player],
+                    prediction.pass_attempts_per_team_game[named_player],
+                ),
+                "pass_qb": distribution(
+                    player_observed_pass[quarterback & named_player],
+                    prediction.pass_attempts_per_team_game[
+                        quarterback & named_player
+                    ],
+                ),
+                "target": distribution(
+                    player_observed_target[named_player],
+                    prediction.targets_per_team_game[named_player],
+                ),
+                "carry": distribution(
+                    player_observed_carry[named_player],
+                    prediction.carries_per_team_game[named_player],
+                ),
+                "qb_pass_propensity": distribution(
+                    observed_qb_propensity,
+                    prediction.qb_pass_propensity[qb_propensity_valid],
+                ),
+                "carry_eligibility_brier": float(
+                    np.mean((observed_any_carry - predicted_any_carry) ** 2)
+                ),
+            },
+            "team": {
+                name: distribution(test.team_rows[observed], prediction.team[predicted])
+                for name, observed, predicted in (
+                    (
+                        "opportunity_plays",
+                        "opportunity_plays_per_game",
+                        "opportunity_plays_per_game",
+                    ),
+                    ("pass_attempts", "pass_attempts_per_game", "pass_attempts_per_game"),
+                    ("targets", "targets_per_game", "targets_per_game"),
+                    ("rush_attempts", "rush_attempts_per_game", "rush_attempts_per_game"),
+                )
+            },
+            "diagnostics": {
+                name: {
+                    "passed": bool(result["passed"]),
+                    "max_rhat": float(result["max_rhat"]),
+                    "min_bulk_ess": float(result["min_bulk_ess"]),
+                    "divergences": int(result["divergences"]),
+                }
+                for name, result in diagnostics.items()
+            },
+            "fit_seconds": {name: float(value) for name, value in pipeline.fit_seconds.items()},
+        }
+        if prediction.regime_probability is not None:
+            regime_names = ("replacement", "inactive", "committee", "lead")
+            regime = prediction.regime_probability.argmax(axis=1)
+            report["regime"] = {
+                name: {
+                    "n": int((regime == index).sum()),
+                    "mean_probability": float(prediction.regime_probability[:, index].mean()),
+                    "target": distribution(
+                        player_observed_target[(regime == index) & named_player],
+                        prediction.targets_per_team_game[(regime == index) & named_player],
+                    )
+                    if ((regime == index) & named_player).any()
+                    else None,
+                    "carry": distribution(
+                        player_observed_carry[(regime == index) & named_player],
+                        prediction.carries_per_team_game[(regime == index) & named_player],
+                    )
+                    if ((regime == index) & named_player).any()
+                    else None,
+                }
+                for index, name in enumerate(regime_names)
+            }
+        args.report_json.parent.mkdir(parents=True, exist_ok=True)
+        args.report_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        print(f"wrote metrics to {args.report_json}")
 
 
 if __name__ == "__main__":

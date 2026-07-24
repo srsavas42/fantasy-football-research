@@ -115,6 +115,12 @@ def test_real_preseason_rows_are_four_position_and_prior_only():
     assert set(data.player_rows["position"]) == {"QB", "RB", "WR", "TE"}
     assert data.team_rows.groupby("season").size().eq(32).all()
     assert set(PRESEASON_FEATURES) <= set(data.player_rows.columns)
+    assert {
+        "prior_snap_share_3yr",
+        "prior_snap_share_trend",
+        "prior_availability_3yr",
+        "prior_rush_epa_per_carry",
+    } <= set(PRESEASON_FEATURES)
     assert data.player_rows["observed_availability"].between(0, 1).all()
     # Every modeled row is a Y-1 -> Y transition; no current outcome appears
     # in the documented feature list.

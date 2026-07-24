@@ -13,6 +13,9 @@ def test_weekly_aliases_coalesce_without_duplicate_columns():
             "team": ["NYJ", "BUF"],
             "attempts": [30, 0],
             "sacks_suffered": [2, 0],
+            "passing_interceptions": [1, 0],
+            "receiving_air_yards": [0, 42],
+            "receiving_epa": [None, 3.5],
         }
     )
     out = _map_weekly_aliases(raw)
@@ -20,3 +23,6 @@ def test_weekly_aliases_coalesce_without_duplicate_columns():
     assert out["player_name"].tolist() == ["Aaron Rodgers", "Fallback Name"]
     assert out["pass_att"].tolist() == [30, 0]
     assert out["pass_sacks"].tolist() == [2, 0]
+    assert out["pass_int"].tolist() == [1, 0]
+    assert out["rec_air_yds"].tolist() == [0, 42]
+    assert out["rec_epa"].isna().tolist() == [True, False]

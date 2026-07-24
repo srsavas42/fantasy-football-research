@@ -6,6 +6,7 @@ import pytest
 
 az = pytest.importorskip("arviz")
 
+from ffmodel.features.season_injury import INJURY_AVAILABILITY_FEATURES
 from ffmodel.models.season_availability import (
     QBWorkloadShareModel,
     SeasonAvailabilityModel,
@@ -98,14 +99,17 @@ def test_availability_draws_are_bounded_integer_game_outcomes():
     rows = _rows()
     model = SeasonAvailabilityModel()
     prepared = model._prepare(rows)
-    model._matrix(prepared, fit=True)
+    matrix = model._matrix(prepared, fit=True)
     draws = 8
     model.idata = az.from_dict(
         posterior={
-            "intercept": np.full((1, draws), 1.5),
-            "position_effect": np.zeros((1, draws, len(model.positions))),
-            "beta": np.zeros((1, draws, len(model.feature_names))),
-            "concentration": np.full((1, draws), 30.0),
+            "any_intercept": np.full((1, draws), 1.5),
+            "any_position_effect": np.zeros((1, draws, len(model.positions))),
+            "any_beta": np.zeros((1, draws, matrix.shape[1])),
+            "rate_intercept": np.full((1, draws), 2.0),
+            "rate_position_effect": np.zeros((1, draws, len(model.positions))),
+            "rate_beta": np.zeros((1, draws, matrix.shape[1])),
+            "rate_concentration": np.full((1, draws), 30.0),
         }
     )
 
@@ -114,7 +118,36 @@ def test_availability_draws_are_bounded_integer_game_outcomes():
     assert prediction.availability.shape == (3, draws)
     assert ((prediction.games_active >= 0) & (prediction.games_active <= 17)).all()
     assert np.issubdtype(prediction.games_active.dtype, np.integer)
-    assert ((prediction.availability > 0) & (prediction.availability < 1)).all()
+    assert ((prediction.availability >= 0) & (prediction.availability <= 1)).all()
+    assert np.allclose(prediction.availability, prediction.games_active / 17)
+
+
+def test_availability_supports_history_and_position_specific_dispersion():
+    rows = _rows().assign(
+        prior_availability_3yr=[0.90, 0.55, 0.82],
+        prior_availability_trend=[0.02, -0.10, 0.01],
+    )
+    model = SeasonAvailabilityModel(
+        extra_features=("prior_availability_3yr", "prior_availability_trend"),
+        position_specific_concentration=True,
+    )
+    prepared = model._prepare(rows)
+    model._matrix(prepared, fit=True)
+
+    assert "prior_availability_3yr" in model.feature_names
+    assert "prior_availability_trend" in model.feature_names
+
+
+def test_availability_uses_injury_features_when_the_contract_supplies_them():
+    rows = _rows().assign(
+        prior_injury_report_weeks_3yr=[0.0, 3.0, 1.0],
+        current_injury_expected_recovery_weeks=[0.0, 2.5, 0.0],
+    )
+    model = SeasonAvailabilityModel(extra_features=INJURY_AVAILABILITY_FEATURES)
+    model._matrix(model._prepare(rows), fit=True)
+
+    assert "prior_injury_report_weeks_3yr" in model.feature_names
+    assert "current_injury_expected_recovery_weeks" in model.feature_names
 
 
 def test_qb_workload_share_is_a_team_simplex_and_excludes_non_qbs():

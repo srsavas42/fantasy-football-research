@@ -59,6 +59,9 @@ NFLVERSE_FIRST_SEASON = 1999                # pbp / weekly player stats
 NFLVERSE_SNAPS_FIRST_SEASON = 2012          # snap counts
 NFLVERSE_DEPTH_FIRST_SEASON = 2001          # depth charts
 NFLVERSE_INJURY_FIRST_SEASON = 2009         # injury reports
+# The historical nflverse injury-report feed is currently unavailable after
+# 2024. Live projections should supply an archived current snapshot instead.
+NFLVERSE_INJURY_LAST_SEASON = 2024
 
 # Weeks: 17 games through 2020, 18 from 2021 on
 def regular_season_weeks(season: int) -> int:

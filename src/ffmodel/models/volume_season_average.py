@@ -5,10 +5,11 @@ It intentionally omits matchup covariates: weekly observations are used to
 construct season counts, while the latent prediction target is average volume
 per game over a full season.
 
-The player likelihood is roster coherent. Quarterback pass attempts are
-allocated from a continuous QB offensive-snap workload simplex; target and
-carry counts follow logistic-normal Multinomials over every QB/RB/WR/TE on a
-team. Prior-season role and active-game share are fitting exposures.
+The player likelihood is roster coherent. Quarterback pass attempts combine a
+continuous QB offensive-snap workload simplex with attempts per snap. Targets
+and carries combine projected snap exposure with lagged per-snap propensity;
+carries add a sparse any-carry hurdle. Position-level replacement buckets
+preserve point-in-time roster accounting for later signings and call-ups.
 """
 
 from __future__ import annotations
@@ -35,6 +36,20 @@ from ffmodel.models.season_availability import (
     QBWorkloadShareModel,
     SeasonAvailabilityModel,
 )
+from ffmodel.models.season_opportunity import (
+    QBPassPropensityModel,
+    SeasonCarryEligibilityModel,
+    SeasonSnapShareModel,
+    SeasonTargetRoleModel,
+)
+from ffmodel.models.season_regime import (
+    REGIME_LIKELIHOOD_FEATURES,
+    SeasonRegimeModel,
+    SeasonRegimePrediction,
+    add_regime_probabilities,
+    add_walk_forward_regime_probabilities,
+)
+from ffmodel.models.season_regime_coupling import SeasonRegimeRoleCoupling
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
@@ -43,26 +58,29 @@ STREAMS = {
     "pass": {
         "count": "pass_att",
         "role": "prior_pass_role",
+        "per_snap_role": "prior_qb_attempts_per_snap",
         "draft": "draft_pass_prior",
         "fallback": {"QB": 0.800, "RB": 0.0005, "WR": 0.0005, "TE": 0.0002},
     },
     "target": {
         "count": "targets",
         "role": "prior_target_role",
+        "per_snap_role": "prior_target_per_snap",
         "draft": "draft_target_prior",
-        "fallback": {"QB": 0.002, "RB": 0.055, "WR": 0.085, "TE": 0.050},
+        "fallback": {"QB": 0.0001, "RB": 0.120, "WR": 0.180, "TE": 0.150},
     },
     "carry": {
         "count": "rush_att",
         "role": "prior_carry_role",
+        "per_snap_role": "prior_carry_per_snap",
         "draft": "draft_carry_prior",
-        "fallback": {"QB": 0.055, "RB": 0.150, "WR": 0.003, "TE": 0.002},
+        "fallback": {"QB": 0.080, "RB": 0.450, "WR": 0.010, "TE": 0.003},
     },
 }
 
 DEFAULT_SACK_RATE = 0.065
 
-ADJUSTMENT_FEATURES = (
+BASE_ADJUSTMENT_FEATURES = (
     "prior_availability",
     "prior_snap_share",
     "age",
@@ -71,6 +89,86 @@ ADJUSTMENT_FEATURES = (
     "cold_start",
 )
 
+# Efficiency is stream-specific: receiving performance can inform future target
+# allocation without being allowed to distort QB or carry allocation, and vice
+# versa. All values are pooled observations from Y-1.
+VOLUME_EFFICIENCY_FEATURES = {
+    "pass": (
+        "prior_pass_yards_per_attempt",
+        "prior_pass_epa_per_attempt",
+        "prior_pass_completion_rate",
+        "prior_pass_first_down_rate",
+        "prior_pass_td_rate",
+        "prior_pass_quality_rank",
+        "prior_pass_quality_signal",
+    ),
+    "target": (
+        "prior_rec_yards_per_target",
+        "prior_rec_epa_per_target",
+        "prior_rec_air_yards_per_target",
+        "prior_rec_first_down_rate",
+        "prior_rec_quality_rank",
+        "prior_rec_quality_signal",
+    ),
+    "carry": (
+        "prior_rush_yards_per_carry",
+        "prior_rush_epa_per_carry",
+        "prior_rush_first_down_rate",
+        "prior_rush_td_rate",
+        "prior_rush_quality_rank",
+        "prior_rush_quality_signal",
+    ),
+}
+
+# The direct-share challenger benefits from QB and rushing efficiency. The
+# production volume-v2 path uses the target/carry share models below but routes
+# QB volume through separate workload and attempts-per-snap layers.
+DIRECT_SHARE_EFFICIENCY_FEATURES = {
+    "pass": ("prior_pass_quality_signal", "prior_pass_td_rate"),
+    "target": (),
+    "carry": ("prior_rush_epa_per_carry",),
+}
+
+# Production gate: neither the QB-layer proxy nor the posterior-controlled
+# carry comparison transferred the direct-share gains. Keep every efficiency
+# input challenger-only until it improves the accepted volume-v2 architecture.
+ACCEPTED_VOLUME_EFFICIENCY_FEATURES = {
+    "pass": (),
+    "target": (),
+    "carry": (),
+}
+
+PARTICIPATION_VOLUME_FEATURES = {
+    "pass": (),
+    "target": ("prior_targets_per_pass_play",),
+    "carry": (),
+}
+
+# Backwards-compatible union used by callers that inspect the available
+# preseason adjustment contract. Models select the relevant stream subset via
+# ``volume_adjustment_features``.
+ADJUSTMENT_FEATURES = BASE_ADJUSTMENT_FEATURES + tuple(
+    dict.fromkeys(
+        feature
+        for features in VOLUME_EFFICIENCY_FEATURES.values()
+        for feature in features
+    )
+)
+
+
+def volume_adjustment_features(
+    stream: str, *, include_experimental: bool = False
+) -> tuple[str, ...]:
+    if stream not in STREAMS:
+        raise ValueError(f"stream must be one of {sorted(STREAMS)}")
+    efficiency = (
+        VOLUME_EFFICIENCY_FEATURES[stream]
+        if include_experimental
+        else DIRECT_SHARE_EFFICIENCY_FEATURES[stream]
+    )
+    participation = PARTICIPATION_VOLUME_FEATURES[stream] if include_experimental else ()
+    return BASE_ADJUSTMENT_FEATURES + efficiency + participation
+
 # The Bayesian posterior retains only effects that were stable and materially
 # identified in the initial full-feature walk-forward fit. Richer nonlinear
 # interactions remain the job of the optional XGBoost challenger.
@@ -78,6 +176,8 @@ BAYESIAN_FEATURES = (
     "prior_availability",
     "prior_snap_share",
 )
+
+TARGET_BAYESIAN_FEATURES = ("prior_availability",)
 
 BACKUP_QB_EXPOSURE = 0.08
 
@@ -441,6 +541,8 @@ class SeasonRosterShareModel:
     """Roster-coherent season pass, target, or carry share model."""
 
     stream: str = "target"
+    extra_efficiency_features: tuple[str, ...] | None = None
+    extra_features: tuple[str, ...] = ()
     players: list[str] = field(default_factory=list)
     feature_names: list[str] = field(default_factory=list)
     feature_fill: dict[str, float] = field(default_factory=dict)
@@ -449,11 +551,17 @@ class SeasonRosterShareModel:
     cold_role_prior: dict[str, float] = field(default_factory=dict)
     availability_prior: dict[str, float] = field(default_factory=dict)
     role_innovation_scale: float = 0.75
+    per_snap_weight: float | None = None
+    innovation_cap: float | None = None
     idata: object = None
 
     def __post_init__(self):
         if self.stream not in STREAMS:
             raise ValueError(f"stream must be one of {sorted(STREAMS)}")
+        if self.per_snap_weight is None:
+            self.per_snap_weight = 0.75 if self.stream == "target" else 1.0
+        if self.innovation_cap is None:
+            self.innovation_cap = 0.50 if self.stream in {"target", "carry"} else 2.0
 
     @property
     def count_col(self) -> str:
@@ -480,7 +588,17 @@ class SeasonRosterShareModel:
 
     def _fit_metadata(self, d: pd.DataFrame) -> None:
         self.players = sorted(d["player_key"].astype(str).unique())
-        self.feature_names = [name for name in BAYESIAN_FEATURES if name in d]
+        candidates = list(
+            TARGET_BAYESIAN_FEATURES if self.stream == "target" else BAYESIAN_FEATURES
+        )
+        efficiency_features = (
+            self.extra_efficiency_features
+            if self.extra_efficiency_features is not None
+            else ACCEPTED_VOLUME_EFFICIENCY_FEATURES[self.stream]
+        )
+        candidates.extend(efficiency_features)
+        candidates.extend(self.extra_features)
+        self.feature_names = [name for name in candidates if name in d]
         for name in self.feature_names:
             values = pd.to_numeric(d[name], errors="coerce")
             fill = float(values.median()) if values.notna().any() else 0.0
@@ -490,21 +608,17 @@ class SeasonRosterShareModel:
             self.feature_mean[name] = float(filled.mean())
             self.feature_scale[name] = scale if scale > 1e-8 else 1.0
 
+        snaps = pd.to_numeric(
+            d.get("offense_snaps", pd.Series(np.nan, index=d.index)),
+            errors="coerce",
+        )
         availability = pd.to_numeric(
             d.get("observed_availability", pd.Series(1.0, index=d.index)),
             errors="coerce",
         ).fillna(1.0)
+        exposure = snaps.where(snaps.gt(0), availability.clip(0.03, 1.0))
         opportunity_rate = d[self.count_col].to_numpy(dtype=float) / np.clip(
-            availability.to_numpy(dtype=float), 0.03, 1.0
-        )
-        group_total = pd.Series(opportunity_rate, index=d.index).groupby(
-            [d[key] for key in GROUP_KEYS]
-        ).transform("sum")
-        observed_share = np.divide(
-            opportunity_rate,
-            group_total.to_numpy(dtype=float),
-            out=np.zeros(len(d), dtype=float),
-            where=group_total.to_numpy(dtype=float) > 0,
+            exposure.to_numpy(dtype=float), 0.03, None
         )
         fallback = STREAMS[self.stream]["fallback"]
         for position in MODEL_POSITIONS:
@@ -512,9 +626,9 @@ class SeasonRosterShareModel:
             is_cold = pd.to_numeric(
                 d.get("cold_start", pd.Series(0, index=d.index)), errors="coerce"
             ).fillna(0).to_numpy(dtype=int) == 1
-            values = observed_share[is_position & is_cold]
+            values = opportunity_rate[is_position & is_cold]
             if not len(values):
-                values = observed_share[is_position]
+                values = opportunity_rate[is_position]
             estimate = float(np.mean(values)) if len(values) else fallback[position]
             self.cold_role_prior[position] = max(estimate, 1e-4)
             availability = pd.to_numeric(
@@ -524,16 +638,22 @@ class SeasonRosterShareModel:
             self.availability_prior[position] = (
                 float(availability.median()) if len(availability) else 0.75
             )
-        self.role_innovation_scale = self._estimate_role_innovation(d)
+        self.role_innovation_scale = min(
+            self._estimate_role_innovation(d), float(self.innovation_cap)
+        )
 
     def _estimate_role_innovation(self, d: pd.DataFrame) -> float:
         """Training-only RMS log-share error after removing roster location."""
         role = self._role_prior(d)
+        snap_share = pd.to_numeric(
+            d.get("snap_share", pd.Series(np.nan, index=d.index)), errors="coerce"
+        )
         availability = pd.to_numeric(
             d.get("observed_availability", pd.Series(1.0, index=d.index)),
             errors="coerce",
-        ).fillna(1.0).to_numpy(dtype=float)
-        score = np.log(role) + np.log(np.clip(availability, 0.03, 1.0))
+        ).fillna(1.0)
+        exposure = snap_share.where(snap_share.gt(0), availability).fillna(0.03)
+        score = np.log(role) + np.log(np.clip(exposure.to_numpy(dtype=float), 0.001, 1.0))
         expected = np.zeros(len(d), dtype=float)
         residual = np.zeros(len(d), dtype=float)
         for _, group in d.groupby(GROUP_KEYS, sort=False, dropna=False):
@@ -548,10 +668,25 @@ class SeasonRosterShareModel:
         return float(np.clip(np.sqrt(np.mean(residual ** 2)), 0.10, 2.0))
 
     def _role_prior(self, d: pd.DataFrame) -> np.ndarray:
+        per_snap = pd.to_numeric(
+            d.get(
+                STREAMS[self.stream].get("per_snap_role"),
+                pd.Series(np.nan, index=d.index),
+            ),
+            errors="coerce",
+        )
         role = pd.to_numeric(d.get(STREAMS[self.stream]["role"]), errors="coerce")
         draft = pd.to_numeric(d.get(STREAMS[self.stream]["draft"]), errors="coerce")
         cold = d["position"].map(self.cold_role_prior).astype(float)
-        prior = role.where(role > 0)
+        valid_per_snap = per_snap.gt(0)
+        valid_role = role.gt(0)
+        prior = per_snap.where(valid_per_snap)
+        both = valid_per_snap & valid_role
+        prior.loc[both] = np.exp(
+            float(self.per_snap_weight) * np.log(per_snap.loc[both])
+            + (1.0 - float(self.per_snap_weight)) * np.log(role.loc[both])
+        )
+        prior = prior.where(prior.notna(), role.where(role > 0))
         prior = prior.where(prior.notna(), draft.where(draft > 0))
         prior = prior.where(prior.notna(), cold)
         return np.clip(prior.to_numpy(dtype=float), 1e-5, 1.0)
@@ -574,6 +709,7 @@ class SeasonRosterShareModel:
         *,
         fit: bool = False,
         use_observed_availability: bool = False,
+        use_observed_snap: bool = False,
         use_observed_starter: bool = False,
     ):
         d = self._prepare(rows)
@@ -587,21 +723,33 @@ class SeasonRosterShareModel:
         role_prior = self._role_prior(d)
         X = self._matrix(d)
         player_idx = _codes(d["player_key"], self.players)
-        if use_observed_availability:
+        if use_observed_snap:
+            exposure = pd.to_numeric(
+                d.get("snap_share", pd.Series(np.nan, index=d.index)),
+                errors="coerce",
+            )
+            fallback_exposure = pd.to_numeric(
+                d.get("observed_availability", pd.Series(1.0, index=d.index)),
+                errors="coerce",
+            ).fillna(1.0)
+            availability = exposure.where(exposure.gt(0), fallback_exposure * 0.03)
+        elif use_observed_availability:
             availability = pd.to_numeric(
                 d.get("observed_availability", pd.Series(1.0, index=d.index)),
                 errors="coerce",
             ).fillna(1.0)
         else:
-            source = d.get(
-                "projected_availability",
-                d.get("prior_availability", pd.Series(np.nan, index=d.index)),
-            )
+            source = d.get("projected_snap_share")
+            if source is None:
+                source = d.get(
+                    "projected_availability",
+                    d.get("prior_availability", pd.Series(np.nan, index=d.index)),
+                )
             availability = pd.to_numeric(source, errors="coerce")
             availability = availability.fillna(d["position"].map(self.availability_prior))
             availability = availability.fillna(0.75)
-        availability = np.clip(availability.to_numpy(dtype=float), 0.03, 1.0)
-        d["_projected_availability"] = availability
+        availability = np.clip(availability.to_numpy(dtype=float), 0.001, 1.0)
+        d["_projected_snap_share"] = availability
         starter_exposure = np.ones(len(d), dtype=float)
         if self.stream == "pass" and use_observed_starter:
             primary = pd.to_numeric(
@@ -631,8 +779,13 @@ class SeasonRosterShareModel:
         for group_i, (key, group) in enumerate(groups):
             indices = group.index.to_numpy(dtype=int)
             size = len(indices)
-            counts[group_i, :size] = d.loc[indices, self.count_col].to_numpy(dtype=int)
-            mask[group_i, :size] = 1.0
+            support = np.ones(size, dtype=float)
+            if self.stream == "target":
+                support = (~d.loc[indices, "position"].eq("QB")).to_numpy(dtype=float)
+            counts[group_i, :size] = (
+                d.loc[indices, self.count_col].to_numpy(dtype=int) * support.astype(int)
+            )
+            mask[group_i, :size] = support
             role[group_i, :size] = role_prior[indices]
             offset[group_i, :size] = np.log(availability[indices])
             starter_offset[group_i, :size] = np.log(starter_exposure[indices])
@@ -667,10 +820,15 @@ class SeasonRosterShareModel:
             rows,
             fit=True,
             use_observed_availability=True,
+            use_observed_snap=True,
             use_observed_starter=self.stream == "pass",
         )
         with pm.Model() as model:
-            beta = pm.Normal("beta", 0.0, 0.35, shape=len(self.feature_names))
+            # Once snap exposure is explicit, the lagged availability/snap
+            # covariates are only small residual corrections. A tight target
+            # prior prevents counting playing time twice.
+            beta_scale = 0.05 if self.stream == "target" else 0.35
+            beta = pm.Normal("beta", 0.0, beta_scale, shape=len(self.feature_names))
             eta = (
                 np.log(design["role_prior"])
                 + design["availability_offset"]
@@ -694,6 +852,8 @@ class SeasonRosterShareModel:
         rows: pd.DataFrame,
         *,
         availability_samples: np.ndarray | None = None,
+        snap_samples: np.ndarray | None = None,
+        eligibility_samples: np.ndarray | None = None,
         starter_probability_samples: np.ndarray | None = None,
         seed: int = 0,
     ) -> RosterSharePrediction:
@@ -705,16 +865,19 @@ class SeasonRosterShareModel:
         beta = _stack(post, "beta")
         draws = beta.shape[-1]
         eta = np.log(design["role_prior"])[..., None]
-        if availability_samples is None:
+        exposure_samples = snap_samples if snap_samples is not None else availability_samples
+        if exposure_samples is None:
             eta = eta + design["availability_offset"][..., None]
         else:
-            availability_samples = np.asarray(availability_samples, dtype=float)
-            if availability_samples.shape != (len(design["rows"]), draws):
+            exposure_samples = np.asarray(exposure_samples, dtype=float)
+            if exposure_samples.shape != (len(design["rows"]), draws):
                 raise ValueError(
-                    "availability samples must align to roster rows and posterior draws"
+                    "exposure samples must align to roster rows and posterior draws"
                 )
             eta = eta + np.log(
-                _roster_sample_matrix(design, availability_samples, fill=1.0)
+                _roster_sample_matrix(
+                    design, np.clip(exposure_samples, 1e-5, 1.0), fill=1.0
+                )
             )
         if self.stream == "pass" and starter_probability_samples is not None:
             starter_probability_samples = np.asarray(
@@ -736,6 +899,25 @@ class SeasonRosterShareModel:
             eta = eta + design["starter_offset"][..., None]
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         eta = np.where(design["mask"][..., None] > 0, eta, -20.0)
+        if eligibility_samples is not None:
+            eligibility_samples = np.asarray(eligibility_samples, dtype=float)
+            if eligibility_samples.shape != (len(design["rows"]), draws):
+                raise ValueError(
+                    "eligibility samples must align to roster rows and posterior draws"
+                )
+            eligibility = _roster_sample_matrix(
+                design, eligibility_samples, fill=0.0, min_value=0.0
+            )
+            # If a draw gates out an entire roster, retain the highest-scoring
+            # supported player so the team total can still be allocated.
+            none_eligible = eligibility.sum(axis=1) <= 0
+            if none_eligible.any():
+                fallback = np.argmax(eta, axis=1)
+                group_draw = np.argwhere(none_eligible)
+                eligibility[
+                    group_draw[:, 0], fallback[none_eligible], group_draw[:, 1]
+                ] = 1.0
+            eta = np.where(eligibility > 0, eta, -20.0)
 
         rng = np.random.default_rng(seed)
         innovation_z = rng.normal(
@@ -769,7 +951,11 @@ class SeasonAveragePrediction:
     availability_probability: np.ndarray
     games_active: np.ndarray
     availability: np.ndarray
+    snap_share: np.ndarray
     qb_workload_share: np.ndarray
+    qb_pass_propensity: np.ndarray
+    target_role_probability: np.ndarray
+    carry_eligibility_probability: np.ndarray
     pass_attempt_share: np.ndarray
     target_share: np.ndarray
     carry_share: np.ndarray
@@ -782,6 +968,8 @@ class SeasonAveragePrediction:
     pass_attempts_per_active_game: np.ndarray
     targets_per_active_game: np.ndarray
     carries_per_active_game: np.ndarray
+    regime_probability: np.ndarray | None = None
+    regime_samples: np.ndarray | None = None
 
 
 @dataclass
@@ -799,54 +987,218 @@ class SeasonAverageVolumePipeline:
         default_factory=SeasonAvailabilityModel
     )
     workload_model: QBWorkloadShareModel = field(default_factory=QBWorkloadShareModel)
+    snap_model: SeasonSnapShareModel = field(default_factory=SeasonSnapShareModel)
+    qb_propensity_model: QBPassPropensityModel = field(
+        default_factory=QBPassPropensityModel
+    )
+    target_role_model: SeasonTargetRoleModel = field(
+        default_factory=SeasonTargetRoleModel
+    )
+    carry_eligibility_model: SeasonCarryEligibilityModel = field(
+        default_factory=SeasonCarryEligibilityModel
+    )
+    # Experimental role-only challenger. The default baseline is unchanged.
+    role_regime_coupling: bool = False
+    # Upstream likelihood challenger: out-of-fold regime probabilities enter
+    # role and availability regressions instead of tilting fitted shares.
+    regime_likelihood_features: bool = False
+    regime_model: SeasonRegimeModel | None = None
+    regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
     def fit(self, data: SeasonAverageData, **sample_kwargs) -> "SeasonAverageVolumePipeline":
+        if self.role_regime_coupling and self.regime_likelihood_features:
+            raise ValueError("choose either post-hoc or upstream regime coupling, not both")
+        player_rows = data.player_rows
+        if self.regime_likelihood_features:
+            started = perf_counter()
+            player_rows = add_walk_forward_regime_probabilities(player_rows)
+            self.regime_model = SeasonRegimeModel().fit(data.player_rows)
+            self._enable_regime_likelihood_features()
+            self.fit_seconds["regime_features"] = perf_counter() - started
         started = perf_counter()
         self.team_model.fit(data.team_rows, **sample_kwargs)
         self.fit_seconds["team"] = perf_counter() - started
         started = perf_counter()
-        self.availability_model.fit(data.player_rows, **sample_kwargs)
+        self.availability_model.fit(player_rows, **sample_kwargs)
         self.fit_seconds["availability"] = perf_counter() - started
         started = perf_counter()
-        self.workload_model.fit(data.player_rows, **sample_kwargs)
+        self.snap_model.fit(player_rows, **sample_kwargs)
+        self.fit_seconds["snap"] = perf_counter() - started
+        started = perf_counter()
+        self.workload_model.fit(player_rows, **sample_kwargs)
         self.fit_seconds["workload"] = perf_counter() - started
         started = perf_counter()
-        self.target_model.fit(data.player_rows, **sample_kwargs)
+        self.qb_propensity_model.fit(player_rows, **sample_kwargs)
+        self.fit_seconds["qb_propensity"] = perf_counter() - started
+        started = perf_counter()
+        self.carry_eligibility_model.fit(player_rows, **sample_kwargs)
+        self.fit_seconds["carry_eligibility"] = perf_counter() - started
+        started = perf_counter()
+        self.target_model.fit(player_rows, **sample_kwargs)
         self.fit_seconds["target"] = perf_counter() - started
         started = perf_counter()
-        self.carry_model.fit(data.player_rows, **sample_kwargs)
+        self.carry_model.fit(player_rows, **sample_kwargs)
         self.fit_seconds["carry"] = perf_counter() - started
+        if self.role_regime_coupling:
+            started = perf_counter()
+            self.regime_model = self.regime_model or SeasonRegimeModel()
+            self.regime_model.fit(data.player_rows)
+            self.regime_coupler = SeasonRegimeRoleCoupling().fit(
+                data.player_rows, thresholds=self.regime_model.thresholds
+            )
+            self.fit_seconds["regime"] = perf_counter() - started
         return self
+
+    def _enable_regime_likelihood_features(self) -> None:
+        """Append the leakage-safe regime contract to upstream submodels."""
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *REGIME_LIKELIHOOD_FEATURES)))
+
+        self.availability_model.extra_features = merged(
+            self.availability_model.extra_features
+        )
+        self.snap_model.extra_features = merged(self.snap_model.extra_features)
+        self.workload_model.extra_features = merged(self.workload_model.extra_features)
+        self.target_role_model.extra_features = merged(
+            self.target_role_model.extra_features
+        )
+        self.carry_eligibility_model.extra_features = merged(
+            self.carry_eligibility_model.extra_features
+        )
+        self.target_model.extra_features = merged(self.target_model.extra_features)
+        self.carry_model.extra_features = merged(self.carry_model.extra_features)
 
     def predict_samples(
         self, data: SeasonAverageData, *, games=None, seed: int = 0
     ) -> SeasonAveragePrediction:
+        prediction_rows = data.player_rows
+        regime_probability: np.ndarray | None = None
+        if self.regime_likelihood_features:
+            if self.regime_model is None:
+                raise RuntimeError("fit the upstream regime challenger before predicting")
+            prediction_rows = add_regime_probabilities(prediction_rows, self.regime_model)
+            regime_probability = self.regime_model.predict_proba(prediction_rows)
         availability: AvailabilityPrediction = self.availability_model.predict_samples(
-            data.player_rows, seed=seed + 1
+            prediction_rows, seed=seed + 1
         )
+        team_games = pd.to_numeric(
+            availability.rows.get("team_games", pd.Series(17, index=availability.rows.index)),
+            errors="coerce",
+        ).fillna(17).to_numpy(dtype=float)
+        active_fraction = availability.games_active / team_games[:, None]
+        if self.snap_model.idata is None:
+            snap_share = active_fraction
+        else:
+            snap = self.snap_model.predict_samples(
+                availability.rows,
+                active_fraction_samples=active_fraction,
+                seed=seed + 2,
+            )
+            snap_share = snap.snap_share
         passing = self.workload_model.predict_share_samples(
             availability.rows,
             availability_samples=availability.availability,
-            seed=seed + 2,
+            seed=seed + 3,
         )
+        qb_workload_share = passing.shares.copy()
         if not availability.rows[PLAYER_ID_COLUMNS].equals(
             passing.rows[PLAYER_ID_COLUMNS]
         ):
             raise ValueError("availability and QB workload rows are not aligned")
+        if self.qb_propensity_model.idata is None:
+            qb_propensity = np.where(
+                availability.rows["position"].eq("QB").to_numpy()[:, None],
+                1.0,
+                0.0,
+            ) * np.ones_like(passing.shares)
+        else:
+            propensity = self.qb_propensity_model.predict_samples(
+                availability.rows, seed=seed + 4
+            )
+            qb_propensity = propensity.propensity
+            passing = _reweight_roster_prediction(
+                passing, qb_propensity, support_position="QB"
+            )
+        if self.carry_eligibility_model.idata is None:
+            carry_probability = np.ones_like(passing.shares)
+            carry_eligible = carry_probability
+        else:
+            eligibility = self.carry_eligibility_model.predict_samples(
+                availability.rows, seed=seed + 5
+            )
+            carry_probability = eligibility.probability
+            carry_eligible = eligibility.eligible
+        if self.target_role_model.idata is None:
+            target_probability = np.where(
+                availability.rows["position"].isin(("RB", "WR", "TE")).to_numpy()[
+                    :, None
+                ],
+                1.0,
+                0.0,
+            ) * np.ones_like(passing.shares)
+            target_eligible = target_probability
+        else:
+            target_role = self.target_role_model.predict_samples(
+                availability.rows, seed=seed + 11
+            )
+            target_probability = target_role.probability
+            target_eligible = target_role.eligible
         team = self.team_model.predict_average_samples(
             data.team_rows, games=games, seed=seed
         )
         target = self.target_model.predict_share_samples(
             availability.rows,
-            availability_samples=availability.availability,
-            seed=seed + 3,
+            snap_samples=snap_share,
+            eligibility_samples=target_eligible,
+            seed=seed + 6,
         )
         carry = self.carry_model.predict_share_samples(
             availability.rows,
-            availability_samples=availability.availability,
-            seed=seed + 4,
+            snap_samples=snap_share,
+            eligibility_samples=carry_eligible,
+            seed=seed + 7,
         )
+        regime_prediction: SeasonRegimePrediction | None = None
+        if self.role_regime_coupling:
+            if self.regime_model is None or self.regime_coupler is None:
+                raise RuntimeError("fit the role-regime challenger before predicting")
+            regime_prediction = self.regime_model.predict_samples(
+                availability.rows,
+                draws=passing.shares.shape[1],
+                seed=seed + 12,
+            )
+            regime_identifiers = regime_prediction.rows[PLAYER_ID_COLUMNS].reset_index(
+                drop=True
+            )
+            if not (
+                regime_identifiers.equals(passing.rows[PLAYER_ID_COLUMNS].reset_index(drop=True))
+                and regime_identifiers.equals(target.rows[PLAYER_ID_COLUMNS].reset_index(drop=True))
+                and regime_identifiers.equals(carry.rows[PLAYER_ID_COLUMNS].reset_index(drop=True))
+            ):
+                raise ValueError("regime and role-allocation rows are not aligned")
+            passing.shares = self.regime_coupler.apply(
+                passing.rows,
+                passing.shares,
+                regime_prediction.samples,
+                stream="pass",
+                group_index=passing.rows["_group_idx"].to_numpy(int),
+            )
+            target.shares = self.regime_coupler.apply(
+                target.rows,
+                target.shares,
+                regime_prediction.samples,
+                stream="target",
+                group_index=target.rows["_group_idx"].to_numpy(int),
+            )
+            carry.shares = self.regime_coupler.apply(
+                carry.rows,
+                carry.shares,
+                regime_prediction.samples,
+                stream="carry",
+                group_index=carry.rows["_group_idx"].to_numpy(int),
+            )
         pass_group = passing.rows["_group_idx"].to_numpy(dtype=int)
         target_group = target.rows["_group_idx"].to_numpy(dtype=int)
         carry_group = carry.rows["_group_idx"].to_numpy(dtype=int)
@@ -863,14 +1215,18 @@ class SeasonAverageVolumePipeline:
             carry.group_keys, team["rows"], team["rush_attempts"]
         )
         pass_counts = _allocate_season_counts(
-            passing, pass_totals, seed=seed + 5
+            passing, pass_totals, seed=seed + 8
         )
         target_counts = _allocate_season_counts(
-            target, target_totals, seed=seed + 6
+            target, target_totals, seed=seed + 9
         )
         carry_counts = _allocate_season_counts(
-            carry, carry_totals, seed=seed + 7
+            carry, carry_totals, seed=seed + 10
         )
+        if self.role_regime_coupling:
+            _assert_group_count_conservation(passing, pass_counts, pass_totals, "pass")
+            _assert_group_count_conservation(target, target_counts, target_totals, "target")
+            _assert_group_count_conservation(carry, carry_counts, carry_totals, "carry")
         pass_games = _align_group_draws(
             passing.group_keys, team["rows"], team["games"]
         )[pass_group, None]
@@ -890,14 +1246,18 @@ class SeasonAverageVolumePipeline:
             carry.rows[PLAYER_ID_COLUMNS].reset_index(drop=True)
         ):
             raise ValueError("pass, target, and carry roster rows are not aligned")
-        availability_samples = np.clip(availability.availability, 0.01, 1.0)
+        allocation_availability = np.clip(availability.availability, 0.01, 1.0)
         return SeasonAveragePrediction(
             team=team,
             player_rows=passing.rows,
             availability_probability=availability.probability,
             games_active=availability.games_active,
-            availability=availability_samples,
-            qb_workload_share=passing.shares,
+            availability=availability.availability,
+            snap_share=snap_share,
+            qb_workload_share=qb_workload_share,
+            qb_pass_propensity=qb_propensity,
+            target_role_probability=target_probability,
+            carry_eligibility_probability=carry_probability,
             pass_attempt_share=passing.shares,
             target_share=target.shares,
             carry_share=carry.shares,
@@ -907,12 +1267,33 @@ class SeasonAverageVolumePipeline:
             pass_attempts_per_team_game=passes_team_game,
             targets_per_team_game=targets_team_game,
             carries_per_team_game=carries_team_game,
-            pass_attempts_per_active_game=passes_team_game / availability_samples,
-            targets_per_active_game=targets_team_game / availability_samples,
-            carries_per_active_game=carries_team_game / availability_samples,
+            pass_attempts_per_active_game=passes_team_game / allocation_availability,
+            targets_per_active_game=targets_team_game / allocation_availability,
+            carries_per_active_game=carries_team_game / allocation_availability,
+            regime_probability=(
+                regime_probability
+                if regime_probability is not None
+                else (None if regime_prediction is None else regime_prediction.probability)
+            ),
+            regime_samples=(
+                None if regime_prediction is None else regime_prediction.samples
+            ),
         )
 
     def diagnostics(self, *, min_bulk_ess: float = 100.0):
+        availability_variables = (
+            [
+                "any_intercept",
+                "any_position_effect",
+                "any_beta",
+                "rate_intercept",
+                "rate_position_effect",
+                "rate_beta",
+                "rate_concentration",
+            ]
+            if "any_intercept" in self.availability_model.idata.posterior
+            else ["intercept", "position_effect", "beta", "concentration"]
+        )
         return {
             "team": sampling_quality(
                 self.team_model.idata,
@@ -940,9 +1321,43 @@ class SeasonAverageVolumePipeline:
                 ["beta"],
                 min_bulk_ess=min_bulk_ess,
             ),
+            **(
+                {
+                    "snap": sampling_quality(
+                        self.snap_model.idata,
+                        ["intercept", "position_effect", "beta", "concentration"],
+                        min_bulk_ess=min_bulk_ess,
+                    ),
+                    "qb_propensity": sampling_quality(
+                        self.qb_propensity_model.idata,
+                        ["intercept", "beta", "concentration"],
+                        min_bulk_ess=min_bulk_ess,
+                    ),
+                    "carry_eligibility": sampling_quality(
+                        self.carry_eligibility_model.idata,
+                        ["intercept", "position_effect", "beta"],
+                        min_bulk_ess=min_bulk_ess,
+                    ),
+                }
+                if self.snap_model.idata is not None
+                and self.qb_propensity_model.idata is not None
+                and self.carry_eligibility_model.idata is not None
+                else {}
+            ),
+            **(
+                {
+                    "target_role": sampling_quality(
+                        self.target_role_model.idata,
+                        ["intercept", "position_effect", "beta"],
+                        min_bulk_ess=min_bulk_ess,
+                    )
+                }
+                if self.target_role_model.idata is not None
+                else {}
+            ),
             "availability": sampling_quality(
                 self.availability_model.idata,
-                ["intercept", "position_effect", "beta", "concentration"],
+                availability_variables,
                 min_bulk_ess=min_bulk_ess,
             ),
             "target": sampling_quality(
@@ -977,7 +1392,17 @@ class SeasonAverageVolumePipeline:
         save_idata(self.workload_model.idata, directory / "workload.nc")
         save_idata(self.target_model.idata, directory / "target.nc")
         save_idata(self.carry_model.idata, directory / "carry.nc")
+        optional_models = {
+            "snap": self.snap_model,
+            "qb_propensity": self.qb_propensity_model,
+            "target_role": self.target_role_model,
+            "carry_eligibility": self.carry_eligibility_model,
+        }
+        for name, model in optional_models.items():
+            if model.idata is not None:
+                save_idata(model.idata, directory / f"{name}.nc")
         metadata = {
+            "architecture_version": 6,
             "team": {
                 "teams": self.team_model.teams,
                 "season_mean": self.team_model.season_mean,
@@ -994,7 +1419,31 @@ class SeasonAverageVolumePipeline:
                 **self._feature_metadata(self.workload_model),
                 "role_innovation_scale": self.workload_model.role_innovation_scale,
             },
+            "role_regime": {
+                "enabled": self.role_regime_coupling,
+                **(
+                    {
+                        "model": self.regime_model.state_dict(),
+                        "coupler": self.regime_coupler.state_dict(),
+                    }
+                    if self.role_regime_coupling
+                    and self.regime_model is not None
+                    and self.regime_coupler is not None
+                    else {}
+                ),
+            },
+            "regime_likelihood": {
+                "enabled": self.regime_likelihood_features,
+                **(
+                    {"model": self.regime_model.state_dict()}
+                    if self.regime_likelihood_features and self.regime_model is not None
+                    else {}
+                ),
+            },
         }
+        for name, model in optional_models.items():
+            if model.idata is not None:
+                metadata[name] = self._feature_metadata(model)
         (directory / "metadata.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8"
         )
@@ -1012,6 +1461,9 @@ class SeasonAverageVolumePipeline:
             "cold_role_prior": model.cold_role_prior,
             "availability_prior": model.availability_prior,
             "role_innovation_scale": model.role_innovation_scale,
+            "per_snap_weight": model.per_snap_weight,
+            "innovation_cap": model.innovation_cap,
+            "extra_features": list(model.extra_features),
         }
 
     @staticmethod
@@ -1022,8 +1474,19 @@ class SeasonAverageVolumePipeline:
             "feature_mean": model.feature_mean,
             "feature_scale": model.feature_scale,
         }
-        if isinstance(model, SeasonAvailabilityModel):
+        if hasattr(model, "positions"):
             state["positions"] = model.positions
+        if hasattr(model, "extra_features"):
+            state["extra_features"] = list(model.extra_features)
+        if hasattr(model, "position_specific_concentration"):
+            state["position_specific_concentration"] = bool(
+                model.position_specific_concentration
+            )
+        if hasattr(model, "feature_projection"):
+            projection = model.feature_projection
+            state["feature_projection"] = (
+                None if projection is None else np.asarray(projection).tolist()
+            )
         return state
 
     @classmethod
@@ -1031,6 +1494,7 @@ class SeasonAverageVolumePipeline:
         """Restore a fitted season-average pipeline."""
         directory = Path(directory)
         metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
+        architecture_version = int(metadata.get("architecture_version", 1))
         team = TeamSeasonAverageModel(**metadata["team"])
         team.idata = load_idata(directory / "team.nc")
         availability_state = metadata["availability"]
@@ -1048,7 +1512,26 @@ class SeasonAverageVolumePipeline:
         shares = []
         for name in ("target", "carry"):
             state = metadata[name]
-            model = SeasonRosterShareModel(state["stream"])
+            model = SeasonRosterShareModel(
+                state["stream"],
+                extra_features=tuple(state.get("extra_features", ())),
+                per_snap_weight=float(
+                    state.get(
+                        "per_snap_weight",
+                        (
+                            0.75 if state["stream"] == "target" else 1.0
+                        )
+                        if architecture_version >= 2
+                        else 0.0,
+                    )
+                ),
+                innovation_cap=float(
+                    state.get(
+                        "innovation_cap",
+                        0.50 if state["stream"] in {"target", "carry"} else 2.0,
+                    )
+                ),
+            )
             model.players = list(state["players"])
             model.feature_names = list(state["feature_names"])
             for attribute in (
@@ -1068,17 +1551,67 @@ class SeasonAverageVolumePipeline:
             )
             model.idata = load_idata(directory / f"{name}.nc")
             shares.append(model)
+        optional = {}
+        for name, model_class in (
+            ("snap", SeasonSnapShareModel),
+            ("qb_propensity", QBPassPropensityModel),
+            ("target_role", SeasonTargetRoleModel),
+            ("carry_eligibility", SeasonCarryEligibilityModel),
+        ):
+            model = model_class()
+            if name in metadata and (directory / f"{name}.nc").exists():
+                state = metadata[name]
+                if "positions" in state:
+                    model.positions = list(state["positions"])
+                cls._restore_feature_metadata(model, state)
+                model.idata = load_idata(directory / f"{name}.nc")
+            optional[name] = model
+        regime_state = metadata.get("role_regime", {})
+        role_regime_coupling = bool(regime_state.get("enabled", False))
+        regime_model = None
+        regime_coupler = None
+        if role_regime_coupling:
+            if "model" not in regime_state or "coupler" not in regime_state:
+                raise ValueError("saved role-regime pipeline is missing its prediction state")
+            regime_model = SeasonRegimeModel.from_state(regime_state["model"])
+            regime_coupler = SeasonRegimeRoleCoupling.from_state(regime_state["coupler"])
+        likelihood_state = metadata.get("regime_likelihood", {})
+        regime_likelihood_features = bool(likelihood_state.get("enabled", False))
+        likelihood_regime_model = None
+        if regime_likelihood_features:
+            if "model" not in likelihood_state:
+                raise ValueError("saved regime-likelihood pipeline is missing its classifier")
+            likelihood_regime_model = SeasonRegimeModel.from_state(likelihood_state["model"])
         return cls(
             team_model=team,
             availability_model=availability,
             workload_model=workload,
             target_model=shares[0],
             carry_model=shares[1],
+            snap_model=optional["snap"],
+            qb_propensity_model=optional["qb_propensity"],
+            target_role_model=optional["target_role"],
+            carry_eligibility_model=optional["carry_eligibility"],
+            role_regime_coupling=role_regime_coupling,
+            regime_likelihood_features=regime_likelihood_features,
+            regime_model=(likelihood_regime_model or regime_model),
+            regime_coupler=regime_coupler,
         )
 
     @staticmethod
     def _restore_feature_metadata(model, state: dict[str, object]) -> None:
         model.feature_names = list(state["feature_names"])
+        if hasattr(model, "extra_features"):
+            model.extra_features = tuple(state.get("extra_features", ()))
+        if hasattr(model, "position_specific_concentration"):
+            model.position_specific_concentration = bool(
+                state.get("position_specific_concentration", False)
+            )
+        if hasattr(model, "feature_projection"):
+            projection = state.get("feature_projection")
+            model.feature_projection = (
+                None if projection is None else np.asarray(projection, dtype=float)
+            )
         for attribute in (
             "feature_fill",
             "feature_mean",
@@ -1095,7 +1628,11 @@ PLAYER_ID_COLUMNS = ["season", "team", "player_key"]
 
 
 def _roster_sample_matrix(
-    design: dict[str, object], samples: np.ndarray, *, fill: float
+    design: dict[str, object],
+    samples: np.ndarray,
+    *,
+    fill: float,
+    min_value: float = 1e-5,
 ) -> np.ndarray:
     """Place flat player-draw samples into the ragged roster tensor."""
     matrix = np.full(
@@ -1107,7 +1644,46 @@ def _roster_sample_matrix(
         active = design["mask"][group_i].astype(bool)
         indices = design["row_idx"][group_i, active]
         matrix[group_i, active] = samples[indices]
-    return np.clip(matrix, 1e-5, 1.0)
+    return np.clip(matrix, min_value, 1.0)
+
+
+def _reweight_roster_prediction(
+    prediction: RosterSharePrediction,
+    weights: np.ndarray,
+    *,
+    support_position: str | None = None,
+) -> RosterSharePrediction:
+    """Multiply roster shares by a second modeled rate and renormalize."""
+    weights = np.asarray(weights, dtype=float)
+    if weights.shape != prediction.shares.shape:
+        raise ValueError("roster reweighting samples must align to shares")
+    adjusted = prediction.shares * np.clip(weights, 0.0, None)
+    if support_position is not None:
+        support = prediction.rows["position"].eq(support_position).to_numpy()[:, None]
+        adjusted = np.where(support, adjusted, 0.0)
+    group_idx = prediction.rows["_group_idx"].to_numpy(dtype=int)
+    for group in range(len(prediction.group_keys)):
+        indices = np.flatnonzero(group_idx == group)
+        totals = adjusted[indices].sum(axis=0)
+        missing = totals <= 0
+        if missing.any():
+            fallback = prediction.shares[indices]
+            if support_position is not None:
+                fallback = np.where(
+                    prediction.rows.loc[indices, "position"]
+                    .eq(support_position)
+                    .to_numpy()[:, None],
+                    fallback,
+                    0.0,
+                )
+            adjusted[np.ix_(indices, np.flatnonzero(missing))] = fallback[:, missing]
+            totals = adjusted[indices].sum(axis=0)
+        adjusted[indices] /= totals
+    return RosterSharePrediction(
+        rows=prediction.rows,
+        group_keys=prediction.group_keys,
+        shares=adjusted,
+    )
 
 
 def _align_group_draws(
@@ -1141,3 +1717,19 @@ def _allocate_season_counts(
                 int(totals[group, draw]), probability
             )
     return counts
+
+
+def _assert_group_count_conservation(
+    prediction: RosterSharePrediction,
+    counts: np.ndarray,
+    totals: np.ndarray,
+    stream: str,
+) -> None:
+    """Fail fast if an experimental role coupling breaks team-count accounting."""
+
+    group_index = prediction.rows["_group_idx"].to_numpy(dtype=int)
+    observed = np.vstack(
+        [counts[group_index == group].sum(axis=0) for group in range(len(prediction.group_keys))]
+    )
+    if not np.array_equal(observed, np.asarray(totals, dtype=int)):
+        raise AssertionError(f"{stream} regime coupling violated team-count conservation")

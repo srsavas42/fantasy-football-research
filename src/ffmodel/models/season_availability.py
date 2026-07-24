@@ -1,9 +1,10 @@
 """Preseason availability and quarterback workload models.
 
 All models consume only information available before the projected season.
-Availability uses a Beta-Binomial likelihood for games active. Quarterback
-workload uses a roster-softmax Multinomial over offensive snaps, so every draw
-is a continuous within-team share rather than a starter/backup classification.
+Availability uses a Bernoulli/Beta-Binomial hurdle for appearing and games
+active conditional on appearing. Quarterback workload uses a roster-softmax
+Multinomial over offensive snaps, so every draw is a continuous within-team
+share rather than a starter/backup classification.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import pandas as pd
 
 from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import logit, sample_model
+from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
 PLAYER_KEYS = GROUP_KEYS + ["player_key"]
@@ -29,6 +31,7 @@ AVAILABILITY_FEATURES = (
     "roster_reserve",
     "depth_rank",
     "qb_listed_starter",
+    "is_replacement_player",
 )
 
 STARTER_FEATURES = (
@@ -51,11 +54,17 @@ QB_WORKLOAD_FEATURES = (
     "roster_active",
     "qb_depth_rank",
     "qb_listed_starter",
+    "is_replacement_qb",
 )
 
 
 def _stack(posterior, name: str) -> np.ndarray:
     return posterior[name].stack(sample=("chain", "draw")).to_numpy()
+
+
+def _position_effect(pm, name: str, scale: float, size: int):
+    raw = pm.Normal(f"{name}_raw", 0.0, scale, shape=size - 1)
+    return pm.Deterministic(name, pm.math.dot(_sum_to_zero_basis(size), raw))
 
 
 def _feature_defaults(rows: pd.DataFrame) -> pd.DataFrame:
@@ -74,6 +83,8 @@ def _feature_defaults(rows: pd.DataFrame) -> pd.DataFrame:
         "prior_pass_role": np.nan,
         "prior_qb_snap_share": np.nan,
         "draft_pass_prior": 0.0,
+        "is_replacement_player": 0.0,
+        "is_replacement_qb": 0.0,
     }
     for name, value in defaults.items():
         if name not in out:
@@ -91,13 +102,18 @@ class AvailabilityPrediction:
 
 @dataclass
 class SeasonAvailabilityModel:
-    """Beta-Binomial model for a player's active games over a season."""
+    """Hurdle model for playing at all and games active conditional on playing."""
 
     positions: list[str] = field(default_factory=lambda: list(MODEL_POSITIONS))
+    # New covariates remain opt-in until a multi-fold posterior validation
+    # clears the model-promotion gate. See ``validate_injury_availability.py``.
+    extra_features: tuple[str, ...] = ()
+    position_specific_concentration: bool = False
     feature_names: list[str] = field(default_factory=list)
     feature_fill: dict[str, float] = field(default_factory=dict)
     feature_mean: dict[str, float] = field(default_factory=dict)
     feature_scale: dict[str, float] = field(default_factory=dict)
+    feature_projection: np.ndarray | None = None
     idata: object = None
 
     def _prepare(self, rows: pd.DataFrame) -> pd.DataFrame:
@@ -114,9 +130,12 @@ class SeasonAvailabilityModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
+            candidates = tuple(
+                dict.fromkeys((*AVAILABILITY_FEATURES, *self.extra_features))
+            )
             self.feature_names = [
                 name
-                for name in AVAILABILITY_FEATURES
+                for name in candidates
                 if name in rows
                 and pd.to_numeric(rows[name], errors="coerce").notna().any()
                 and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
@@ -137,7 +156,24 @@ class SeasonAvailabilityModel:
                 (filled.to_numpy(dtype=float) - self.feature_mean[name])
                 / self.feature_scale[name]
             )
-        return np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+        matrix = (
+            np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+        )
+        if fit:
+            if matrix.shape[1]:
+                _, singular_values, right = np.linalg.svd(matrix, full_matrices=False)
+                tolerance = (
+                    max(matrix.shape)
+                    * np.finfo(float).eps
+                    * singular_values.max(initial=0.0)
+                )
+                rank = int((singular_values > tolerance).sum())
+                self.feature_projection = right[:rank].T
+            else:
+                self.feature_projection = np.zeros((0, 0), dtype=float)
+        if self.feature_projection is None:
+            return matrix
+        return matrix @ np.asarray(self.feature_projection, dtype=float)
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "SeasonAvailabilityModel":
         import pymc as pm
@@ -157,23 +193,63 @@ class SeasonAvailabilityModel:
         position_index = pd.Categorical(
             out["position"], categories=self.positions
         ).codes
-        center = float(logit(np.array([np.clip(y.sum() / n.sum(), 0.05, 0.98)]))[0])
+        played = y > 0
+        any_center = float(
+            logit(np.array([np.clip(played.mean(), 0.05, 0.98)]))[0]
+        )
+        conditional = played & (n > 1)
+        remaining_n = n[conditional] - 1
+        remaining_y = y[conditional] - 1
+        conditional_rate = np.clip(
+            remaining_y.sum() / max(remaining_n.sum(), 1), 0.05, 0.98
+        )
+        rate_center = float(logit(np.array([conditional_rate]))[0])
         with pm.Model() as model:
-            intercept = pm.Normal("intercept", center, 0.50)
-            position_effect = pm.Normal(
-                "position_effect", 0.0, 0.35, shape=len(self.positions)
+            any_intercept = pm.Normal("any_intercept", any_center, 0.60)
+            any_position_effect = _position_effect(
+                pm, "any_position_effect", 0.40, len(self.positions)
             )
-            beta = pm.Normal("beta", 0.0, 0.35, shape=len(self.feature_names))
-            concentration = pm.Gamma("concentration", alpha=3.0, beta=0.12)
-            eta = intercept + position_effect[position_index]
-            eta = eta + pm.math.sum(X * beta, axis=1)
-            probability = pm.math.sigmoid(eta)
+            any_beta = pm.Normal(
+                "any_beta", 0.0, 0.40, shape=X.shape[1]
+            )
+            any_eta = any_intercept + any_position_effect[position_index]
+            any_eta = any_eta + pm.math.sum(X * any_beta, axis=1)
+            pm.Bernoulli(
+                "played_obs", p=pm.math.sigmoid(any_eta), observed=played.astype(int)
+            )
+
+            rate_intercept = pm.Normal("rate_intercept", rate_center, 0.50)
+            rate_position_effect = _position_effect(
+                pm, "rate_position_effect", 0.35, len(self.positions)
+            )
+            rate_beta = pm.Normal(
+                "rate_beta", 0.0, 0.35, shape=X.shape[1]
+            )
+            concentration_shape = (
+                len(self.positions) if self.position_specific_concentration else None
+            )
+            rate_concentration = pm.Gamma(
+                "rate_concentration",
+                alpha=3.0,
+                beta=0.12,
+                shape=concentration_shape,
+            )
+            rate_eta = (
+                rate_intercept + rate_position_effect[position_index[conditional]]
+            )
+            rate_eta = rate_eta + pm.math.sum(X[conditional] * rate_beta, axis=1)
+            rate_probability = pm.math.sigmoid(rate_eta)
+            conditional_concentration = (
+                rate_concentration[position_index[conditional]]
+                if self.position_specific_concentration
+                else rate_concentration
+            )
             pm.BetaBinomial(
-                "games_obs",
-                n=n,
-                alpha=probability * concentration,
-                beta=(1.0 - probability) * concentration,
-                observed=y,
+                "conditional_games_obs",
+                n=remaining_n,
+                alpha=rate_probability * conditional_concentration,
+                beta=(1.0 - rate_probability) * conditional_concentration,
+                observed=remaining_y,
             )
             sample_kwargs.setdefault("target_accept", 0.92)
             self.idata = sample_model(model, **sample_kwargs)
@@ -190,15 +266,60 @@ class SeasonAvailabilityModel:
             out["position"], categories=self.positions
         ).codes
         post = self.idata.posterior
-        eta = _stack(post, "intercept")[None, :]
-        eta = eta + _stack(post, "position_effect")[position_index, :]
-        eta = eta + X @ _stack(post, "beta")
-        mean = 1.0 / (1.0 + np.exp(-np.clip(eta, -20.0, 20.0)))
-        concentration = _stack(post, "concentration")[None, :]
+        # Pipelines saved before the hurdle-model upgrade contain the original
+        # single-stage Beta-Binomial posterior. Keep those artifacts loadable
+        # so accepted historical comparisons remain exactly reproducible.
+        if "any_intercept" not in post:
+            eta = _stack(post, "intercept")[None, :]
+            eta = eta + _stack(post, "position_effect")[position_index, :]
+            eta = eta + X @ _stack(post, "beta")
+            mean = 1.0 / (1.0 + np.exp(-np.clip(eta, -20.0, 20.0)))
+            concentration = _stack(post, "concentration")[None, :]
+            rng = np.random.default_rng(seed)
+            probability = rng.beta(
+                np.clip(mean * concentration, 1e-4, None),
+                np.clip((1.0 - mean) * concentration, 1e-4, None),
+            )
+            if team_games is None:
+                team_games = pd.to_numeric(
+                    out.get("team_games", pd.Series(17, index=out.index)),
+                    errors="coerce",
+                ).fillna(17).round().astype(int).to_numpy()
+            elif np.isscalar(team_games):
+                team_games = np.full(len(out), int(team_games), dtype=int)
+            else:
+                team_games = np.asarray(team_games, dtype=int)
+            if team_games.shape != (len(out),) or (team_games <= 0).any():
+                raise ValueError("team_games must be positive for every player")
+            games_active = rng.binomial(team_games[:, None], probability)
+            availability = games_active / team_games[:, None]
+            return AvailabilityPrediction(
+                rows=out,
+                probability=probability,
+                games_active=games_active,
+                availability=availability,
+            )
+        any_eta = _stack(post, "any_intercept")[None, :]
+        any_eta = any_eta + _stack(post, "any_position_effect")[position_index, :]
+        any_eta = any_eta + X @ _stack(post, "any_beta")
+        any_probability = 1.0 / (
+            1.0 + np.exp(-np.clip(any_eta, -20.0, 20.0))
+        )
+        rate_eta = _stack(post, "rate_intercept")[None, :]
+        rate_eta = rate_eta + _stack(post, "rate_position_effect")[position_index, :]
+        rate_eta = rate_eta + X @ _stack(post, "rate_beta")
+        rate_mean = 1.0 / (
+            1.0 + np.exp(-np.clip(rate_eta, -20.0, 20.0))
+        )
+        concentration = _stack(post, "rate_concentration")
+        if concentration.ndim == 1:
+            concentration = concentration[None, :]
+        else:
+            concentration = concentration[position_index, :]
         rng = np.random.default_rng(seed)
-        probability = rng.beta(
-            np.clip(mean * concentration, 1e-4, None),
-            np.clip((1.0 - mean) * concentration, 1e-4, None),
+        conditional_probability = rng.beta(
+            np.clip(rate_mean * concentration, 1e-4, None),
+            np.clip((1.0 - rate_mean) * concentration, 1e-4, None),
         )
         if team_games is None:
             team_games = pd.to_numeric(
@@ -211,8 +332,17 @@ class SeasonAvailabilityModel:
             team_games = np.asarray(team_games, dtype=int)
         if team_games.shape != (len(out),) or (team_games <= 0).any():
             raise ValueError("team_games must be positive for every player")
-        games_active = rng.binomial(team_games[:, None], probability)
-        availability = (games_active + 0.5) / (team_games[:, None] + 1.0)
+        played = rng.binomial(1, any_probability)
+        remaining_games = rng.binomial(
+            np.maximum(team_games - 1, 0)[:, None], conditional_probability
+        )
+        games_active = played * (1 + remaining_games)
+        expected_games = any_probability * (
+            1.0
+            + np.maximum(team_games - 1, 0)[:, None] * conditional_probability
+        )
+        probability = expected_games / team_games[:, None]
+        availability = games_active / team_games[:, None]
         return AvailabilityPrediction(
             rows=out,
             probability=probability,
@@ -242,6 +372,7 @@ class QBWorkloadShareModel:
     feature_fill: dict[str, float] = field(default_factory=dict)
     feature_mean: dict[str, float] = field(default_factory=dict)
     feature_scale: dict[str, float] = field(default_factory=dict)
+    extra_features: tuple[str, ...] = ()
     role_innovation_scale: float = 0.60
     idata: object = None
 
@@ -259,7 +390,7 @@ class QBWorkloadShareModel:
         if fit:
             self.feature_names = [
                 name
-                for name in QB_WORKLOAD_FEATURES
+                for name in tuple(dict.fromkeys((*QB_WORKLOAD_FEATURES, *self.extra_features)))
                 if name in rows
                 and pd.to_numeric(rows[name], errors="coerce").notna().any()
                 and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)

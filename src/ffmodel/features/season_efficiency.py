@@ -1,0 +1,479 @@
+"""Leak-free player-season efficiency responses and lagged priors.
+
+Efficiency is aggregated as a ratio of season totals, never as an average of
+weekly ratios.  Each observed player rate is partially pooled toward the
+same-season position mean using an opportunity-equivalent prior.  The pooled
+estimate from season ``Y`` is exposed to preseason models only as a feature for
+``Y+1``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
+
+from ffmodel.features import crossseason
+from ffmodel.features.volume import MODEL_POSITIONS, normalize_model_positions
+
+
+@dataclass(frozen=True)
+class SeasonEfficiencySpec:
+    """Definition of one opportunity-normalized season response."""
+
+    name: str
+    numerator: str
+    denominator: str
+    positions: tuple[str, ...]
+    prior_opportunities: float
+    advanced: bool = False
+
+
+NON_QB_RECEIVERS = ("RB", "WR", "TE")
+
+EFFICIENCY_SPECS = (
+    SeasonEfficiencySpec("pass_completion_rate", "pass_cmp", "pass_att", ("QB",), 100),
+    SeasonEfficiencySpec("pass_yards_per_attempt", "pass_yds", "pass_att", ("QB",), 100),
+    SeasonEfficiencySpec("pass_td_rate", "pass_td", "pass_att", ("QB",), 200),
+    SeasonEfficiencySpec("pass_int_rate", "pass_int", "pass_att", ("QB",), 200),
+    SeasonEfficiencySpec("rec_catch_rate", "receptions", "targets", NON_QB_RECEIVERS, 40),
+    SeasonEfficiencySpec("rec_yards_per_target", "rec_yds", "targets", NON_QB_RECEIVERS, 40),
+    SeasonEfficiencySpec("rec_td_rate", "rec_td", "targets", NON_QB_RECEIVERS, 120),
+    SeasonEfficiencySpec("rush_yards_per_carry", "rush_yds", "rush_att", MODEL_POSITIONS, 60),
+    SeasonEfficiencySpec("rush_td_rate", "rush_td", "rush_att", MODEL_POSITIONS, 120),
+    # A play-involvement denominator keeps the final fantasy-points layer
+    # complete without pretending that lost fumbles occur only on carries.
+    # Passing attempts proxy QB dropbacks, while targets and carries cover the
+    # two skill-player opportunity streams supplied by the volume model.
+    SeasonEfficiencySpec(
+        "fumble_lost_rate",
+        "fumbles_lost",
+        "fumble_opportunities",
+        MODEL_POSITIONS,
+        250,
+    ),
+    SeasonEfficiencySpec(
+        "pass_air_yards_per_attempt", "pass_air_yds", "pass_att", ("QB",), 100, True
+    ),
+    SeasonEfficiencySpec(
+        "pass_yac_per_completion", "pass_yac", "pass_cmp", ("QB",), 80, True
+    ),
+    SeasonEfficiencySpec(
+        "pass_epa_per_attempt", "pass_epa", "pass_att", ("QB",), 100, True
+    ),
+    SeasonEfficiencySpec(
+        "pass_first_down_rate", "pass_first_downs", "pass_att", ("QB",), 100, True
+    ),
+    SeasonEfficiencySpec(
+        "rec_air_yards_per_target", "rec_air_yds", "targets", NON_QB_RECEIVERS, 40, True
+    ),
+    SeasonEfficiencySpec(
+        "rec_yac_per_reception", "rec_yac", "receptions", NON_QB_RECEIVERS, 30, True
+    ),
+    SeasonEfficiencySpec(
+        "rec_epa_per_target", "rec_epa", "targets", NON_QB_RECEIVERS, 40, True
+    ),
+    SeasonEfficiencySpec(
+        "rec_first_down_rate", "rec_first_downs", "targets", NON_QB_RECEIVERS, 50, True
+    ),
+    SeasonEfficiencySpec(
+        "rush_epa_per_carry", "rush_epa", "rush_att", MODEL_POSITIONS, 60, True
+    ),
+    SeasonEfficiencySpec(
+        "rush_first_down_rate", "rush_first_downs", "rush_att", MODEL_POSITIONS, 60, True
+    ),
+)
+
+EFFICIENCY_BY_NAME = {spec.name: spec for spec in EFFICIENCY_SPECS}
+EFFICIENCY_LABEL_COLUMNS = tuple(spec.name for spec in EFFICIENCY_SPECS)
+SHRUNK_EFFICIENCY_COLUMNS = tuple(f"shrunk_{name}" for name in EFFICIENCY_LABEL_COLUMNS)
+PRIOR_EFFICIENCY_FEATURES = tuple(f"prior_{name}" for name in EFFICIENCY_LABEL_COLUMNS)
+ADVANCED_EFFICIENCY_FEATURES = tuple(
+    f"prior_{spec.name}" for spec in EFFICIENCY_SPECS if spec.advanced
+)
+
+VOLUME_QUALITY_METRICS = {
+    "pass": (
+        "prior_pass_yards_per_attempt",
+        "prior_pass_epa_per_attempt",
+        "prior_pass_first_down_rate",
+        "prior_pass_completion_rate",
+    ),
+    "rec": (
+        "prior_rec_yards_per_target",
+        "prior_rec_epa_per_target",
+        "prior_rec_first_down_rate",
+    ),
+    "rush": (
+        "prior_rush_yards_per_carry",
+        "prior_rush_epa_per_carry",
+        "prior_rush_first_down_rate",
+        "prior_rush_td_rate",
+    ),
+}
+
+VOLUME_QUALITY_STRENGTH = {"pass": 100.0, "rec": 40.0, "rush": 60.0}
+
+VOLUME_ROLE_SPECS = {
+    "pass": {
+        "role": "prior_pass_role",
+        "draft": "draft_pass_prior",
+        "positions": ("QB",),
+        "fallback": {"QB": 0.800, "RB": 0.0005, "WR": 0.0005, "TE": 0.0002},
+    },
+    "target": {
+        "role": "prior_target_role",
+        "draft": "draft_target_prior",
+        "positions": NON_QB_RECEIVERS,
+        "fallback": {"QB": 0.0001, "RB": 0.120, "WR": 0.180, "TE": 0.150},
+    },
+    "carry": {
+        "role": "prior_carry_role",
+        "draft": "draft_carry_prior",
+        "positions": MODEL_POSITIONS,
+        "fallback": {"QB": 0.080, "RB": 0.450, "WR": 0.010, "TE": 0.003},
+    },
+}
+
+CONDITIONAL_EFFICIENCY_SIGNALS = {
+    "pass": (
+        "prior_pass_quality_signal",
+        "prior_pass_td_rate_centered",
+    ),
+    "target": (
+        "prior_rec_quality_signal",
+        "prior_rec_epa_per_target_centered",
+    ),
+    "carry": ("prior_rush_epa_per_carry_centered",),
+}
+
+_CONDITIONAL_CENTER_SOURCES = {
+    "prior_pass_td_rate": "prior_pass_td_rate_centered",
+    "prior_rec_epa_per_target": "prior_rec_epa_per_target_centered",
+    "prior_rush_epa_per_carry": "prior_rush_epa_per_carry_centered",
+}
+
+CONDITIONAL_VOLUME_EFFICIENCY_FEATURES = (
+    "prior_role_continuity",
+    "prior_role_team_change",
+    *(
+        feature
+        for stream, signals in CONDITIONAL_EFFICIENCY_SIGNALS.items()
+        for feature in (
+            f"prior_{stream}_team_competition",
+            f"prior_{stream}_room_competition",
+            f"prior_{stream}_role_uncertainty",
+            *(signal for signal in signals if signal.endswith("_centered")),
+            *(
+                f"{signal}_x_{modifier}"
+                for signal in signals
+                for modifier in (
+                    "room",
+                    "team",
+                    "uncertainty",
+                    "returning",
+                    "changer",
+                    "room_returning",
+                )
+            ),
+        )
+    ),
+)
+
+VOLUME_EFFICIENCY_DERIVED_FEATURES = tuple(
+    feature
+    for stream, metrics in VOLUME_QUALITY_METRICS.items()
+    for feature in (
+        f"prior_{stream}_efficiency_reliability",
+        *(f"{metric}_position_rank" for metric in metrics),
+        f"prior_{stream}_quality_rank",
+        f"prior_{stream}_quality_signal",
+        f"prior_{stream}_team_quality_rank",
+        f"prior_{stream}_team_quality_signal",
+    )
+)
+
+_AGGREGATE_COLUMNS = tuple(
+    dict.fromkeys(
+        column
+        for spec in EFFICIENCY_SPECS
+        for column in (spec.numerator, spec.denominator)
+    )
+)
+
+# Raw numerators are retained under an ``eff_`` prefix on preseason modeling
+# rows. The prefix keeps current-season scoring outcomes visibly separate from
+# preseason features and gives count likelihoods exact integer successes.
+EFFICIENCY_NUMERATOR_COLUMNS = tuple(
+    dict.fromkeys(spec.numerator for spec in EFFICIENCY_SPECS)
+)
+
+
+def player_season_efficiency(player_weeks: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate and partially pool efficiency for every player-season.
+
+    Optional advanced numerators remain missing when a provider did not measure
+    them.  Basic counting statistics retain their canonical zero semantics.
+    """
+    required = {"season", "player_name", "position"}
+    missing = required - set(player_weeks.columns)
+    if missing:
+        raise ValueError(f"player weeks are missing columns: {sorted(missing)}")
+
+    weeks = normalize_model_positions(player_weeks)
+    weeks = weeks[weeks["position"].isin(MODEL_POSITIONS)].copy()
+    if "player_id" not in weeks:
+        weeks["player_id"] = pd.NA
+    weeks["player_key"] = crossseason.player_key(weeks)
+    for column in ("pass_att", "targets", "rush_att"):
+        if column not in weeks:
+            weeks[column] = 0.0
+        weeks[column] = pd.to_numeric(weeks[column], errors="coerce")
+    weeks["fumble_opportunities"] = (
+        weeks["pass_att"].fillna(0)
+        + weeks["targets"].fillna(0)
+        + weeks["rush_att"].fillna(0)
+    )
+    for column in _AGGREGATE_COLUMNS:
+        if column not in weeks:
+            weeks[column] = np.nan
+        weeks[column] = pd.to_numeric(weeks[column], errors="coerce")
+
+    weeks["_opportunities"] = (
+        weeks["pass_att"].fillna(0)
+        + weeks["targets"].fillna(0)
+        + weeks["rush_att"].fillna(0)
+    )
+    identity = (
+        weeks.groupby(
+            ["season", "player_key", "player_name", "position"], dropna=False
+        )["_opportunities"]
+        .sum()
+        .reset_index()
+        .sort_values(
+            ["season", "player_key", "_opportunities", "position", "player_name"]
+        )
+        .drop_duplicates(["season", "player_key"], keep="last")
+        .drop(columns="_opportunities")
+    )
+    totals = (
+        weeks.groupby(["season", "player_key"], dropna=False)[list(_AGGREGATE_COLUMNS)]
+        .sum(min_count=1)
+        .reset_index()
+    )
+    out = identity.merge(totals, on=["season", "player_key"], how="inner")
+
+    advanced_observed = np.zeros(len(out), dtype=bool)
+    for spec in EFFICIENCY_SPECS:
+        numerator = pd.to_numeric(out[spec.numerator], errors="coerce")
+        denominator = pd.to_numeric(out[spec.denominator], errors="coerce")
+        valid = (
+            out["position"].isin(spec.positions)
+            & numerator.notna()
+            & denominator.gt(0)
+        )
+        raw = np.divide(
+            numerator,
+            denominator,
+            out=np.full(len(out), np.nan, dtype=float),
+            where=valid,
+        )
+        out[spec.name] = raw
+
+        valid_num = numerator.where(valid)
+        valid_den = denominator.where(valid)
+        groupers = [out["season"], out["position"]]
+        pooled_num = valid_num.groupby(groupers, dropna=False).transform(
+            "sum", min_count=1
+        )
+        pooled_den = valid_den.groupby(groupers, dropna=False).transform(
+            "sum", min_count=1
+        )
+        pooled_mean = pooled_num / pooled_den
+        season_num = valid_num.groupby(out["season"], dropna=False).transform(
+            "sum", min_count=1
+        )
+        season_den = valid_den.groupby(out["season"], dropna=False).transform(
+            "sum", min_count=1
+        )
+        pooled_mean = pooled_mean.fillna(season_num / season_den)
+        shrunk = (
+            numerator + spec.prior_opportunities * pooled_mean
+        ) / (denominator + spec.prior_opportunities)
+        out[f"shrunk_{spec.name}"] = shrunk.where(valid)
+        if spec.advanced:
+            advanced_observed |= valid.to_numpy()
+
+    out["advanced_efficiency_available"] = advanced_observed.astype(int)
+    return out.sort_values(["season", "player_key"]).reset_index(drop=True)
+
+
+def efficiency_label_columns() -> list[str]:
+    """Columns to merge as current-season labels/exposures."""
+    return list(
+        dict.fromkeys(
+            [
+                "season",
+                "player_key",
+                "position",
+                "pass_att",
+                "targets",
+                "rush_att",
+                "fumble_opportunities",
+                *EFFICIENCY_NUMERATOR_COLUMNS,
+                *EFFICIENCY_LABEL_COLUMNS,
+                *SHRUNK_EFFICIENCY_COLUMNS,
+                "advanced_efficiency_available",
+            ]
+        )
+    )
+
+
+def lagged_efficiency_rows(efficiency: pd.DataFrame) -> pd.DataFrame:
+    """Shift pooled efficiency from season ``Y`` onto preseason ``Y+1`` rows."""
+    columns = ["season", "player_key", "advanced_efficiency_available"] + list(
+        SHRUNK_EFFICIENCY_COLUMNS
+    )
+    out = efficiency[columns].copy()
+    out["season"] = pd.to_numeric(out["season"], errors="raise").astype(int) + 1
+    out = out.rename(
+        columns={
+            **{
+                f"shrunk_{name}": f"prior_{name}"
+                for name in EFFICIENCY_LABEL_COLUMNS
+            },
+            "advanced_efficiency_available": "prior_advanced_efficiency_available",
+        }
+    )
+    return out
+
+
+def add_volume_efficiency_features(rows: pd.DataFrame) -> pd.DataFrame:
+    """Add reliability and nonlinear relative-quality features for volume.
+
+    Percentile ranks are calculated only from lagged observations present on
+    the known preseason roster. They are therefore available at prediction
+    time and cannot contain current-season outcomes.
+    """
+    out = rows.copy()
+    exposure_columns = {
+        "pass": "prior_pass_att",
+        "rec": "prior_targets",
+        "rush": "prior_rush_att",
+    }
+    for stream, metrics in VOLUME_QUALITY_METRICS.items():
+        exposure = pd.to_numeric(out[exposure_columns[stream]], errors="coerce")
+        strength = VOLUME_QUALITY_STRENGTH[stream]
+        reliability = exposure / (exposure + strength)
+        reliability = reliability.where(exposure.ge(0))
+        out[f"prior_{stream}_efficiency_reliability"] = reliability
+
+        rank_columns = []
+        for metric in metrics:
+            values = pd.to_numeric(
+                out.get(metric, pd.Series(np.nan, index=out.index)), errors="coerce"
+            )
+            rank_column = f"{metric}_position_rank"
+            out[rank_column] = values.groupby(
+                [out["season"], out["position"]], dropna=False
+            ).rank(method="average", pct=True)
+            rank_columns.append(rank_column)
+        composite = out[rank_columns].mean(axis=1, skipna=True)
+        composite = composite.where(out[rank_columns].notna().any(axis=1))
+        out[f"prior_{stream}_quality_rank"] = composite
+        out[f"prior_{stream}_quality_signal"] = (composite - 0.5) * reliability
+        team_rank = composite.groupby(
+            [out["season"], out["team"]], dropna=False
+        ).rank(method="average", pct=True)
+        out[f"prior_{stream}_team_quality_rank"] = team_rank
+        out[f"prior_{stream}_team_quality_signal"] = (
+            team_rank - 0.5
+        ) * reliability
+    return out
+
+
+def add_conditional_volume_efficiency_features(rows: pd.DataFrame) -> pd.DataFrame:
+    """Interact lagged efficiency with preseason role context.
+
+    Competition is calculated from lagged role, rookie draft priors, and
+    position fallbacks on the known current roster. ``room`` refers to the
+    player's current team-position group, while ``team`` uses every position
+    eligible for that opportunity stream. All inputs are available before the
+    response season begins.
+    """
+    required = {"season", "team", "position", "team_change"}
+    missing = required - set(rows.columns)
+    if missing:
+        raise ValueError(
+            f"conditional efficiency rows are missing columns: {sorted(missing)}"
+        )
+    out = rows.copy()
+    changed = pd.to_numeric(out["team_change"], errors="coerce").fillna(0.0)
+    changed = changed.clip(0.0, 1.0)
+    cold_start = pd.to_numeric(
+        out.get("cold_start", pd.Series(0, index=out.index)), errors="coerce"
+    ).fillna(0.0).clip(0.0, 1.0)
+    out["prior_role_continuity"] = (1.0 - changed) * (1.0 - cold_start)
+    out["prior_role_team_change"] = changed
+
+    for source, centered in _CONDITIONAL_CENTER_SOURCES.items():
+        values = pd.to_numeric(
+            out.get(source, pd.Series(np.nan, index=out.index)), errors="coerce"
+        )
+        position_median = values.groupby(
+            [out["season"], out["position"]], dropna=False
+        ).transform("median")
+        out[centered] = values - position_median
+
+    for stream, spec in VOLUME_ROLE_SPECS.items():
+        role = pd.to_numeric(
+            out.get(spec["role"], pd.Series(np.nan, index=out.index)),
+            errors="coerce",
+        )
+        draft = pd.to_numeric(
+            out.get(spec["draft"], pd.Series(np.nan, index=out.index)),
+            errors="coerce",
+        )
+        fallback = out["position"].map(spec["fallback"]).astype(float)
+        prior = role.where(role > 0).combine_first(draft.where(draft > 0))
+        prior = prior.combine_first(fallback)
+        prior = prior.where(out["position"].isin(spec["positions"]), 0.0)
+        prior = prior.fillna(0.0).clip(lower=0.0)
+
+        team_group = [out["season"], out["team"]]
+        team_total = prior.groupby(team_group, dropna=False).transform("sum")
+        team_share = prior.div(team_total.where(team_total > 0)).fillna(0.0)
+        team_leader = team_share.groupby(team_group, dropna=False).transform("max")
+        out[f"prior_{stream}_team_competition"] = (1.0 - team_leader).clip(
+            0.0, 1.0
+        )
+
+        room_group = [out["season"], out["team"], out["position"]]
+        room_total = prior.groupby(room_group, dropna=False).transform("sum")
+        room_share = prior.div(room_total.where(room_total > 0)).fillna(0.0)
+        room_leader = room_share.groupby(room_group, dropna=False).transform("max")
+        out[f"prior_{stream}_room_competition"] = (1.0 - room_leader).clip(
+            0.0, 1.0
+        )
+        out[f"prior_{stream}_role_uncertainty"] = (1.0 - room_share).clip(
+            0.0, 1.0
+        )
+
+        for signal in CONDITIONAL_EFFICIENCY_SIGNALS[stream]:
+            efficiency = pd.to_numeric(
+                out.get(signal, pd.Series(np.nan, index=out.index)), errors="coerce"
+            )
+            modifiers = {
+                "room": out[f"prior_{stream}_room_competition"],
+                "team": out[f"prior_{stream}_team_competition"],
+                "uncertainty": out[f"prior_{stream}_role_uncertainty"],
+                "returning": out["prior_role_continuity"],
+                "changer": out["prior_role_team_change"],
+            }
+            for modifier, context in modifiers.items():
+                out[f"{signal}_x_{modifier}"] = efficiency * context
+            out[f"{signal}_x_room_returning"] = (
+                out[f"{signal}_x_room"] * out["prior_role_continuity"]
+            )
+    return out

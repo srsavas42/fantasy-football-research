@@ -16,9 +16,41 @@ LEGACY_SNAPCOUNTS_DIR = REPO_ROOT / "snapcounts"
 LEGACY_ADP_DIR = REPO_ROOT / "fantasypros" / "adp"
 LEGACY_ECR_DIR = REPO_ROOT / "fantasypros" / "ecr"
 LEGACY_SOS_DIR = REPO_ROOT / "sos"
+MANUAL_DATA_DIR = REPO_ROOT / "data" / "manual"
+COACHING_PERIODS_PATH = MANUAL_DATA_DIR / "coach_team_period.csv"
+IDENTITY_OVERRIDES_PATH = MANUAL_DATA_DIR / "player_identity_overrides.csv"
+WIKIPEDIA_COACHING_DIR = REPO_ROOT / "data" / "coaching" / "wikipedia"
 
 # Parquet cache for downloaded nflverse data. Override with FFMODEL_CACHE_DIR.
 CACHE_DIR = Path(os.environ.get("FFMODEL_CACHE_DIR", REPO_ROOT / ".cache" / "ffmodel"))
+
+# Remote-source settings. API keys are intentionally read inside each request
+# function, not here, so tests and notebooks can set them after importing ffmodel.
+HTTP_TIMEOUT = float(os.environ.get("FFMODEL_HTTP_TIMEOUT", "30"))
+CFBD_API_KEY_ENV = "FFMODEL_CFBD_API_KEY"
+ODDS_API_KEY_ENV = "FFMODEL_ODDS_API_KEY"
+CFBD_MONTHLY_LIMIT_ENV = "FFMODEL_CFBD_MONTHLY_LIMIT"
+
+
+def project_env_value(name: str) -> str | None:
+    """Read a process variable, falling back to the Git-ignored project .env."""
+    value = os.environ.get(name)
+    if value:
+        return value
+    path = REPO_ROOT / ".env"
+    if not path.exists():
+        return None
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, candidate = line.removeprefix("export ").split("=", 1)
+        if key.strip() == name:
+            candidate = candidate.strip()
+            if len(candidate) >= 2 and candidate[0] == candidate[-1] and candidate[0] in "\"'":
+                candidate = candidate[1:-1]
+            return candidate or None
+    return None
 
 # Season coverage
 LEGACY_WEEKLY_SEASONS = range(1999, 2022)   # weekly/{year}/week{n}.csv
@@ -27,6 +59,9 @@ NFLVERSE_FIRST_SEASON = 1999                # pbp / weekly player stats
 NFLVERSE_SNAPS_FIRST_SEASON = 2012          # snap counts
 NFLVERSE_DEPTH_FIRST_SEASON = 2001          # depth charts
 NFLVERSE_INJURY_FIRST_SEASON = 2009         # injury reports
+# The historical nflverse injury-report feed is currently unavailable after
+# 2024. Live projections should supply an archived current snapshot instead.
+NFLVERSE_INJURY_LAST_SEASON = 2024
 
 # Weeks: 17 games through 2020, 18 from 2021 on
 def regular_season_weeks(season: int) -> int:

@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ffmodel.features.volume import SKILL_POSITIONS
+from ffmodel.features.volume import MODEL_POSITIONS
 
 ROLE_GROUP = ["season", "week", "team", "position"]
 MAX_TIER = 4  # tiers 1..3 explicit; 4 means "4th or deeper".
@@ -70,8 +70,8 @@ def add_roles(pw: pd.DataFrame, snap_share_col: str | None = None) -> pd.DataFra
     )
     out["role_tier"] = out["role_rank"].clip(upper=MAX_TIER).astype("Int64")
 
-    # Only skill positions get a meaningful opportunity tier.
-    non_skill = ~out["position"].isin(SKILL_POSITIONS)
-    out.loc[non_skill, ["role_rank", "role_tier"]] = pd.NA
+    # Every modeled position (including QB) gets a meaningful role tier.
+    non_model = ~out["position"].isin(MODEL_POSITIONS)
+    out.loc[non_model, ["role_rank", "role_tier"]] = pd.NA
 
     return out.drop(columns=["prior_opp_share"])

@@ -44,10 +44,17 @@ def test_cold_start_uses_prior_season_when_no_history():
 
 
 def test_non_skill_positions_have_no_tier():
-    df = _frame([["Q", "QB", "T", 2020, 5, 0.9, 0.9]])
+    df = _frame([["D", "DEF", "T", 2020, 5, 0.9, 0.9]])
     df["player_id"] = None
     out = add_roles(df)
     assert pd.isna(out["role_tier"].iloc[0])
+
+
+def test_qb_receives_a_role_tier():
+    df = _frame([["Q", "QB", "T", 2020, 5, 0.9, 0.9]])
+    df["player_id"] = None
+    out = add_roles(df)
+    assert out["role_rank"].iloc[0] == 1
 
 
 @pytest.mark.parametrize("seasons", [[2020], [2019, 2020]])
@@ -60,6 +67,7 @@ def test_build_features_contract(seasons):
         assert not df[col].isna().all(), f"all-NaN: {col}"
     assert set(df["season"].unique()) == set(seasons)
     assert (df["is_active"].isin([0, 1])).all()
+    assert set(df["position"].unique()) <= {"QB", "RB", "WR", "TE"}
 
 
 def test_build_features_team_season_key():

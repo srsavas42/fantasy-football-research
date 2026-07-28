@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 pytest.importorskip("pymc")
+pytestmark = pytest.mark.slow
 
 from ffmodel.features import crossseason as cs
 from ffmodel.models import volume_season as vs

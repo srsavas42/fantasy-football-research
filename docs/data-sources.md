@@ -281,6 +281,13 @@ Keep raw paid files outside Git, map IDs through `player_dim`, and add the
 provider's license to cache manifests. First run a walk-forward ablation to
 confirm true routes improve over the open snap-share plus PBP baseline.
 
+The efficiency-v1 ablation also tested nflverse pass-play participation from
+2016-2024 as an open route-opportunity proxy. It covered 3,360 of 7,234 model
+rows but worsened target-allocation MAE and did not improve future receiving
+efficiency. It is therefore not a production feature. A paid feed should be
+considered only for complete receiver-level routes run, not as a substitute
+for this on-field pass-play proxy.
+
 ## 9. BlueSky/RSS signal archive: operate as a separate live service
 
 This is intentionally not part of `bootstrap`: it is a projection-time signal

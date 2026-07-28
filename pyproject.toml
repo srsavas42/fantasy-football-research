@@ -11,14 +11,21 @@ requires-python = ">=3.10"
 dependencies = [
     "pandas>=1.5",
     "numpy>=1.24",
-    "nfl_data_py>=0.3.3",
+    "nflreadpy>=0.1.5,<1",
     "pyarrow>=12",
 ]
+
+[project.scripts]
+ffmodel-data = "ffmodel.data.pull:main"
+ffmodel-coaches = "ffmodel.data.wikipedia_coaching:main"
 
 [project.optional-dependencies]
 models = [
     "pymc>=5.10",
-    "arviz>=0.17",
+    "arviz>=0.17,<1",
+]
+ml = [
+    "xgboost>=2,<4",
 ]
 dev = [
     "pytest>=7.4",
@@ -28,6 +35,7 @@ scrape = [
     "beautifulsoup4>=4.12",
     "lxml>=4.9",
     "html5lib>=1.1",
+    "mwparserfromhell>=0.7",
 ]
 
 [tool.setuptools.packages.find]
@@ -35,3 +43,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--basetemp=.cache/pytest-tmp -p no:cacheprovider -m 'not slow'"
+markers = [
+    "slow: sampler-heavy Bayesian integration tests; run explicitly with -m slow",
+]

@@ -1,0 +1,214 @@
+{
+  "chains": 1,
+  "diagnostics": {
+    "availability": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 3.7375711356124612,
+      "passed": false
+    },
+    "carry": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 38.3371372347091,
+      "passed": false
+    },
+    "carry_eligibility": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 22.142878125121648,
+      "passed": false
+    },
+    "qb_propensity": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 27.15800629361333,
+      "passed": false
+    },
+    "snap": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 8.759507257646087,
+      "passed": false
+    },
+    "target": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 5.070702571911765,
+      "passed": false
+    },
+    "team": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 3.9702281961782204,
+      "passed": false
+    },
+    "workload": {
+      "divergences": 0,
+      "max_rhat": NaN,
+      "min_bulk_ess": 1.4490512213751796,
+      "passed": false
+    }
+  },
+  "draws": 50,
+  "fit_seconds": {
+    "availability": 24.6296893999679,
+    "carry": 15.330923700006679,
+    "carry_eligibility": 8.572798000008333,
+    "qb_propensity": 8.71129700000165,
+    "regime_features": 3.4946759000304155,
+    "snap": 12.228991399984807,
+    "target": 15.626385800016578,
+    "team": 52.737859299988486,
+    "workload": 15.247566599980928
+  },
+  "holdout": 2023,
+  "named_players": 585,
+  "player": {
+    "availability": {
+      "coverage_80": 0.9247863247863248,
+      "crps": 0.13357904474610358,
+      "mae": 0.20400804424333835,
+      "n": 585,
+      "rmse": 0.26010454504498665
+    },
+    "carry": {
+      "coverage_80": 0.852991452991453,
+      "crps": 0.5687698743086979,
+      "mae": 0.7709703368526898,
+      "n": 585,
+      "rmse": 1.7856767936036526
+    },
+    "carry_eligibility_brier": 0.140647668319539,
+    "pass": {
+      "coverage_80": 0.9247863247863248,
+      "crps": 0.675024715937657,
+      "mae": 0.9675696329813976,
+      "n": 585,
+      "rmse": 3.51719222632933
+    },
+    "pass_qb": {
+      "coverage_80": 0.7142857142857143,
+      "crps": 4.682857703081233,
+      "mae": 6.720224089635854,
+      "n": 84,
+      "rmse": 9.281753572580225
+    },
+    "qb_pass_propensity": {
+      "coverage_80": 0.7432432432432432,
+      "crps": 0.0779603294764652,
+      "mae": 0.09550452008381782,
+      "n": 74,
+      "rmse": 0.15646843865674706
+    },
+    "snap_share": {
+      "coverage_80": 0.8444444444444444,
+      "crps": 0.0961873566421161,
+      "mae": 0.13857376340518185,
+      "n": 585,
+      "rmse": 0.1833194297643998
+    },
+    "target": {
+      "coverage_80": 0.7948717948717948,
+      "crps": 0.6923753041729512,
+      "mae": 0.9336209150326796,
+      "n": 585,
+      "rmse": 1.4790845699068607
+    }
+  },
+  "regime": {
+    "committee": {
+      "carry": {
+        "coverage_80": 0.8645533141210374,
+        "crps": 0.5354870317002882,
+        "mae": 0.767028309883031,
+        "n": 347,
+        "rmse": 1.663023451125344
+      },
+      "mean_probability": 0.4344416336273062,
+      "n": 347,
+      "target": {
+        "coverage_80": 0.7723342939481268,
+        "crps": 0.7374695372096965,
+        "mae": 1.0318426852008813,
+        "n": 347,
+        "rmse": 1.5456918799078472
+      }
+    },
+    "inactive": {
+      "carry": {
+        "coverage_80": 0.8014705882352942,
+        "crps": 0.33263840830449826,
+        "mae": 0.37666089965397925,
+        "n": 136,
+        "rmse": 1.2139660942535218
+      },
+      "mean_probability": 0.22429501794968296,
+      "n": 136,
+      "target": {
+        "coverage_80": 0.8088235294117647,
+        "crps": 0.3241217993079585,
+        "mae": 0.45712802768166094,
+        "n": 136,
+        "rmse": 1.0671059663861153
+      }
+    },
+    "lead": {
+      "carry": {
+        "coverage_80": 0.8823529411764706,
+        "crps": 0.9968387543252597,
+        "mae": 1.3101268742791234,
+        "n": 102,
+        "rmse": 2.6294910670303433
+      },
+      "mean_probability": 0.16174020676803189,
+      "n": 102,
+      "target": {
+        "coverage_80": 0.8529411764705882,
+        "crps": 1.0299711649365628,
+        "mae": 1.2347981545559399,
+        "n": 102,
+        "rmse": 1.7032102804749538
+      }
+    },
+    "replacement": {
+      "carry": null,
+      "mean_probability": 0.17952314165497896,
+      "n": 128,
+      "target": null
+    }
+  },
+  "regime_likelihood_features": true,
+  "replacement_buckets": 128,
+  "role_regime_coupling": false,
+  "team": {
+    "opportunity_plays": {
+      "coverage_80": 0.78125,
+      "crps": 1.612686764705882,
+      "mae": 2.4083823529411754,
+      "n": 32,
+      "rmse": 2.759560982585634
+    },
+    "pass_attempts": {
+      "coverage_80": 0.875,
+      "crps": 1.553794117647059,
+      "mae": 2.1526470588235287,
+      "n": 32,
+      "rmse": 2.637263248036942
+    },
+    "rush_attempts": {
+      "coverage_80": 0.84375,
+      "crps": 1.335560294117647,
+      "mae": 1.8164705882352945,
+      "n": 32,
+      "rmse": 2.3381499984442646
+    },
+    "targets": {
+      "coverage_80": 0.875,
+      "crps": 1.4558691176470586,
+      "mae": 2.0550735294117657,
+      "n": 32,
+      "rmse": 2.481720507672187
+    }
+  }
+}

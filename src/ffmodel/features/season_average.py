@@ -59,6 +59,30 @@ TEAM_KEYS = ["season", "team"]
 PLAYER_KEYS = ["season", "team", "player_key"]
 ROSTER_STATUSES = frozenset({"ACT", "RES", "INA", "EXE"})
 
+# Realized current-season quantities. On a projection season these do not exist,
+# and the label merge zero-fills them, so they are restored to missing. ``games``
+# is deliberately absent: it is read as an integer exposure at predict time and
+# is instead set to the scheduled team-game count.
+PROJECTION_BLANK_LABELS = (
+    "pass_att",
+    "targets",
+    "rush_att",
+    "pass_attempt_share",
+    "target_share",
+    "carry_share",
+    "late_pass_attempt_share",
+    "late_target_share",
+    "late_carry_share",
+    "observed_availability",
+    "observed_qb_workload_share",
+    "offense_snaps",
+    "team_offense_snaps",
+    "snap_share",
+    "qb_snap_share",
+    "stat_activity_games",
+    "fumble_opportunities",
+)
+
 
 @dataclass(frozen=True)
 class SeasonAverageData:
@@ -305,8 +329,16 @@ def team_season_volume(player_weeks: pd.DataFrame) -> pd.DataFrame:
     return rows.sort_values(TEAM_KEYS).reset_index(drop=True)
 
 
-def team_transition_rows(team_volume: pd.DataFrame) -> pd.DataFrame:
-    """Attach strictly prior-season team rates to each realized team-season."""
+def team_transition_rows(
+    team_volume: pd.DataFrame, projection_seasons: Iterable[int] = ()
+) -> pd.DataFrame:
+    """Attach strictly prior-season team rates to each realized team-season.
+
+    ``projection_seasons`` name seasons that have not been played. They carry no
+    realized team volume, so their rows are built from the prior season's rates
+    alone and every realized column is left missing rather than zero-filled — a
+    zero would be indistinguishable from a genuinely play-less team.
+    """
     prior = team_volume[
         TEAM_KEYS
         + [
@@ -327,8 +359,40 @@ def team_transition_rows(team_volume: pd.DataFrame) -> pd.DataFrame:
         columns={column: f"prior_{column}" for column in prior.columns if column not in TEAM_KEYS}
     )
     out = team_volume.merge(prior, on=TEAM_KEYS, how="inner")
+    projection = sorted({int(season) for season in projection_seasons})
+    if projection:
+        future = prior[prior["season"].isin(projection)].copy()
+        for column in team_volume.columns:
+            if column not in TEAM_KEYS:
+                future[column] = np.nan
+        out = pd.concat([out, future], ignore_index=True, sort=False)
     out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
     return out.sort_values(TEAM_KEYS).reset_index(drop=True)
+
+
+def _projected_team_games(
+    team_games: pd.DataFrame, projection_seasons: set[int]
+) -> pd.DataFrame:
+    """Carry a scheduled team-game count into seasons that have not been played.
+
+    Exposure is taken from the most recent observed season rather than a literal
+    so the count follows whatever schedule length the data actually shows.
+    """
+    if not projection_seasons or team_games.empty:
+        return team_games
+    latest = team_games[team_games["season"].eq(team_games["season"].max())]
+    scheduled = pd.to_numeric(latest["team_games"], errors="coerce").mode()
+    if scheduled.empty:
+        return team_games
+    teams = team_games["team"].dropna().unique()
+    future = pd.DataFrame(
+        [
+            {"season": season, "team": team, "team_games": float(scheduled.iloc[0])}
+            for season in sorted(projection_seasons)
+            for team in teams
+        ]
+    )
+    return pd.concat([team_games, future], ignore_index=True, sort=False)
 
 
 def player_team_season_usage(player_weeks: pd.DataFrame) -> pd.DataFrame:
@@ -410,26 +474,45 @@ def player_preseason_rows(
     weekly_rosters: pd.DataFrame | None = None,
     injury_snapshot: pd.DataFrame | None = None,
     injury_cutoff_week: int = 1,
+    projection_seasons: Iterable[int] = (),
 ) -> pd.DataFrame:
     """Build roster rows with prior-year predictors and current-year labels.
 
     Current-season target/carry counts, active games, and shares are labels or
     likelihood exposures. They are never included in ``PRESEASON_FEATURES``.
+
+    ``projection_seasons`` name seasons that have not been played. No observed
+    play-by-play exists for them, so every raw feed is read for the observed
+    seasons only; their rows come from ``roster_snapshot`` and carry prior-season
+    predictors plus draft capital. Their label columns are structurally absent
+    and must never be read as outcomes.
     """
     seasons = sorted(set(int(season) for season in seasons))
-    history = crossseason.season_usage(seasons, source=source).copy()
+    projection = {int(season) for season in projection_seasons}
+    unknown = projection - set(seasons)
+    if unknown:
+        raise ValueError(
+            f"projection_seasons must be included in seasons; missing {sorted(unknown)}"
+        )
+    observed = [season for season in seasons if season not in projection]
+    if not observed:
+        raise ValueError("at least one observed season is required for prior features")
+    if projection and roster_snapshot is None:
+        raise ValueError("projection seasons require an explicit roster_snapshot")
+    history = crossseason.season_usage(observed, source=source).copy()
     history["position"] = history["position"].astype(str).str.upper()
     history = history[history["position"].isin(MODEL_POSITIONS)].copy()
     history = _normalize_teams(history)
     history["player_key"] = crossseason.player_key(history)
     if player_weeks is None:
-        player_weeks = load_player_weeks(seasons, source=source)
+        player_weeks = load_player_weeks(observed, source=source)
     if team_volume is None:
         team_volume = team_season_volume(player_weeks)
     efficiency = player_season_efficiency(player_weeks)
     team_games = team_volume[TEAM_KEYS + ["games"]].rename(columns={"games": "team_games"})
+    team_games = _projected_team_games(team_games, projection)
     history = history.merge(team_games, on=TEAM_KEYS, how="left")
-    snap_usage = load_season_snap_usage(seasons, source=source)
+    snap_usage = load_season_snap_usage(observed, source=source)
     history = _merge_snap_usage(history, snap_usage)
 
     if roster_snapshot is None:
@@ -682,6 +765,19 @@ def player_preseason_rows(
         axis=1,
     ).to_numpy(dtype=float)
     out = add_conditional_volume_efficiency_features(out)
+    out["is_projection"] = out["season"].isin(projection).astype(int)
+    if projection:
+        # These are outcomes, and no outcome exists yet. The label merge
+        # zero-fills absent rows, which on an unplayed season would present a
+        # structural absence as a realized zero, so restore them to missing.
+        future = out["season"].isin(projection)
+        out.loc[future, [c for c in PROJECTION_BLANK_LABELS if c in out.columns]] = np.nan
+        # Exposure for an unplayed season is the scheduled slate, not a realized
+        # count. How much of it a player is expected to be available for is the
+        # availability model's job, not an input.
+        out.loc[future, "games"] = pd.to_numeric(
+            out.loc[future, "team_games"], errors="coerce"
+        )
     out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
     return out.sort_values(PLAYER_KEYS).reset_index(drop=True)
 
@@ -697,17 +793,37 @@ def build_season_average_data(
     injury_reports: pd.DataFrame | None = None,
     weekly_rosters: pd.DataFrame | None = None,
     injury_snapshot: pd.DataFrame | None = None,
+    projection_seasons: Iterable[int] = (),
 ) -> SeasonAverageData:
-    """Build the complete season-average modeling dataset."""
+    """Build the complete season-average modeling dataset.
+
+    ``projection_seasons`` name seasons that have not been played yet. They are
+    excluded from every raw feed, require an explicit ``roster_snapshot``, and
+    produce feature-only rows for forward projection.
+    """
     seasons = sorted(set(int(season) for season in seasons))
+    projection = {int(season) for season in projection_seasons}
+    unknown = projection - set(seasons)
+    if unknown:
+        raise ValueError(
+            f"projection_seasons must be included in seasons; missing {sorted(unknown)}"
+        )
+    observed = [season for season in seasons if season not in projection]
+    if not observed:
+        raise ValueError("at least one observed season is required for prior features")
     if roster_mode not in {"auto", "point_in_time", "inferred"}:
         raise ValueError("roster_mode must be 'auto', 'point_in_time', or 'inferred'")
-    player_weeks = load_player_weeks(seasons, source=source)
+    if projection and roster_snapshot is None:
+        raise ValueError(
+            "projection seasons have no published roster; pass roster_snapshot "
+            "with rows for each projection season"
+        )
+    player_weeks = load_player_weeks(observed, source=source)
     teams = team_season_volume(player_weeks)
     injury_seasons = list(
         range(
-            max(NFLVERSE_INJURY_FIRST_SEASON, min(seasons) - 3),
-            min(NFLVERSE_INJURY_LAST_SEASON, max(seasons)) + 1,
+            max(NFLVERSE_INJURY_FIRST_SEASON, min(observed) - 3),
+            min(NFLVERSE_INJURY_LAST_SEASON, max(observed)) + 1,
         )
     )
     if injury_reports is None and source != "legacy" and injury_seasons:
@@ -736,7 +852,7 @@ def build_season_average_data(
         if should_try:
             try:
                 roster_snapshot = load_preseason_roster_snapshot(
-                    seasons,
+                    observed,
                     cutoff_week=roster_cutoff_week,
                     cache_dir=roster_cache_dir,
                 )
@@ -753,10 +869,60 @@ def build_season_average_data(
         weekly_rosters=weekly_rosters,
         injury_snapshot=injury_snapshot,
         injury_cutoff_week=roster_cutoff_week,
+        projection_seasons=projection,
     )
     return SeasonAverageData(
-        team_rows=team_transition_rows(teams),
+        team_rows=team_transition_rows(teams, projection_seasons=projection),
         player_rows=add_player_pathway_features(player_rows),
+    )
+
+
+def build_projection_data(
+    projection_season: int,
+    *,
+    roster_snapshot: pd.DataFrame,
+    history_seasons: Iterable[int] | None = None,
+    history_length: int = 7,
+    source: str = "auto",
+    **kwargs,
+) -> SeasonAverageData:
+    """Build feature-only rows for a season that has not been played.
+
+    The season-average pipeline is otherwise backtest-shaped: it scores seasons
+    whose play-by-play already exists. A forward projection has no such data, so
+    the row universe comes from ``roster_snapshot`` and every predictor is drawn
+    from strictly prior seasons and draft capital.
+
+    ``roster_snapshot`` must carry rows for ``projection_season``; no published
+    week-1 roster exists before the season starts, so it has to be supplied (an
+    archived snapshot, or one derived from preseason depth charts).
+    """
+    projection_season = int(projection_season)
+    if history_seasons is None:
+        history_seasons = range(projection_season - history_length, projection_season)
+    history = sorted({int(season) for season in history_seasons})
+    if not history:
+        raise ValueError("history_seasons must contain at least one season")
+    if projection_season in history:
+        raise ValueError("projection_season must not appear in history_seasons")
+    if max(history) != projection_season - 1:
+        raise ValueError(
+            "history must run up to the season before projection_season; "
+            f"got {max(history)} for projection {projection_season}"
+        )
+    snapshot_seasons = set(
+        pd.to_numeric(roster_snapshot["season"], errors="coerce").dropna().astype(int)
+    )
+    if projection_season not in snapshot_seasons:
+        raise ValueError(
+            f"roster_snapshot has no rows for projection season {projection_season}"
+        )
+    return build_season_average_data(
+        history + [projection_season],
+        source=source,
+        roster_snapshot=roster_snapshot,
+        projection_seasons=[projection_season],
+        **kwargs,
     )
 
 

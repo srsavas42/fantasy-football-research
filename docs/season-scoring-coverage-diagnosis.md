@@ -85,6 +85,51 @@ happen at all. A quarterback room is close to winner-take-all, which is why the
 effect concentrates there: a back or receiver who loses a job still absorbs some
 volume, while a quarterback who loses one absorbs almost none.
 
+## The backup quarterback distribution, and the missing hurdle
+
+The realized shares say the quarterback room is not one population. Splitting
+2016-2023 quarterback seasons by listed week-1 depth:
+
+| Listed depth | n | share below 0.02 | median | p90 | skew |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| QB1 | 253 | 0.01 | 0.901 | 0.997 | -1.33 |
+| QB2 or lower | 624 | 0.62 | 0.002 | 0.291 | +2.77 |
+| unlisted | 80 | 0.82 | 0.000 | 0.125 | +4.01 |
+
+The shape inverts across the room. A listed starter is left-skewed against a
+ceiling; a backup is right-skewed against a floor, taking nothing in 62% of
+seasons and a substantial share when the starter goes down. No single unimodal
+distribution fits both, and the marginal that results fits neither.
+
+Conditioning on actually playing isolates the cause:
+
+| Position | n with share >= 0.02 | mean | median | skew |
+| --- | ---: | ---: | ---: | ---: |
+| QB | 499 | 0.507 | 0.451 | **0.09** |
+| RB | 917 | 0.227 | 0.165 | 0.88 |
+| WR | 1267 | 0.116 | 0.100 | 0.71 |
+| TE | 606 | 0.083 | 0.066 | 1.08 |
+
+Given play, quarterback is the *most* symmetric position in the model — less
+skewed than any of the others. The quarterback problem is therefore not the
+shape of the distribution conditional on playing. It is entirely the zero/
+non-zero mixture, and that mixture is the part the model does not represent.
+
+`QBWorkloadShareModel` allocates the room with a softmax over a Multinomial
+likelihood, with Gaussian innovation added to the linear predictor. A softmax
+cannot emit an exact zero: every quarterback on the roster receives positive
+share on every draw, and the innovation widens the allocation symmetrically in
+log-odds space rather than adding mass at zero. A backup therefore gets a
+unimodal distribution centred between the two outcomes that actually occur,
+which explains both halves of the failure — the central projection is far too
+high for the 62% who never play, and the 80% interval sits in a region the
+realized distribution rarely visits.
+
+Availability already uses a Bernoulli/Beta-Binomial hurdle for appearing, and
+carries already use a draw-level any-carry hurdle whose eligibility samples zero
+out the allocation before renormalising. Quarterback workload is the pathway
+that never received the same treatment.
+
 ## Implication for the next challenger
 
 The v1 note already proposes latent role states — `replacement`, `inactive`,
@@ -95,7 +140,16 @@ diagnosis supports that direction and narrows it:
 1. The defect is a missing role-collapse mode, not a mis-set spread, so the
    `inactive` state is the mechanism that matters and it must be *sampled*
    rather than blended into a mean. A post-hoc tilt has already been rejected
-   for exactly this reason.
+   for exactly this reason. The narrowest form of this is a quarterback
+   workload hurdle: a per-draw Bernoulli gate deciding whether a quarterback
+   takes meaningful snaps at all, with the existing softmax allocating among
+   those who clear it and renormalising over the room. That is the same shape
+   as the carry-eligibility hurdle already in the volume stack, which zeroes
+   the linear predictor for ineligible rows before renormalising, so it needs
+   no new machinery. It is also testable on its own before any broader shared
+   regime state, and the earlier all-pathways regime screen specifically
+   regressed target and QB-pass accuracy, which argues for changing one
+   pathway rather than bundling.
 2. It concentrates at quarterback and in small projections, so a candidate
    should be judged by decomposed coverage. A pooled number can pass while
    quarterbacks fail, and a global correction that fixes the pool will damage

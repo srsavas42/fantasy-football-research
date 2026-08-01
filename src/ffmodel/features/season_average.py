@@ -24,6 +24,7 @@ from ffmodel.data import load_player_weeks
 from ffmodel.data import ingest, legacy
 from ffmodel.data.wikipedia_coaching import team_identity
 from ffmodel.features import crossseason
+from ffmodel.features.combine import COMBINE_FEATURES
 from ffmodel.features.draft import (
     expected_rookie_claim,
     expected_rookie_pass_claim,
@@ -646,6 +647,7 @@ def player_preseason_rows(
         efficiency_labels, on=["season", "player_key"], how="left"
     )
     usage = _merge_draft_capital(usage, seasons, source)
+    usage = _merge_combine(usage, seasons, source)
 
     prior_columns = [
         "player_key",
@@ -828,11 +830,10 @@ def build_season_average_data(
         )
     player_weeks = load_player_weeks(observed, source=source)
     teams = team_season_volume(player_weeks)
+    # No upper bound: the loader drops seasons the feed will not serve, so
+    # coverage follows the data rather than a constant that goes stale.
     injury_seasons = list(
-        range(
-            max(NFLVERSE_INJURY_FIRST_SEASON, min(observed) - 3),
-            min(NFLVERSE_INJURY_LAST_SEASON, max(observed)) + 1,
-        )
+        range(max(NFLVERSE_INJURY_FIRST_SEASON, min(observed) - 3), max(observed) + 1)
     )
     if injury_reports is None and source != "legacy" and injury_seasons:
         try:
@@ -1348,6 +1349,34 @@ def _merge_draft_capital(
     return usage
 
 
+def _merge_combine(
+    usage: pd.DataFrame, seasons: list[int], source: str
+) -> pd.DataFrame:
+    """Attach combine measurables and the shape of their absence.
+
+    Testing happens once, before the draft, so these are permanent attributes of
+    a player rather than season features and are joined on identity alone. The
+    window reaches back past the earliest modelled season to cover players
+    drafted well before it.
+    """
+    from ffmodel.features.combine import (
+        combine_feature_rows,
+        load_combine_measurables,
+        merge_combine_features,
+    )
+
+    features = pd.DataFrame()
+    if source != "legacy":
+        try:
+            features = combine_feature_rows(
+                load_combine_measurables(range(min(seasons) - 14, max(seasons) + 1))
+            )
+        except Exception:
+            # Athletic testing enriches the cold start; it never gates a build.
+            features = pd.DataFrame()
+    return merge_combine_features(usage, features)
+
+
 def _divide(numerator, denominator) -> np.ndarray:
     numerator = pd.to_numeric(numerator, errors="coerce").to_numpy(dtype=float)
     denominator = pd.to_numeric(denominator, errors="coerce").to_numpy(dtype=float)
@@ -1393,6 +1422,10 @@ PRESEASON_FEATURES = (
     "draft_target_prior",
     "draft_carry_prior",
     "draft_pass_prior",
+    # Measured before the draft, so leakage-safe for every season. Absence is
+    # carried as its own signal rather than imputed: never invited and invited
+    # but untested are different facts, and neither is a slow time.
+    *COMBINE_FEATURES,
     *PRIOR_EFFICIENCY_FEATURES,
     *VOLUME_EFFICIENCY_DERIVED_FEATURES,
     *CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,

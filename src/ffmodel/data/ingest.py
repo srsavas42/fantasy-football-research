@@ -335,8 +335,22 @@ def _depth_snapshot_week(
 
 
 def load_injuries(seasons: Iterable[int], refresh: bool = False, cache_dir=None):
-    """Historical weekly injuries. The upstream feed currently ends in 2024."""
-    return _by_season("injuries", seasons, refresh=refresh, cache_dir=cache_dir)
+    """Historical weekly injury reports, skipping seasons the feed declines.
+
+    The feed's coverage window moves. Requesting a season outside it fails the
+    whole batch, which would discard every season that *is* available — so a
+    single unpublished year costs the caller all of its injury history. Seasons
+    that cannot be served are dropped individually instead.
+    """
+    frames = []
+    for season in map(int, seasons):
+        try:
+            frames.append(
+                _by_season("injuries", [season], refresh=refresh, cache_dir=cache_dir)
+            )
+        except (DataUnavailableError, OSError, ValueError):
+            continue
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def load_schedules(seasons: Iterable[int], refresh: bool = False, cache_dir=None):

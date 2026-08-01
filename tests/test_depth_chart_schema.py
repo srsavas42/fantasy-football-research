@@ -147,6 +147,47 @@ def test_latest_snapshot_before_the_cutoff_wins(offline_schedule):
     assert depth.loc[0, "depth_rank"] == 2
 
 
+def test_placeholder_ids_are_rejected_and_resolved(offline_schedule, monkeypatch):
+    dim = pd.DataFrame(
+        {
+            "gsis_id": ["00-0041562"],
+            "pfr_id": ["MenFe00"],
+            "espn_id": ["4837248"],
+            "player_name": ["Fernando Mendoza"],
+        }
+    )
+    monkeypatch.setattr(
+        "ffmodel.data.identity.load_player_dim", lambda *a, **k: dim, raising=True
+    )
+    frame = _snapshot_frame(["2026-08-01T10:00:00Z"] * 2)
+    frame["player_name"] = ["Fernando Mendoza", "Fernando Mendoza"]
+    frame["espn_id"] = ["4837248", "4837248"]
+    # One row has no id at all, the other a provider-native placeholder. Both key
+    # a player differently from the roster rows they need to join.
+    frame["gsis_id"] = [None, "MEN516487"]
+
+    out = ingest._conform_depth_charts(frame, 2026)
+
+    assert out["gsis_id"].tolist() == ["00-0041562", "00-0041562"]
+
+
+def test_depth_load_survives_an_unavailable_id_map(offline_schedule, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("id map offline")
+
+    monkeypatch.setattr(
+        "ffmodel.data.identity.load_player_dim", _boom, raising=True
+    )
+    frame = _snapshot_frame(["2026-08-01T10:00:00Z"])
+    frame["gsis_id"] = [None]
+
+    out = ingest._conform_depth_charts(frame, 2026)
+
+    # Enrichment is optional; the chart itself still loads and falls back to name.
+    assert len(out) == 1
+    assert out["gsis_id"].isna().all()
+
+
 def test_conformed_snapshot_feeds_the_preseason_depth_snapshot(offline_schedule):
     from ffmodel.features.season_average import _preseason_depth_snapshot
 

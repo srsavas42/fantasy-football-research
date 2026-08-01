@@ -257,6 +257,38 @@ def _conform_depth_charts(
         # which snapshot a point-in-time cutoff selects.
         schedule = pd.DataFrame()
     out["week"], out["game_type"] = _depth_snapshot_week(stamps, schedule)
+    return _resolve_depth_identities(out, refresh=refresh, cache_dir=cache_dir)
+
+
+def _resolve_depth_identities(
+    frame: pd.DataFrame, *, refresh: bool = False, cache_dir: Path | None = None
+) -> pd.DataFrame:
+    """Give depth-chart rows a canonical GSIS id where one can be established.
+
+    This feed carries the same identifier problem as the draft feed: for newly
+    drafted players ``gsis_id`` is either absent or holds a provider-native
+    placeholder. Both cases key a player differently from the roster rows they
+    have to join, which strands exactly the rookies whose listed depth is their
+    only role signal.
+    """
+    from ffmodel.data.identity import is_gsis_id, resolve_player_ids
+
+    out = frame.copy()
+    native = out.get("gsis_id", pd.Series(pd.NA, index=out.index)).astype("string")
+    out["gsis_id"] = native.where(is_gsis_id(native))
+    if out["gsis_id"].notna().all():
+        return out
+    try:
+        bridged = resolve_player_ids(
+            out.rename(columns={"full_name": "player_name"}),
+            refresh=refresh,
+            cache_dir=cache_dir,
+        )
+    except Exception:
+        # Identity enrichment is an optimisation over the name fallback, never a
+        # precondition for loading depth charts.
+        return out
+    out["gsis_id"] = out["gsis_id"].where(out["gsis_id"].notna(), bridged)
     return out
 
 

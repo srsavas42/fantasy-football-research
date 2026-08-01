@@ -57,17 +57,23 @@ def resolve_player_ids(
     *,
     player_dim: pd.DataFrame | None = None,
     pfr_column: str = "pfr_player_id",
+    espn_column: str = "espn_id",
     name_column: str = "player_name",
     refresh: bool = False,
     cache_dir: Path | None = None,
 ) -> pd.Series:
     """Canonical GSIS ``player_id`` for rows carrying provider identifiers.
 
-    Resolution is by provider id first, which is exact. Rows the id map cannot
-    place that way fall back to a normalized name, but only when that name maps
-    to exactly one player in the map — an ambiguous name is left unresolved
-    rather than joined to the wrong career, which for a name shared across eras
-    would silently attach one player's history to another.
+    Resolution is by provider id first, which is exact, trying PFR and then
+    ESPN. Rows the id map cannot place that way fall back to a normalized name,
+    but only when that name maps to exactly one player in the map — an ambiguous
+    name is left unresolved rather than joined to the wrong career, which for a
+    name shared across eras would silently attach one player's history to
+    another.
+
+    The id map is filtered to GSIS-shaped values first, so a provider id that
+    resolves only to another placeholder is treated as unresolved and falls
+    through rather than being returned as if it were canonical.
     """
     if frame.empty:
         return pd.Series(pd.NA, index=frame.index, dtype="string")
@@ -77,14 +83,18 @@ def resolve_player_ids(
     dim = player_dim[is_gsis_id(player_dim.get("gsis_id", pd.Series(dtype="string")))]
     resolved = pd.Series(pd.NA, index=frame.index, dtype="string")
 
-    if pfr_column in frame.columns and "pfr_id" in dim.columns:
+    for column, dim_column in ((pfr_column, "pfr_id"), (espn_column, "espn_id")):
+        if column not in frame.columns or dim_column not in dim.columns:
+            continue
         bridge = (
-            dim[["pfr_id", "gsis_id"]]
-            .dropna(subset=["pfr_id"])
-            .drop_duplicates("pfr_id")
-            .set_index("pfr_id")["gsis_id"]
+            dim[[dim_column, "gsis_id"]]
+            .dropna(subset=[dim_column])
+            .astype({dim_column: "string"})
+            .drop_duplicates(dim_column)
+            .set_index(dim_column)["gsis_id"]
         )
-        resolved = frame[pfr_column].astype("string").map(bridge).astype("string")
+        hit = frame[column].astype("string").map(bridge).astype("string")
+        resolved = resolved.where(resolved.notna(), hit)
 
     if name_column in frame.columns and "player_name" in dim.columns:
         named = dim.assign(_key=normalize_player_name(dim["player_name"]))

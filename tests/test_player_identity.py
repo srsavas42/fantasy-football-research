@@ -81,6 +81,41 @@ def test_ambiguous_name_is_left_unresolved():
     assert resolved.isna().all()
 
 
+def test_espn_id_resolves_when_the_pfr_id_is_unknown():
+    dim = _player_dim().assign(espn_id=["4837248", "4685522", "1", "2"])
+    frame = pd.DataFrame(
+        {
+            "pfr_player_id": [None],
+            "espn_id": ["4837248"],
+            "player_name": ["Someone Renamed Upstream"],
+        }
+    )
+
+    assert resolve_player_ids(frame, player_dim=dim).tolist() == ["00-0041438"]
+
+
+def test_a_provider_id_pointing_at_another_placeholder_does_not_resolve():
+    # The id map itself carries placeholder gsis values for the newest players.
+    # Returning one would look canonical while matching nothing downstream.
+    dim = pd.DataFrame(
+        {
+            "gsis_id": ["LAW090280"],
+            "pfr_id": ["LawKe00"],
+            "espn_id": ["4685441"],
+            "player_name": ["Kendrick Law"],
+        }
+    )
+    frame = pd.DataFrame(
+        {
+            "pfr_player_id": ["LawKe00"],
+            "espn_id": ["4685441"],
+            "player_name": ["Kendrick Law"],
+        }
+    )
+
+    assert resolve_player_ids(frame, player_dim=dim).isna().all()
+
+
 def _usage() -> pd.DataFrame:
     return pd.DataFrame(
         {

@@ -1305,10 +1305,39 @@ def _merge_draft_capital(
         usage["overall_pick"] = np.nan
         return usage
     draft = _normalize_teams(draft)
-    keep = draft[["player_name", "position", "season", "overall_pick"]].drop_duplicates(
+
+    # Identifier join first. A name is not a key, and the players whose names are
+    # newest and least standardised are exactly the population a draft prior
+    # exists to serve, so matching them on name is weakest where it matters most.
+    picks = pd.Series(np.nan, index=usage.index, dtype=float)
+    if "player_id" in draft.columns:
+        keyed = draft.dropna(subset=["player_id"]).copy()
+        if not keyed.empty:
+            keyed["player_key"] = crossseason.player_key(keyed)
+            by_key = keyed.drop_duplicates(["player_key", "season"]).set_index(
+                ["player_key", "season"]
+            )["overall_pick"]
+            keys = pd.MultiIndex.from_arrays([usage["player_key"], usage["season"]])
+            picks = pd.Series(
+                pd.to_numeric(by_key.reindex(keys), errors="coerce").to_numpy(
+                    dtype=float
+                ),
+                index=usage.index,
+            )
+
+    # Name fallback for rows no identifier could place.
+    by_name = draft.drop_duplicates(["player_name", "position", "season"]).set_index(
         ["player_name", "position", "season"]
+    )["overall_pick"]
+    names = pd.MultiIndex.from_arrays(
+        [usage["player_name"], usage["position"], usage["season"]]
     )
-    return usage.merge(keep, on=["player_name", "position", "season"], how="left")
+    named = pd.Series(
+        pd.to_numeric(by_name.reindex(names), errors="coerce").to_numpy(dtype=float),
+        index=usage.index,
+    )
+    usage["overall_pick"] = picks.where(picks.notna(), named)
+    return usage
 
 
 def _divide(numerator, denominator) -> np.ndarray:

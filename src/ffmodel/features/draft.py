@@ -25,7 +25,15 @@ from ffmodel.features.volume import SKILL_POSITIONS
 _COMBINE_CSV = REPO_ROOT / "combine" / "combine00to20.csv"
 _ABBREV_CSV = REPO_ROOT / "misc" / "abbrev.csv"
 
-DRAFT_COLUMNS = ["player_name", "position", "season", "team", "round", "overall_pick"]
+DRAFT_COLUMNS = [
+    "player_name",
+    "position",
+    "season",
+    "team",
+    "round",
+    "overall_pick",
+    "player_id",
+]
 
 # Coarse, documented prior for a rookie's first-year opportunity claim as a
 # function of overall pick, split into target vs carry competition by position.
@@ -92,12 +100,33 @@ def load_draft_capital(seasons: Iterable[int], source: str = "auto") -> pd.DataF
 
 def _load_nflverse(seasons: set[int]):
     from ffmodel.data import ingest
+    from ffmodel.data.identity import is_gsis_id, resolve_player_ids
 
     picks = ingest.load_draft_picks(list(seasons))
     out = picks.rename(
         columns={"pfr_player_name": "player_name", "pick": "overall_pick"}
     )
-    keep = ["player_name", "position", "season", "team", "round", "overall_pick"]
+    # The feed's own ``gsis_id`` is not dependable for a recent class: it carries
+    # PFR-style values there, which match nothing in the roster or depth feeds.
+    # Keep it only where it is actually GSIS-shaped and resolve the rest.
+    native = out.get("gsis_id", pd.Series(pd.NA, index=out.index)).astype("string")
+    out["player_id"] = native.where(is_gsis_id(native))
+    try:
+        bridged = resolve_player_ids(out)
+    except Exception:
+        # Identity enrichment is an optimisation over the name join, never a
+        # precondition for loading draft capital.
+        bridged = pd.Series(pd.NA, index=out.index, dtype="string")
+    out["player_id"] = out["player_id"].where(out["player_id"].notna(), bridged)
+    keep = [
+        "player_name",
+        "position",
+        "season",
+        "team",
+        "round",
+        "overall_pick",
+        "player_id",
+    ]
     return out[[c for c in keep if c in out.columns]]
 
 

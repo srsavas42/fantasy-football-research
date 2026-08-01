@@ -227,3 +227,41 @@ together, and MAE is 0.3% worse pooled and 1.4% worse at quarterback. This is
 the first candidate to improve CRPS at all — the four global transforms before it
 all degraded it — but converting a sharper distribution into a better point
 forecast is unfinished work.
+
+## Where the top-quartile width comes from
+
+The top quartile is over-covered, and the earlier repairs all looked for the
+cause in the efficiency layer: dispersion scaling, total-point rescaling, a
+residual copula. Splitting coverage by layer says they were looking in the wrong
+place.
+
+| Quartile | targets 80% | targets 95% | points 80% | points 95% |
+| --- | ---: | ---: | ---: | ---: |
+| q1 | 0.853 | 0.923 | 0.804 | 0.902 |
+| q2 | 0.831 | 0.979 | 0.782 | 0.958 |
+| q3 | 0.908 | 0.986 | 0.810 | 0.972 |
+| q4 | **0.951** | 0.965 | 0.908 | **1.000** |
+
+A nominal 80% interval on targets covers 95% of top-quartile players, and every
+q4 player falls inside the 95% points interval. The volume layer is already too
+wide before efficiency is applied. Relative width says the same: for q4 the
+median IQR over median is 0.946 for targets against 0.904 for points, so
+efficiency slightly *narrows* the relative spread rather than widening it.
+Rescaling efficiency dispersion could not have fixed this.
+
+The mechanism is a single scalar. `SeasonRosterShareModel` carries one
+`role_innovation_scale` per stream, estimated from pooled residuals and added to
+every player's linear predictor before the softmax. A receiver holding a 0.28
+target share receives the same log-odds perturbation as a fringe player, and
+around the middle of the logistic curve that maps to a much larger absolute
+swing, so the allocation is noisiest exactly where shares are largest.
+
+The candidate fix is a share-dependent innovation: scale the perturbation by
+the local slope of the allocation rather than applying one value across the
+roster. That narrows the top quartile, where 0.992 leaves ample slack, without
+touching the small projections that are already under-covered — the opposite of
+every global multiplier tried so far, and the reason those multipliers had to
+trade one group against the other.
+
+This is diagnosed but not implemented. It needs the innovation estimated per
+share level, a refit, and a walk-forward against the decomposed gate.

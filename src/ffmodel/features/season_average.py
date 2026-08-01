@@ -375,6 +375,17 @@ def team_transition_rows(
         for column in team_volume.columns:
             if column not in TEAM_KEYS:
                 future[column] = np.nan
+        # ``games`` is exposure, not an outcome: the team model reads it as a
+        # positive integer count of games to project over and rejects a missing
+        # one. Carry the scheduled slate forward, mirroring the player rows.
+        scheduled = pd.to_numeric(
+            team_volume.loc[
+                team_volume["season"].eq(team_volume["season"].max()), "games"
+            ],
+            errors="coerce",
+        ).mode()
+        if not scheduled.empty:
+            future["games"] = float(scheduled.iloc[0])
         out = pd.concat([out, future], ignore_index=True, sort=False)
     out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
     return out.sort_values(TEAM_KEYS).reset_index(drop=True)

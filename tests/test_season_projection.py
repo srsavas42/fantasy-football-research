@@ -49,7 +49,20 @@ def test_team_transition_rows_adds_projection_season_from_prior_rates():
     assert projected["prior_pass_rate"].eq(0.58).all()
     # ...while nothing realized is invented for a season that has not happened.
     assert projected["pass_rate"].isna().all()
-    assert projected["games"].isna().all()
+    # `games` is the exception: it is exposure rather than an outcome, and is
+    # covered by test_projected_team_rows_keep_games_as_exposure.
+
+
+def test_projected_team_rows_keep_games_as_exposure():
+    volume = _team_volume([2023, 2024])
+
+    rows = team_transition_rows(volume, projection_seasons=[2025])
+    projected = rows[rows["season"].eq(2025)]
+
+    # The team model reads games as a positive integer count to project over and
+    # rejects a missing one, so exposure must survive the blanking of outcomes.
+    assert projected["games"].notna().all()
+    assert (projected["games"] > 0).all()
 
 
 def test_team_transition_rows_unchanged_without_projection_seasons():

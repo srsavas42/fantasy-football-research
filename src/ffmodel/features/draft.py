@@ -25,15 +25,65 @@ from ffmodel.features.volume import SKILL_POSITIONS
 _COMBINE_CSV = REPO_ROOT / "combine" / "combine00to20.csv"
 _ABBREV_CSV = REPO_ROOT / "misc" / "abbrev.csv"
 
-DRAFT_COLUMNS = ["player_name", "position", "season", "team", "round", "overall_pick"]
+DRAFT_COLUMNS = [
+    "player_name",
+    "position",
+    "season",
+    "team",
+    "round",
+    "overall_pick",
+    "player_id",
+]
 
-# Coarse, documented prior for a rookie's first-year opportunity claim as a
-# function of overall pick, split into target vs carry competition by position.
-# The model learns the coefficient on aggregated competition, so what matters
-# here is the *ordering* by draft capital, not exact magnitudes. Calibratable.
-_CLAIM_BASE = {"RB": 0.34, "WR": 0.22, "TE": 0.12, "QB": 0.0}
-_CLAIM_SCALE = 60.0  # e-folding pick distance
-_CARRY_FRACTION = {"RB": 0.75, "WR": 0.0, "TE": 0.0, "QB": 0.0}
+# A rookie's first-year claim on each stream as a function of overall pick,
+# ``base * exp(-(pick - 1) / scale)``. These are consumed as a prior wherever a
+# lagged role is missing, so the magnitude is used directly, not just the
+# ordering by draft capital.
+#
+# Fit on realized rookie seasons 2015-2024 by
+# :mod:`ffmodel.features.draft_calibration`, holding 2025 out entirely. A fitted
+# curve ships only where it beat the hand-set value on both MAE and RMSE twice:
+# in a walk-forward over 2020-2024 run inside the training seasons, and again on
+# the untouched 2025 holdout. Everything else keeps the hand-set curve.
+#
+# Two candidates the walk-forward promoted did not survive the holdout and were
+# put back: a quarterback passing curve, and a small but non-zero receiver
+# rushing claim. See ``scripts/validate_rookie_prior.py``.
+#
+# Refit before projecting a season once its predecessor has been played.
+_HAND_SET_SCALE = 60.0
+ROOKIE_CLAIM_CURVES: dict[tuple[str, str], tuple[float, float]] = {
+    # position, stream: (base, scale)
+    ("QB", "pass"): (0.78, _HAND_SET_SCALE),  # retained: lost the holdout
+    ("QB", "carry"): (0.1153, 66.0),  # fit: rookie passers do carry
+    ("QB", "target"): (0.0, _HAND_SET_SCALE),  # retained
+    ("RB", "carry"): (0.4835, 112.0),  # fit
+    ("RB", "target"): (0.1062, 106.0),  # fit
+    ("RB", "pass"): (0.0, _HAND_SET_SCALE),  # retained
+    ("WR", "target"): (0.22, _HAND_SET_SCALE),  # retained: lost the walk-forward
+    ("WR", "carry"): (0.0, _HAND_SET_SCALE),  # retained: lost the holdout
+    ("WR", "pass"): (0.0, _HAND_SET_SCALE),  # retained
+    ("TE", "target"): (0.1735, 68.0),  # fit
+    ("TE", "carry"): (0.0, _HAND_SET_SCALE),  # retained
+    ("TE", "pass"): (0.0, _HAND_SET_SCALE),  # retained
+}
+
+# A pick this late stands in for undrafted, matching the previous behaviour.
+_UNDRAFTED_PICK = 220.0
+
+
+def _claim(overall_pick, position: str, stream: str) -> float:
+    import math
+
+    base, scale = ROOKIE_CLAIM_CURVES.get((position, stream), (0.0, _HAND_SET_SCALE))
+    if base <= 0:
+        return 0.0
+    pick = (
+        _UNDRAFTED_PICK
+        if overall_pick is None or pd.isna(overall_pick)
+        else float(overall_pick)
+    )
+    return base * math.exp(-(pick - 1.0) / scale)
 
 
 def _abbrev_map() -> dict[str, str]:
@@ -92,12 +142,33 @@ def load_draft_capital(seasons: Iterable[int], source: str = "auto") -> pd.DataF
 
 def _load_nflverse(seasons: set[int]):
     from ffmodel.data import ingest
+    from ffmodel.data.identity import is_gsis_id, resolve_player_ids
 
     picks = ingest.load_draft_picks(list(seasons))
     out = picks.rename(
         columns={"pfr_player_name": "player_name", "pick": "overall_pick"}
     )
-    keep = ["player_name", "position", "season", "team", "round", "overall_pick"]
+    # The feed's own ``gsis_id`` is not dependable for a recent class: it carries
+    # PFR-style values there, which match nothing in the roster or depth feeds.
+    # Keep it only where it is actually GSIS-shaped and resolve the rest.
+    native = out.get("gsis_id", pd.Series(pd.NA, index=out.index)).astype("string")
+    out["player_id"] = native.where(is_gsis_id(native))
+    try:
+        bridged = resolve_player_ids(out)
+    except Exception:
+        # Identity enrichment is an optimisation over the name join, never a
+        # precondition for loading draft capital.
+        bridged = pd.Series(pd.NA, index=out.index, dtype="string")
+    out["player_id"] = out["player_id"].where(out["player_id"].notna(), bridged)
+    keep = [
+        "player_name",
+        "position",
+        "season",
+        "team",
+        "round",
+        "overall_pick",
+        "player_id",
+    ]
     return out[[c for c in keep if c in out.columns]]
 
 
@@ -111,16 +182,15 @@ def _finalize(df: pd.DataFrame, seasons: set[int]) -> pd.DataFrame:
 def expected_rookie_claim(overall_pick, position: str) -> tuple[float, float]:
     """(target_claim, carry_claim) an incoming rookie is expected to take.
 
-    Decays exponentially with overall pick; split into receiving vs rushing by
-    position. Missing pick -> treated as a late pick (small claim).
+    Each stream decays exponentially with overall pick on its own fitted curve,
+    rather than one claim split by a fixed carry fraction: a back's receiving
+    role and rushing role do not decay at the same rate. Missing pick -> treated
+    as undrafted (small claim).
     """
-    import math
-
-    base = _CLAIM_BASE.get(position, 0.0)
-    pick = 220 if overall_pick is None or pd.isna(overall_pick) else float(overall_pick)
-    claim = base * math.exp(-(pick - 1) / _CLAIM_SCALE)
-    carry_frac = _CARRY_FRACTION.get(position, 0.0)
-    return claim * (1 - carry_frac), claim * carry_frac
+    return (
+        _claim(overall_pick, position, "target"),
+        _claim(overall_pick, position, "carry"),
+    )
 
 
 def expected_rookie_pass_claim(overall_pick, position: str) -> float:
@@ -130,9 +200,4 @@ def expected_rookie_pass_claim(overall_pick, position: str) -> float:
     allocator still retains every modeled offensive position so genuine trick
     attempts remain representable.
     """
-    import math
-
-    if position != "QB":
-        return 0.0
-    pick = 220 if overall_pick is None or pd.isna(overall_pick) else float(overall_pick)
-    return 0.78 * math.exp(-(pick - 1) / _CLAIM_SCALE)
+    return _claim(overall_pick, position, "pass")

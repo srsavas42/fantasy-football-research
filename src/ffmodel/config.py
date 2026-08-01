@@ -19,6 +19,10 @@ LEGACY_SOS_DIR = REPO_ROOT / "sos"
 MANUAL_DATA_DIR = REPO_ROOT / "data" / "manual"
 COACHING_PERIODS_PATH = MANUAL_DATA_DIR / "coach_team_period.csv"
 IDENTITY_OVERRIDES_PATH = MANUAL_DATA_DIR / "player_identity_overrides.csv"
+# Relative Athletic Score, if supplied. Not fetched: RAS is published by a third
+# party and is not part of nflverse, so it is dropped in by hand and overrides
+# the combine-derived composite wherever it is present.
+RAS_SCORES_PATH = MANUAL_DATA_DIR / "ras_scores.csv"
 WIKIPEDIA_COACHING_DIR = REPO_ROOT / "data" / "coaching" / "wikipedia"
 
 # Parquet cache for downloaded nflverse data. Override with FFMODEL_CACHE_DIR.
@@ -59,9 +63,13 @@ NFLVERSE_FIRST_SEASON = 1999                # pbp / weekly player stats
 NFLVERSE_SNAPS_FIRST_SEASON = 2012          # snap counts
 NFLVERSE_DEPTH_FIRST_SEASON = 2001          # depth charts
 NFLVERSE_INJURY_FIRST_SEASON = 2009         # injury reports
-# The historical nflverse injury-report feed is currently unavailable after
-# 2024. Live projections should supply an archived current snapshot instead.
-NFLVERSE_INJURY_LAST_SEASON = 2024
+# Informational only: the last season the injury feed was observed to publish.
+# It no longer gates which seasons are requested, because a hardcoded ceiling
+# silently drops a season the moment the feed extends past it — as it did for
+# 2025. The loader skips seasons the feed declines instead, so coverage follows
+# the data. Live projections still supply an archived current snapshot, since
+# the report for an unplayed season does not exist at any ceiling.
+NFLVERSE_INJURY_LAST_SEASON = 2025
 
 # Weeks: 17 games through 2020, 18 from 2021 on
 def regular_season_weeks(season: int) -> int:

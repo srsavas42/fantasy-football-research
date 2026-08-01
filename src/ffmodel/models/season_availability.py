@@ -58,6 +58,12 @@ QB_WORKLOAD_FEATURES = (
 )
 
 
+def _logit_scalar(p: float, eps: float = 1e-3) -> float:
+    """Logit of a proportion, kept away from the asymptotes for use as a prior."""
+    p = float(np.clip(p, eps, 1.0 - eps))
+    return float(np.log(p / (1.0 - p)))
+
+
 def _stack(posterior, name: str) -> np.ndarray:
     return posterior[name].stack(sample=("chain", "draw")).to_numpy()
 
@@ -366,7 +372,14 @@ class QBWorkloadPrediction:
 
 @dataclass
 class QBWorkloadShareModel:
-    """Continuous season QB offensive-snap share within each team roster."""
+    """Season QB passing share within each team roster, gated by a hurdle.
+
+    The room is close to winner-take-all, so a backup's realized share is a
+    mixture: nothing in most seasons, a substantial share when the starter goes
+    down. A softmax alone cannot represent that, because it never emits an exact
+    zero. ``hurdle_min_attempts`` sets how many attempts count as taking a
+    meaningful share when labelling the gate during fitting.
+    """
 
     feature_names: list[str] = field(default_factory=list)
     feature_fill: dict[str, float] = field(default_factory=dict)
@@ -374,6 +387,7 @@ class QBWorkloadShareModel:
     feature_scale: dict[str, float] = field(default_factory=dict)
     extra_features: tuple[str, ...] = ()
     role_innovation_scale: float = 0.60
+    hurdle_min_attempts: int = 25
     idata: object = None
 
     def _prepare_all(self, rows: pd.DataFrame) -> pd.DataFrame:
@@ -536,6 +550,9 @@ class QBWorkloadShareModel:
         import pymc as pm
 
         design = self._design(rows, fit=True)
+        active = design["mask"] > 0
+        played = (design["counts"] >= self.hurdle_min_attempts).astype(float)[active]
+        hurdle_X = design["X"][active]
         with pm.Model() as model:
             beta = pm.Normal("beta", 0.0, 0.50, shape=len(self.feature_names))
             eta = design["role_offset"] + design["availability_offset"]
@@ -548,9 +565,48 @@ class QBWorkloadShareModel:
                 p=probability,
                 observed=design["counts"],
             )
+            # Whether a quarterback takes a meaningful share at all. The softmax
+            # above cannot emit an exact zero, so without this every backup gets
+            # a unimodal distribution centred between the two outcomes that
+            # actually occur: nothing in most seasons, a large share when the
+            # starter goes down.
+            hurdle_intercept = pm.Normal(
+                "hurdle_intercept", float(_logit_scalar(played.mean())), 1.0
+            )
+            hurdle_beta = pm.Normal(
+                "hurdle_beta", 0.0, 0.75, shape=len(self.feature_names)
+            )
+            pm.Bernoulli(
+                "played_obs",
+                logit_p=hurdle_intercept + pm.math.dot(hurdle_X, hurdle_beta),
+                observed=played,
+            )
             sample_kwargs.setdefault("target_accept", 0.92)
             self.idata = sample_model(model, **sample_kwargs)
         return self
+
+    def _hurdle_gate(self, design, draws: int, rng) -> np.ndarray | None:
+        """Per-draw Bernoulli gate over the room, or None for legacy posteriors."""
+        posterior = self.idata.posterior
+        if "hurdle_beta" not in posterior:
+            return None
+        intercept = _stack(posterior, "hurdle_intercept")
+        hurdle_beta = _stack(posterior, "hurdle_beta")
+        eta = intercept[None, None, :] + np.einsum(
+            "gkf,fs->gks", design["X"], hurdle_beta
+        )
+        probability = 1.0 / (1.0 + np.exp(-eta))
+        gate = rng.random(probability.shape) < probability
+        gate &= design["mask"][..., None] > 0
+        # A room with nobody throwing is not a possible season, so the most
+        # likely passer is retained wherever every gate closed on a draw.
+        empty = ~gate.any(axis=1)
+        if empty.any():
+            fallback = np.where(design["mask"][..., None] > 0, probability, -np.inf)
+            best = fallback.argmax(axis=1)
+            groups, samples = np.nonzero(empty)
+            gate[groups, best[groups, samples], samples] = True
+        return gate
 
     def predict_share_samples(
         self,
@@ -582,6 +638,9 @@ class QBWorkloadShareModel:
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         rng = np.random.default_rng(seed)
         eta = eta + rng.normal(size=eta.shape) * self.role_innovation_scale
+        gate = self._hurdle_gate(design, draws, rng)
+        if gate is not None:
+            eta = np.where(gate, eta, -20.0)
         eta = np.where(design["mask"][..., None] > 0, eta, -20.0)
         eta -= eta.max(axis=1, keepdims=True)
         probability = np.exp(eta) * design["mask"][..., None]

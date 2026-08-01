@@ -39,20 +39,20 @@ outcome the projection got wrong — so excluding it grades the model only on
 players whose role materialised, which flatters precisely the behaviour a
 preseason projection most needs to get right.
 
-For 2024 that is 86 of 569 real projected players, 15% of the population, spread
-across every position: 35 receivers, 20 tight ends, 17 backs, 14 quarterbacks.
+For 2024 that is 70 of 569 real projected players, 12% of the population.
 Scoring them as zeros rather than dropping them:
 
-| Alignment | n | 80% coverage | 95% coverage | misses below |
-| --- | ---: | ---: | ---: | ---: |
-| inner join | 483 | 0.795 | 0.954 | 7 |
-| every real projection | 569 | 0.798 | 0.947 | 15 |
+| Alignment | n | 80% coverage | 95% coverage |
+| --- | ---: | ---: | ---: |
+| inner join | 499 | 0.833 | 0.964 |
+| every real projection | 569 | 0.815 | 0.958 |
 
-Misses below the interval double. Quarterback moves from 0.900 to **0.893**,
-which is to say from sitting exactly on the 95% floor to failing it. The rate of
-absent players is similar across positions, but the cost is not: a projection of
-83 points for a backup quarterback who never plays is a far larger error than a
-small projection for a fringe receiver.
+The alignment must normalise team codes on both sides before joining. The
+projection rows carry franchise codes while the realized feed does not, so a
+raw join drops every relocated franchise: Matthew Stafford, filed under `LA`
+against a projection under `LAR`, was scored as a quarterback who never appeared
+despite throwing 517 attempts. That single defect manufactured 16 false zeros
+and moved pooled coverage by more than the correction it was meant to make.
 
 `align_projection_to_outcomes` in `ffmodel.evaluation.holdout_alignment` performs
 this alignment, excluding only the synthetic replacement buckets, which are a
@@ -61,18 +61,19 @@ figure below uses it.
 
 ## Result: the miscalibration is not uniform
 
-PPR, 2024, n=569 real projected players. Pooled coverage is 0.798 at the 80%
-level and 0.947 at the 95% level — both inside the gate. Decomposed:
+PPR, 2024, n=569 real projected players. Pooled coverage is 0.815 at the 80%
+level and 0.958 at the 95% level — both inside the gate. Decomposed:
 
 | Position | n | 80% coverage | 95% coverage |
 | --- | ---: | ---: | ---: |
-| QB | 84 | **0.679** | **0.893** |
-| RB | 140 | 0.850 | 0.971 |
-| TE | 123 | 0.829 | 0.967 |
-| WR | 222 | 0.793 | 0.941 |
+| QB | 84 | **0.690** | 0.905 |
+| RB | 140 | 0.871 | 0.979 |
+| TE | 123 | 0.846 | 0.976 |
+| WR | 222 | 0.811 | 0.955 |
 
 The gate requires 0.70-0.90 at the 80% level and 0.90-0.99 at the 95% level.
-Quarterbacks fail both. Every other position is comfortably inside both.
+Quarterbacks fail the first and sit just inside the second. Every other position
+is comfortably inside both.
 
 By projected points, coverage rises monotonically with size:
 
@@ -201,3 +202,28 @@ rather than the pooled figure alone.
   see the Davante Adams case in the pull request that added forward projection.
 - Extreme quantiles from 600 draws are noisy, which affects the 95% level more
   than the 80% level.
+
+## Result of the quarterback hurdle
+
+`QBWorkloadShareModel` now carries a per-draw Bernoulli gate over the room, with
+the softmax allocating among quarterbacks that clear it and the most likely
+passer retained wherever every gate closed. Refit on 2015-2023, projecting 2024:
+
+| Model | Group | 80% | 95% | MAE | CRPS |
+| --- | --- | ---: | ---: | ---: | ---: |
+| baseline | all | 0.815 | 0.958 | 38.59 | 27.764 |
+| hurdle | all | 0.826 | 0.958 | 38.70 | **27.613** |
+| baseline | QB | 0.690 | 0.905 | 49.06 | 35.091 |
+| hurdle | QB | **0.738** | 0.905 | 49.74 | **34.029** |
+
+Quarterback 80% coverage crosses its floor, quarterback CRPS improves 3.0% and
+pooled CRPS 0.5%, and the other three positions move by less than 0.002 on every
+metric — the change is confined to the pathway it targets. Backup projections
+move sharply toward their realized values: Jake Browning from 79.0 to 47.2, J.J.
+McCarthy, who tore an ACL in the preseason, from 34.2 to 0.0.
+
+It does not promote as it stands. The gate requires MAE and CRPS to improve
+together, and MAE is 0.3% worse pooled and 1.4% worse at quarterback. This is
+the first candidate to improve CRPS at all — the four global transforms before it
+all degraded it — but converting a sharper distribution into a better point
+forecast is unfinished work.

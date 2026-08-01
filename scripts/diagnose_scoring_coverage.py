@@ -21,6 +21,7 @@ from ffmodel.evaluation.holdout_alignment import align_projection_to_outcomes
 from ffmodel.evaluation.metrics import coverage_by_group
 from ffmodel.features import crossseason
 from ffmodel.features.season_average import (
+    _normalize_teams,
     build_projection_data,
     build_season_average_data,
     load_preseason_roster_snapshot,
@@ -30,9 +31,17 @@ from ffmodel.simulation.scoring import fantasy_points
 
 
 def realized_points(season: int, scoring: str) -> pd.DataFrame:
-    """Season fantasy points scoped to the team a player is joined on."""
+    """Season fantasy points scoped to the team a player is joined on.
+
+    Team codes are normalised to franchise codes first. The projection rows are
+    already normalised, so joining against raw provider codes silently fails for
+    every relocated franchise — a Rams quarterback filed under ``LA`` would look
+    like a player who never appeared and be scored zero.
+    """
     weeks = load_player_weeks([season])
     weeks["player_key"] = crossseason.player_key(weeks)
+    weeks["season"] = season
+    weeks = _normalize_teams(weeks)
     totals = weeks.groupby(["player_key", "team"], as_index=False).sum(numeric_only=True)
     totals["actual"] = fantasy_points(totals, scoring)
     return totals[["player_key", "team", "actual"]]

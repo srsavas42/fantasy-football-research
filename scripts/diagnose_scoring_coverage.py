@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data import load_player_weeks
+from ffmodel.evaluation.holdout_alignment import align_projection_to_outcomes
 from ffmodel.evaluation.metrics import coverage_by_group
 from ffmodel.features import crossseason
 from ffmodel.features.season_average import (
@@ -63,12 +64,13 @@ def main(argv=None) -> None:
     prediction = pipeline.predict_samples(test, seed=0)
     points = prediction.fantasy_points[args.scoring]
 
-    rows = prediction.player_rows.reset_index(drop=True)
-    frame = rows[["team", "player_key", "position", "player_name"]].reset_index()
-    frame = frame.merge(
-        realized_points(args.holdout, args.scoring), on=["player_key", "team"], how="inner"
+    # Every real projected player, including those who never recorded a stat
+    # row: producing nothing is the outcome, and dropping it grades the model
+    # only on players whose role materialised.
+    frame = align_projection_to_outcomes(
+        prediction.player_rows, realized_points(args.holdout, args.scoring)
     )
-    aligned = points[frame["index"].to_numpy()]
+    aligned = points[frame["sample_index"].to_numpy()]
     observed = frame["actual"].to_numpy(dtype=float)
     frame["projected"] = np.median(aligned, axis=1)
 
@@ -76,6 +78,7 @@ def main(argv=None) -> None:
         "holdout": args.holdout,
         "scoring": args.scoring,
         "n": int(len(frame)),
+        "scored_zero_by_absence": int((~frame["realized_row"]).sum()),
         "pooled": coverage_by_group(observed, aligned, ["pooled"] * len(frame)),
         "by_position": coverage_by_group(observed, aligned, frame["position"].to_numpy()),
     }

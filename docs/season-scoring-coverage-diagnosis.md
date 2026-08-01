@@ -30,21 +30,49 @@ This is one holdout at 300 draws over two chains, not the three-fold panel at
 production sampling. Treat the levels as indicative and the *shape* as the
 result.
 
+## First, the evaluation was dropping the failures
+
+An inner join from projections to realized stat rows discards every projected
+player who never recorded one. Those are not missing observations. A player
+projected onto a roster who produced nothing produced zero, and that zero is the
+outcome the projection got wrong — so excluding it grades the model only on
+players whose role materialised, which flatters precisely the behaviour a
+preseason projection most needs to get right.
+
+For 2024 that is 86 of 569 real projected players, 15% of the population, spread
+across every position: 35 receivers, 20 tight ends, 17 backs, 14 quarterbacks.
+Scoring them as zeros rather than dropping them:
+
+| Alignment | n | 80% coverage | 95% coverage | misses below |
+| --- | ---: | ---: | ---: | ---: |
+| inner join | 483 | 0.795 | 0.954 | 7 |
+| every real projection | 569 | 0.798 | 0.947 | 15 |
+
+Misses below the interval double. Quarterback moves from 0.900 to **0.893**,
+which is to say from sitting exactly on the 95% floor to failing it. The rate of
+absent players is similar across positions, but the cost is not: a projection of
+83 points for a backup quarterback who never plays is a far larger error than a
+small projection for a fringe receiver.
+
+`align_projection_to_outcomes` in `ffmodel.evaluation.holdout_alignment` performs
+this alignment, excluding only the synthetic replacement buckets, which are a
+modelling device rather than people and have no realized counterpart. Every
+figure below uses it.
+
 ## Result: the miscalibration is not uniform
 
-PPR, 2024, n=483 matched players. Pooled coverage is 0.795 at the 80% level and
-0.954 at the 95% level — both inside the gate. Decomposed:
+PPR, 2024, n=569 real projected players. Pooled coverage is 0.798 at the 80%
+level and 0.947 at the 95% level — both inside the gate. Decomposed:
 
 | Position | n | 80% coverage | 95% coverage |
 | --- | ---: | ---: | ---: |
-| QB | 70 | **0.657** | **0.900** |
-| RB | 123 | 0.854 | 0.976 |
-| TE | 103 | 0.825 | 0.971 |
-| WR | 187 | 0.791 | 0.952 |
+| QB | 84 | **0.679** | **0.893** |
+| RB | 140 | 0.850 | 0.971 |
+| TE | 123 | 0.829 | 0.967 |
+| WR | 222 | 0.793 | 0.941 |
 
 The gate requires 0.70-0.90 at the 80% level and 0.90-0.99 at the 95% level.
-Quarterbacks fail the first outright and sit exactly on the boundary of the
-second. Every other position is comfortably inside both.
+Quarterbacks fail both. Every other position is comfortably inside both.
 
 By projected points, coverage rises monotonically with size:
 
@@ -67,7 +95,7 @@ two groups that need opposite corrections.
 
 ## The misses name a mechanism
 
-Of 22 observations outside the 95% interval, 15 fall above and 7 below. The
+Of 30 observations outside the 95% interval, 15 fall above and 15 below. The
 overshoots are dominated by one recognisable case:
 
 | Player | Position | Projected | Actual |
@@ -169,8 +197,7 @@ rather than the pooled figure alone.
   reproduction of that baseline and the two numbers are not comparable. The
   likely cause is the volume layer: this uses the current pipeline rather than
   the frozen volume-v2 plus v3 components the published run scored against.
-- 483 of 697 projected players matched a realized row. Shares and points are
-  scoped to the preseason team, so mid-season movers are dropped or penalised;
+- Points are scoped to the preseason team, so mid-season movers are penalised;
   see the Davante Adams case in the pull request that added forward projection.
 - Extreme quantiles from 600 draws are noisy, which affects the 95% level more
   than the 80% level.

@@ -24,6 +24,7 @@ from ffmodel.data import load_player_weeks
 from ffmodel.data import ingest, legacy
 from ffmodel.data.wikipedia_coaching import team_identity
 from ffmodel.features import crossseason
+from ffmodel.features.athleticism import ATHLETIC_FEATURES
 from ffmodel.features.combine import COMBINE_FEATURES
 from ffmodel.features.draft import (
     expected_rookie_claim,
@@ -1365,6 +1366,8 @@ def _merge_combine(
         merge_combine_features,
     )
 
+    from ffmodel.features.athleticism import merge_athletic_score
+
     features = pd.DataFrame()
     if source != "legacy":
         try:
@@ -1374,7 +1377,13 @@ def _merge_combine(
         except Exception:
             # Athletic testing enriches the cold start; it never gates a build.
             features = pd.DataFrame()
-    return merge_combine_features(usage, features)
+    usage = merge_combine_features(usage, features)
+    try:
+        usage = merge_athletic_score(usage, features)
+    except Exception:
+        for column in ATHLETIC_FEATURES:
+            usage[column] = np.nan
+    return usage
 
 
 def _divide(numerator, denominator) -> np.ndarray:
@@ -1426,6 +1435,9 @@ PRESEASON_FEATURES = (
     # carried as its own signal rather than imputed: never invited and invited
     # but untested are different facts, and neither is a slow time.
     *COMBINE_FEATURES,
+    # One position-normalized athletic score: RAS where supplied, a combine
+    # composite otherwise. Measured before the draft, so safe for every season.
+    *ATHLETIC_FEATURES,
     *PRIOR_EFFICIENCY_FEATURES,
     *VOLUME_EFFICIENCY_DERIVED_FEATURES,
     *CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,

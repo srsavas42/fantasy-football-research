@@ -19,6 +19,10 @@ LEGACY_SOS_DIR = REPO_ROOT / "sos"
 MANUAL_DATA_DIR = REPO_ROOT / "data" / "manual"
 COACHING_PERIODS_PATH = MANUAL_DATA_DIR / "coach_team_period.csv"
 IDENTITY_OVERRIDES_PATH = MANUAL_DATA_DIR / "player_identity_overrides.csv"
+# Relative Athletic Score, if supplied. Not fetched: RAS is published by a third
+# party and is not part of nflverse, so it is dropped in by hand and overrides
+# the combine-derived composite wherever it is present.
+RAS_SCORES_PATH = MANUAL_DATA_DIR / "ras_scores.csv"
 WIKIPEDIA_COACHING_DIR = REPO_ROOT / "data" / "coaching" / "wikipedia"
 
 # Parquet cache for downloaded nflverse data. Override with FFMODEL_CACHE_DIR.

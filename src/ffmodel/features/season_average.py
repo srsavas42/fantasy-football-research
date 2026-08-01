@@ -250,8 +250,16 @@ def _preseason_depth_snapshot(
     depth["player_key"] = crossseason.player_key(depth)
     depth["depth_rank"] = pd.to_numeric(depth["depth_rank"], errors="coerce")
     depth["depth_snapshot_week"] = depth["week"]
+    order = ["season", "team", "player_key", "week"]
+    if "dt" in depth.columns:
+        # The 2025+ feed publishes many snapshots per week, so every row ties on
+        # week and the retained one would be arbitrary — a chart written the day
+        # after the draft can outrank one from the eve of the season. Order by
+        # recency so the cutoff keeps the freshest chart it is allowed to see.
+        depth["dt"] = pd.to_datetime(depth["dt"], errors="coerce", utc=True)
+        order.append("dt")
     return (
-        depth.sort_values(["season", "team", "player_key", "week"])
+        depth.sort_values(order)
         .drop_duplicates(["season", "team", "player_key"], keep="last")
         [TEAM_KEYS + ["player_key", "depth_rank", "depth_snapshot_week"]]
         .reset_index(drop=True)

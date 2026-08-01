@@ -131,6 +131,22 @@ def test_historical_frames_pass_through_untouched():
     assert ingest._conform_depth_charts(legacy, 2024).equals(legacy)
 
 
+def test_latest_snapshot_before_the_cutoff_wins(offline_schedule):
+    from ffmodel.features.season_average import _preseason_depth_snapshot
+
+    # The same player, promoted between two preseason charts. Both land on week
+    # 1, so without ordering by timestamp the retained row is arbitrary and a
+    # post-draft chart can outrank one from the eve of the season.
+    frame = _snapshot_frame(["2026-04-24T09:00:00Z", "2026-08-01T09:00:00Z"])
+    frame["pos_abb"] = "WR"
+    frame["pos_rank"] = [3, 2]
+
+    depth = _preseason_depth_snapshot(ingest._conform_depth_charts(frame, 2026), cutoff_week=1)
+
+    assert len(depth) == 1
+    assert depth.loc[0, "depth_rank"] == 2
+
+
 def test_conformed_snapshot_feeds_the_preseason_depth_snapshot(offline_schedule):
     from ffmodel.features.season_average import _preseason_depth_snapshot
 

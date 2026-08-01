@@ -52,6 +52,40 @@ def interval_coverage(observed, samples, level: float = 0.8) -> dict[str, object
     }
 
 
+def coverage_by_group(
+    observed, samples, groups, levels=(0.8, 0.95)
+) -> dict[object, dict[str, object]]:
+    """Interval coverage within each group, and which tail its misses fall in.
+
+    A pooled coverage number can sit comfortably inside a promotion gate while a
+    subgroup sits well outside it. Rescaling dispersion globally then trades a
+    group that already passes against one that does not, which looks like an
+    unfixable sharpness/calibration trade-off but is really a misdiagnosis.
+
+    ``below`` counts observations under the widest interval and ``above`` counts
+    those over it, because the two call for different fixes: a heavy lower tail
+    is a role that failed to materialise, not a mis-set spread.
+    """
+    y, draws = _inputs(observed, samples)
+    labels = np.asarray(groups).reshape(-1)
+    if len(labels) != len(y):
+        raise ValueError("groups must have one label per observation")
+    widest = max(levels)
+    out: dict[object, dict[str, object]] = {}
+    for label in dict.fromkeys(labels.tolist()):
+        mask = labels == label
+        entry: dict[str, object] = {"n": int(mask.sum()), "coverage": {}}
+        for level in levels:
+            entry["coverage"][float(level)] = interval_coverage(
+                y[mask], draws[mask], level=level
+            )["coverage"]
+        bounds = interval_coverage(y[mask], draws[mask], level=widest)
+        entry["below"] = int((y[mask] < bounds["lower"]).sum())
+        entry["above"] = int((y[mask] > bounds["upper"]).sum())
+        out[label] = entry
+    return out
+
+
 def pit_values(observed, samples) -> np.ndarray:
     """Empirical probability-integral-transform ranks in [0, 1]."""
     y, draws = _inputs(observed, samples)

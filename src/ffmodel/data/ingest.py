@@ -13,6 +13,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+import numpy as np
 import pandas as pd
 
 from ffmodel.data import cache
@@ -195,8 +196,110 @@ def load_snap_counts(seasons: Iterable[int], refresh: bool = False, cache_dir=No
 
 
 def load_depth_charts(seasons: Iterable[int], refresh: bool = False, cache_dir=None):
-    """Listed depth charts; use as a cold-start fallback, not ground truth."""
-    return _by_season("depth_charts", seasons, refresh=refresh, cache_dir=cache_dir)
+    """Listed depth charts; use as a cold-start fallback, not ground truth.
+
+    nflverse replaced this feed's schema in 2025: weekly rows keyed by
+    ``season``/``week`` became timestamped snapshots keyed by ``dt``, with
+    renamed team, name, position, and depth columns. Seasons of either shape are
+    returned in the historical schema so downstream feature code sees one grain.
+    """
+    frames = []
+    for season in map(int, seasons):
+        frame = _by_season(
+            "depth_charts", [season], refresh=refresh, cache_dir=cache_dir
+        )
+        frames.append(
+            _conform_depth_charts(
+                frame, season, refresh=refresh, cache_dir=cache_dir
+            )
+        )
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+# ``pos_grp`` names the personnel package a depth chart belongs to. The offensive
+# package is the only one this repo models, but all three are mapped so the
+# historical ``formation`` filter keeps behaving as it did.
+_DEPTH_FORMATIONS = {
+    "3WR 1TE": "Offense",
+    "Base 3-4 D": "Defense",
+    "Base 4-3 D": "Defense",
+    "Special Teams": "Special Teams",
+}
+
+_DEPTH_RENAMES = {
+    "team": "club_code",
+    "player_name": "full_name",
+    "pos_abb": "position",
+    "pos_rank": "depth_team",
+}
+
+
+def _conform_depth_charts(
+    frame: pd.DataFrame,
+    season: int,
+    *,
+    refresh: bool = False,
+    cache_dir: Path | None = None,
+) -> pd.DataFrame:
+    """Map the 2025+ snapshot depth-chart feed onto the historical schema."""
+    if frame is None or frame.empty or "dt" not in frame.columns:
+        return frame
+    out = frame.rename(columns=_DEPTH_RENAMES).copy()
+    out["season"] = season
+    out["formation"] = out["pos_grp"].map(_DEPTH_FORMATIONS)
+    out["depth_team"] = pd.to_numeric(out["depth_team"], errors="coerce")
+    stamps = pd.to_datetime(out["dt"], errors="coerce", utc=True).dt.tz_convert(None)
+    try:
+        schedule = load_schedules([season], refresh=refresh, cache_dir=cache_dir)
+    except (DataUnavailableError, OSError):
+        # Without kickoff dates a snapshot cannot be placed against a week. Leave
+        # the column missing rather than guess: a wrong week silently changes
+        # which snapshot a point-in-time cutoff selects.
+        schedule = pd.DataFrame()
+    out["week"], out["game_type"] = _depth_snapshot_week(stamps, schedule)
+    return out
+
+
+def _depth_snapshot_week(
+    stamps: pd.Series, schedule: pd.DataFrame
+) -> tuple[pd.Series, pd.Series]:
+    """Week a snapshot informs, and whether that week is regular season.
+
+    A depth chart describes the next game to be played, so a snapshot is placed
+    against the first regular-season week that kicks off at or after it. Anything
+    taken before week 1 therefore lands on week 1, which is what the historical
+    weekly feed also published preseason, keeping point-in-time cutoffs intact.
+    """
+    missing = pd.Series(pd.NA, index=stamps.index, dtype="Float64")
+    if schedule is None or schedule.empty or "gameday" not in schedule.columns:
+        return missing, pd.Series(pd.NA, index=stamps.index, dtype="string")
+    regular = schedule[schedule.get("game_type").eq("REG")] if "game_type" in schedule else schedule
+    if regular.empty:
+        return missing, pd.Series(pd.NA, index=stamps.index, dtype="string")
+    kickoff = (
+        pd.to_datetime(regular["gameday"], errors="coerce")
+        .groupby(pd.to_numeric(regular["week"], errors="coerce"))
+        .min()
+        .dropna()
+        .sort_index()
+    )
+    if kickoff.empty:
+        return missing, pd.Series(pd.NA, index=stamps.index, dtype="string")
+    weeks = kickoff.index.to_numpy(dtype=float)
+    starts = kickoff.to_numpy(dtype="datetime64[ns]")
+    values = stamps.to_numpy(dtype="datetime64[ns]")
+    position = np.searchsorted(starts, values, side="left")
+    # Snapshots taken after the final regular-season kickoff describe postseason
+    # depth. They are clipped onto the last week but flagged so the regular-season
+    # filter still excludes them.
+    postseason = position >= len(weeks)
+    week = pd.Series(weeks[np.clip(position, 0, len(weeks) - 1)], index=stamps.index)
+    week[stamps.isna()] = np.nan
+    game_type = pd.Series(
+        np.where(postseason, "POST", "REG"), index=stamps.index, dtype="object"
+    )
+    game_type[stamps.isna()] = pd.NA
+    return week, game_type
 
 
 def load_injuries(seasons: Iterable[int], refresh: bool = False, cache_dir=None):

@@ -1151,17 +1151,28 @@ class SeasonAverageVolumePipeline:
     def _enable_postseason_role_features(self) -> None:
         """Offer the lagged postseason signal to the role-shaped submodels.
 
-        Only the models that decide *who holds a role* see it. Availability and
-        the team layer are deliberately excluded: postseason participation is a
-        property of the team's quality, and letting it into an availability
+        Only the models that decide *who holds a role among the skill positions*
+        see it. Three layers are deliberately excluded.
+
+        Availability and the team layer: qualifying for the postseason is a
+        property of the team's quality, so letting it into an availability
         regression would let "my team was good" stand in for "I stayed healthy".
+
+        The quarterback layers: measured, not assumed. Handing them the feature
+        cost 3.39% pass-attempt MAE and 3.27% workload-share MAE, losing all
+        three holdouts on both, against a gate that allows no pass-stream
+        regression beyond 0.5%. That room is close to winner-take-all and is
+        already well determined by depth chart and prior snap share, so a signal
+        present on 18% of rows and correlated with team strength rather than
+        with who takes the snaps is noise there. The same features are worth
+        2.80% carry MAE and 0.82% snap MAE, 3/3 each, in the rooms where the
+        allocation is genuinely contested.
         """
 
         def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
             return tuple(dict.fromkeys((*existing, *POSTSEASON_FEATURES)))
 
         self.snap_model.extra_features = merged(self.snap_model.extra_features)
-        self.workload_model.extra_features = merged(self.workload_model.extra_features)
         self.target_role_model.extra_features = merged(
             self.target_role_model.extra_features
         )

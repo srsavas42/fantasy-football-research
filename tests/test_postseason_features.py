@@ -116,7 +116,6 @@ def test_the_pipeline_flag_is_off_by_default_and_reaches_only_role_models():
 
     for model in (
         pipeline.snap_model,
-        pipeline.workload_model,
         pipeline.target_role_model,
         pipeline.carry_eligibility_model,
         pipeline.target_model,
@@ -128,4 +127,10 @@ def test_the_pipeline_flag_is_off_by_default_and_reaches_only_role_models():
     # about the team's quality, and it would stand in for staying healthy.
     assert not set(POSTSEASON_FEATURES) & set(
         pipeline.availability_model.extra_features
+    )
+    # Nor the quarterback room. That one is measured rather than argued: handing
+    # it over cost 3.39% pass-attempt MAE across all three holdouts, against a
+    # gate that allows no pass-stream regression beyond 0.5%.
+    assert not set(POSTSEASON_FEATURES) & set(
+        pipeline.workload_model.extra_features
     )

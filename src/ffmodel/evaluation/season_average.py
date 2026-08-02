@@ -73,8 +73,8 @@ class RidgeRosterBaseline:
         self.feature_names = [name for name in candidates if name in d]
         X = self._matrix(d, fit=True)
         role = _role_prior(d, self.stream)
-        observed = _availability_adjusted_share(d, self.stream)
-        y = np.log(np.clip(observed, 1e-5, None)) - np.log(role)
+        observed = _availability_adjusted_share(d, self.stream, smoothed=True)
+        y = np.log(observed) - np.log(role)
         penalty = np.eye(X.shape[1]) * self.alpha
         penalty[0, 0] = 0.0
         self.coefficients = np.linalg.solve(X.T @ X + penalty, X.T @ y)
@@ -188,7 +188,22 @@ def _role_prior(rows: pd.DataFrame, stream: str) -> np.ndarray:
     return np.clip(prior.to_numpy(dtype=float), 1e-5, 1.0)
 
 
-def _availability_adjusted_share(rows: pd.DataFrame, stream: str) -> np.ndarray:
+def _availability_adjusted_share(
+    rows: pd.DataFrame, stream: str, *, smoothed: bool = False
+) -> np.ndarray:
+    """Share of the roster's availability-adjusted opportunity.
+
+    ``smoothed`` applies Laplace smoothing within the roster before dividing.
+    The ridge regresses on ``log(share)``, and a raw share is exactly zero for a
+    large minority of rows — 18% of target rows on the committed CSVs — so an
+    unsmoothed response has to be floored before the log. A hard floor puts that
+    whole population on one arbitrary constant well outside the range of the
+    real data, which the regression then spends its fit reaching toward: on that
+    frame the floored rows sat at -4.13 against +0.63 elsewhere and nearly
+    doubled the response's spread. Smoothing sets the value of a zero from the
+    roster's size instead, which is the same device ``_estimate_role_innovation``
+    already uses for the same reason.
+    """
     count = pd.to_numeric(rows[STREAMS[stream]["count"]], errors="coerce").fillna(0.0)
     availability = pd.to_numeric(
         rows.get("observed_availability", pd.Series(1.0, index=rows.index)),
@@ -197,15 +212,15 @@ def _availability_adjusted_share(rows: pd.DataFrame, stream: str) -> np.ndarray:
     rate = count.to_numpy(dtype=float) / np.clip(
         availability.to_numpy(dtype=float), 0.03, 1.0
     )
-    total = pd.Series(rate, index=rows.index).groupby(
-        [rows[key] for key in GROUP_KEYS]
-    ).transform("sum")
-    return np.divide(
-        rate,
-        total.to_numpy(dtype=float),
-        out=np.zeros(len(rows), dtype=float),
-        where=total.to_numpy(dtype=float) > 0,
-    )
+    grouper = [rows[key] for key in GROUP_KEYS]
+    series = pd.Series(rate, index=rows.index)
+    total = series.groupby(grouper).transform("sum").to_numpy(dtype=float)
+    if not smoothed:
+        return np.divide(
+            rate, total, out=np.zeros(len(rows), dtype=float), where=total > 0
+        )
+    size = series.groupby(grouper).transform("size").to_numpy(dtype=float)
+    return (rate + 0.5) / (total + 0.5 * size)
 
 
 def _projected_availability(rows: pd.DataFrame) -> np.ndarray:

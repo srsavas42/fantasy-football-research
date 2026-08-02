@@ -960,6 +960,50 @@ class SeasonRosterShareModel:
         )
 
 
+def volume_input_problems(data: SeasonAverageData) -> list[str]:
+    """Preconditions the season-average fit needs, checked before any sampling.
+
+    The pipeline fits eight components in sequence, and the quarterback layers
+    come fourth. A source that cannot support them therefore used to spend three
+    posterior fits before failing, and failed from inside whichever model noticed
+    first — for the committed CSVs that was a PyTensor ``MemoryError`` on an empty
+    softmax, which says nothing about the actual problem. Check the responses up
+    front instead, and name the source limitation rather than the symptom.
+    """
+    problems: list[str] = []
+    team_rows = data.team_rows
+    player_rows = data.player_rows
+    if team_rows is None or team_rows.empty:
+        problems.append("team_rows is empty; no team-season volume to fit")
+    if player_rows is None or player_rows.empty:
+        problems.append("player_rows is empty; no roster to allocate over")
+        return problems
+
+    quarterbacks = player_rows[player_rows["position"].astype(str).str.upper().eq("QB")]
+    if quarterbacks.empty:
+        problems.append("player_rows contain no quarterbacks; QB volume cannot be fit")
+        return problems
+
+    snaps = pd.to_numeric(
+        quarterbacks.get("offense_snaps", pd.Series(np.nan, index=quarterbacks.index)),
+        errors="coerce",
+    ).fillna(0.0)
+    if not snaps.gt(0).any():
+        sources = sorted(
+            player_rows.get(
+                "roster_snapshot_source", pd.Series(dtype=object)
+            ).dropna().unique()
+        )
+        problems.append(
+            "no quarterback has a positive offense_snaps value, which the QB "
+            "workload and pass-propensity models both require. The committed "
+            "snapcount CSVs contain no quarterback rows, so a legacy-only run "
+            "cannot fit these layers — use source='nflverse' or 'auto'"
+            + (f" (roster snapshot sources present: {', '.join(sources)})" if sources else "")
+        )
+    return problems
+
+
 @dataclass
 class SeasonAveragePrediction:
     team: dict[str, object]
@@ -1025,6 +1069,12 @@ class SeasonAverageVolumePipeline:
     def fit(self, data: SeasonAverageData, **sample_kwargs) -> "SeasonAverageVolumePipeline":
         if self.role_regime_coupling and self.regime_likelihood_features:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
+        problems = volume_input_problems(data)
+        if problems:
+            raise ValueError(
+                "season-average volume inputs are not fittable:\n  - "
+                + "\n  - ".join(problems)
+            )
         player_rows = data.player_rows
         if self.regime_likelihood_features:
             started = perf_counter()

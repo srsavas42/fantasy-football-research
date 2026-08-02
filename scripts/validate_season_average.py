@@ -6,6 +6,13 @@ charts; legacy runs explicitly report their inferred support. Reported player
 volume is per team game, while a separate Beta-Binomial layer projects active
 games and per-active-game volume.
 
+``--source`` defaults to ``auto`` rather than ``legacy``. A legacy-only run
+cannot fit the quarterback layers at all — the committed snapcount CSVs contain
+no quarterback rows — and it also resolves to the ``inferred_postseason`` roster
+support, which cannot reconstruct a leakage-safe preseason roster. Neither is a
+sensible default for an acceptance gate. Pass ``--source legacy`` deliberately
+if you want the offline point baselines, which do still run.
+
 Example:
 
     python scripts/validate_season_average.py --seasons 2014 2015 2016 2017 \
@@ -120,7 +127,16 @@ def main(argv=None):
     parser.add_argument(
         "--seasons", nargs="+", type=int, default=[2014, 2015, 2016, 2017, 2018, 2019, 2020]
     )
-    parser.add_argument("--source", choices=("auto", "legacy", "nflverse"), default="legacy")
+    parser.add_argument(
+        "--source",
+        choices=("auto", "legacy", "nflverse"),
+        default="auto",
+        help=(
+            "auto (default) prefers nflverse, which is the only source that can "
+            "fit the QB layers or supply a point-in-time roster; legacy runs the "
+            "offline point baselines but cannot complete the Bayesian fit"
+        ),
+    )
     parser.add_argument(
         "--roster-mode",
         choices=("auto", "point_in_time", "inferred"),

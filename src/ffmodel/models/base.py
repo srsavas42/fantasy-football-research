@@ -9,6 +9,7 @@ are imported lazily so the data/feature layers stay importable without them.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -30,14 +31,41 @@ def logit(p: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     return np.log(p / (1 - p))
 
 
+def default_sampling_cores(chains: int) -> int:
+    """Worker processes to use for ``chains``, from the environment.
+
+    ``FFMODEL_SAMPLING_CORES`` pins this explicitly; ``1`` restores fully serial
+    sampling, which is what this package did unconditionally before and is worth
+    keeping reachable for debugging and for machines where forking the sampler is
+    unreliable. Otherwise chains run in parallel up to the number of CPUs.
+
+    Chains are independent given their seeds, so this changes wall-clock only —
+    ``pm.sample`` derives a per-chain seed from ``random_seed`` the same way at
+    any core count.
+    """
+    requested = os.environ.get("FFMODEL_SAMPLING_CORES")
+    if requested:
+        try:
+            pinned = int(requested)
+        except ValueError as exc:
+            raise ValueError(
+                f"FFMODEL_SAMPLING_CORES must be an integer, got {requested!r}"
+            ) from exc
+        if pinned < 1:
+            raise ValueError("FFMODEL_SAMPLING_CORES must be at least 1")
+        return min(pinned, chains)
+    return max(1, min(chains, os.cpu_count() or 1))
+
+
 def sample_model(model, draws: int = 1000, tune: int = 1000, chains: int = 4,
-                 seed: int = 42, **kwargs):
+                 seed: int = 42, cores: int | None = None, **kwargs):
     """Sample a PyMC model with project defaults; returns an InferenceData."""
     import pymc as pm
 
     with model:
         return pm.sample(
-            draws=draws, tune=tune, chains=chains, cores=1,
+            draws=draws, tune=tune, chains=chains,
+            cores=default_sampling_cores(chains) if cores is None else cores,
             random_seed=seed, progressbar=False,
             target_accept=kwargs.pop("target_accept", 0.9), **kwargs,
         )

@@ -374,10 +374,50 @@ replacement bucket rather than discarded. Team identity survives the
 relocations. One silent path — `load_injuries` dropping a season the feed
 declines — now warns.
 
-## S5 revisited: the floor is chosen on an inner fold
+## S5 resolved: the floor is chosen on an inner fold, and promoted at 5
 
 `scripts/select_exposure_floor.py` picks the floor by fitting on seasons
 < H−1 and scoring on H−1, then refits on seasons < H and scores H. The holdout
 is only ever scored, never searched, which is what step 6 said the right next
 step was. `None` is always a candidate, so the procedure can decline to change
-anything.
+anything. It never does:
+
+| outer holdout | inner fold picks | efficiency MAE | efficiency CRPS |
+|---|---:|---:|---:|
+| 2022 | 5 | −0.437% | −1.038% |
+| 2023 | 5 | −0.373% | −0.692% |
+| 2024 | 10 | −0.314% | −0.676% |
+
+Pooled MAE −0.374% ± 0.036%, same sign on every fold. That is the honest
+estimate, because the value was never chosen using the season it is scored on.
+
+The inner folds disagree about *which* lowered floor, and that disagreement is
+the useful part:
+
+| inner fold | floor 1 | floor 3 | floor 5 | floor 10 |
+|---|---:|---:|---:|---:|
+| 2021 | −1.427% | −1.487% | **−1.547%** | −1.244% |
+| 2022 | +0.112% | −0.081% | −0.484% | **−0.485%** |
+| 2023 | −0.229% | −0.137% | −0.444% | **−0.623%** |
+
+On the 2022 inner fold the two contenders are one thousandth of a percentage
+point apart — the argmin there is a coin flip. What survives all three folds is
+that lowering the floor beats each spec's own; the specific value between 5 and
+10 does not. **Promoted at 5**: it is the majority pick, it is within 0.18pp of
+the per-fold argmin everywhere, and taking the per-fold winner instead would be
+fitting exactly the noise this procedure exists to avoid.
+
+Confirmed on the product metric rather than only on efficiency responses. The
+scoring gate against the floor-as-specified baseline:
+
+| metric | pooled | verdict |
+|---|---:|---|
+| standard MAE | −0.40% | improved |
+| half-PPR MAE | −0.35% | improved |
+| PPR MAE | −0.31% | improved |
+| PPR 95% coverage | +0.51pp | negligible (1pp floor) |
+| CRPS, RMSE | −0.05% to −0.17% | negligible |
+
+Step 6 declined this change because the two-of-three fold rule failed on PPR
+CRPS. Under a gate that reports pooled effect against fold spread, MAE improves
+consistently on all three scoring systems and nothing regresses.

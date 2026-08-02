@@ -361,10 +361,16 @@ def compare_runs(
 
 
 def _render(comparison: MetricComparison, value: float) -> str:
-    """Coverage in points, everything else as a percentage."""
+    """Coverage in percentage points, everything else as a percentage.
+
+    Coverage is carried internally as a proportion, so it is scaled by 100 to
+    print. Labelling the raw 0.005 as "0.005pp" understates it by two orders of
+    magnitude — it is half a coverage point, and half a point is a number
+    somebody might act on.
+    """
     if not np.isfinite(value):
         return "n/a"
-    return f"{value:+.3f}pp" if comparison.is_coverage else f"{value:+.2%}"
+    return f"{value * 100:+.2f}pp" if comparison.is_coverage else f"{value:+.2%}"
 
 
 def format_report(report: AcceptanceReport, *, baseline: str, candidate: str) -> str:

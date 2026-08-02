@@ -341,3 +341,22 @@ def test_a_bare_scalar_the_gate_cannot_name_is_still_refused():
 
     assert not report.accepted
     assert any("some_index" in b for b in report.blockers)
+
+
+def test_coverage_prints_in_percentage_points_not_raw_proportions():
+    """Half a coverage point must not print as "0.005pp".
+
+    Coverage is carried internally as a proportion. Rendering it without
+    scaling understated every coverage move by two orders of magnitude, in a
+    column headed "pp" — and half a point is a number somebody might act on.
+    """
+    base = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=_coverage(0.950))
+    cand = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=_coverage(0.955))
+
+    report = compare_runs(base, cand)
+    cov = next(m for m in report.metrics if m.metric == "cov95")
+    text = format_report(report, baseline="b", candidate="c")
+
+    assert cov.pooled == pytest.approx(0.005)
+    assert "+0.50pp" in text
+    assert "+0.005pp" not in text

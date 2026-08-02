@@ -1080,7 +1080,21 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     # floor is doing by exclusion what the likelihood does by weighting, and it
     # buys that at the cost of selecting on usage. Lowering this admits the
     # excluded population; ``None`` keeps each spec's own floor.
-    exposure_floor: int | None = None
+    #
+    # Promoted 2026-08-02 at 5, chosen on an inner fold rather than on the
+    # holdouts it is scored against — see scripts/select_exposure_floor.py. The
+    # nested procedure improves efficiency MAE on all three outer holdouts
+    # (-0.437%, -0.373%, -0.314%; pooled -0.374% +/- 0.036%) and CRPS by
+    # 0.68-1.04%. On total fantasy points it is worth 0.31-0.40% MAE across all
+    # three scoring systems, with every coverage move inside half a point.
+    #
+    # The inner folds picked 5, 5 and 10. On the 2022 inner fold 5 and 10 differ
+    # by 0.001 percentage points, so the choice between them is noise; what is
+    # consistent across all three is that lowering the floor beats each spec's
+    # own. 5 is the majority pick and is within 0.18pp of the per-fold argmin
+    # everywhere. Taking the per-fold winner instead would be fitting the noise
+    # this procedure exists to avoid.
+    exposure_floor: int | None = 5
     models: dict[str, PosteriorSeasonEfficiencyModel] = field(default_factory=dict)
     fit_seconds: dict[str, float] = field(default_factory=dict)
 

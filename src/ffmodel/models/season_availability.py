@@ -400,6 +400,15 @@ class QBWorkloadShareModel:
     extra_features: tuple[str, ...] = ()
     role_innovation_scale: float = 0.60
     hurdle_min_attempts: int = 25
+    # Opt-in until a multi-fold posterior validation clears the promotion gate.
+    # Availability currently reaches this layer twice — as the softmax's exposure
+    # offset and again through the gate — and the two are drawn independently at
+    # prediction time, so a draw can pair "available all season" with a closed
+    # gate. Enabling this makes the gate a function of the same availability
+    # value the offset uses, so the pair moves together within a draw.
+    couple_gate_to_availability: bool = False
+    hurdle_availability_mean: float = 0.0
+    hurdle_availability_scale: float = 1.0
     idata: object = None
 
     def _prepare_all(self, rows: pd.DataFrame) -> pd.DataFrame:
@@ -601,6 +610,9 @@ class QBWorkloadShareModel:
             "X": design["X"][graded],
             "hurdle_X": design["X"][active],
             "hurdle_y": played[active].astype(float),
+            # Log availability, the same quantity the softmax uses as its
+            # exposure offset, so an enabled coupling ties the two together.
+            "hurdle_availability": design["availability_offset"][active],
         }
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "QBWorkloadShareModel":
@@ -639,21 +651,41 @@ class QBWorkloadShareModel:
             hurdle_beta = pm.Normal(
                 "hurdle_beta", 0.0, 0.75, shape=len(self.feature_names)
             )
-            pm.Bernoulli(
-                "played_obs",
-                logit_p=hurdle_intercept + pm.math.dot(hurdle_X, hurdle_beta),
-                observed=hurdle_y,
-            )
+            hurdle_eta = hurdle_intercept + pm.math.dot(hurdle_X, hurdle_beta)
+            if self.couple_gate_to_availability:
+                scaled = self._scaled_hurdle_availability(
+                    conditional["hurdle_availability"], fit=True
+                )
+                hurdle_availability_beta = pm.Normal(
+                    "hurdle_availability_beta", 0.0, 1.0
+                )
+                hurdle_eta = hurdle_eta + hurdle_availability_beta * scaled
+            pm.Bernoulli("played_obs", logit_p=hurdle_eta, observed=hurdle_y)
             sample_kwargs.setdefault("target_accept", 0.92)
             self.idata = sample_model(model, **sample_kwargs)
         return self
 
-    def _hurdle_gate(self, design, rng) -> np.ndarray | None:
+    def _scaled_hurdle_availability(
+        self, values: np.ndarray, *, fit: bool = False
+    ) -> np.ndarray:
+        values = np.asarray(values, dtype=float)
+        if fit:
+            self.hurdle_availability_mean = float(values.mean())
+            scale = float(values.std())
+            self.hurdle_availability_scale = scale if scale > 1e-8 else 1.0
+        return (values - self.hurdle_availability_mean) / self.hurdle_availability_scale
+
+    def _hurdle_gate(self, design, rng, log_availability=None) -> np.ndarray | None:
         """Per-draw Bernoulli gate over the room, or None for legacy posteriors.
 
         Gating is what turns the conditional softmax fitted above back into a
         marginal share, so the two must stay paired: a posterior without
         ``hurdle_beta`` was fitted unconditionally and must not be gated.
+
+        ``log_availability`` carries the per-draw exposure the softmax is using.
+        When the coupling is enabled the gate reads it, so within one draw a
+        passer who is available is also more likely to clear the hurdle instead
+        of the two being sampled independently.
         """
         posterior = self.idata.posterior
         if "hurdle_beta" not in posterior:
@@ -663,6 +695,14 @@ class QBWorkloadShareModel:
         eta = intercept[None, None, :] + np.einsum(
             "gkf,fs->gks", design["X"], hurdle_beta
         )
+        if "hurdle_availability_beta" in posterior:
+            if log_availability is None:
+                log_availability = np.repeat(
+                    design["availability_offset"][..., None], eta.shape[-1], axis=2
+                )
+            eta = eta + self._scaled_hurdle_availability(log_availability) * _stack(
+                posterior, "hurdle_availability_beta"
+            )
         probability = 1.0 / (1.0 + np.exp(-eta))
         gate = rng.random(probability.shape) < probability
         gate &= design["mask"][..., None] > 0
@@ -689,6 +729,7 @@ class QBWorkloadShareModel:
         beta = _stack(self.idata.posterior, "beta")
         draws = beta.shape[-1]
         eta = design["role_offset"][..., None]
+        log_availability = None
         if availability_samples is None:
             eta = eta + design["availability_offset"][..., None]
         else:
@@ -702,11 +743,12 @@ class QBWorkloadShareModel:
                 active = design["mask"][group_i].astype(bool)
                 indices = design["full_index"][group_i, active]
                 availability[group_i, active] = availability_samples[indices]
-            eta = eta + np.log(np.clip(availability, 0.03, 1.0))
+            log_availability = np.log(np.clip(availability, 0.03, 1.0))
+            eta = eta + log_availability
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         rng = np.random.default_rng(seed)
         eta = eta + rng.normal(size=eta.shape) * self.role_innovation_scale
-        gate = self._hurdle_gate(design, rng)
+        gate = self._hurdle_gate(design, rng, log_availability)
         if gate is not None:
             eta = np.where(gate, eta, -20.0)
         eta = np.where(design["mask"][..., None] > 0, eta, -20.0)

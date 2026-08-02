@@ -128,3 +128,67 @@ def test_role_innovation_ignores_passers_outside_the_conditional_room():
         return model.role_innovation_scale
 
     assert innovation(two) == pytest.approx(innovation(plus_spectator))
+
+
+def _hand_fitted(coupled: bool, draws: int = 6) -> QBWorkloadShareModel:
+    """A model with a known posterior, so the gate's response is exact."""
+    model = QBWorkloadShareModel(
+        role_innovation_scale=0.0, couple_gate_to_availability=coupled
+    )
+    model._design(_rows(), fit=True)
+    model.role_innovation_scale = 0.0
+    model.hurdle_availability_mean = 0.0
+    model.hurdle_availability_scale = 1.0
+    posterior = {
+        "beta": np.zeros((1, draws, len(model.feature_names))),
+        "hurdle_intercept": np.zeros((1, draws)),
+        "hurdle_beta": np.zeros((1, draws, len(model.feature_names))),
+    }
+    if coupled:
+        # Positive loading: more availability, more likely to clear the hurdle.
+        posterior["hurdle_availability_beta"] = np.full((1, draws), 3.0)
+    model.idata = az.from_dict(posterior=posterior)
+    return model
+
+
+def _mean_share(model: QBWorkloadShareModel, availability: float) -> np.ndarray:
+    rows = _rows()
+    draws = model.idata.posterior.sizes["draw"]
+    samples = np.full((len(model._design(rows)["rows"]), draws), availability)
+    return model.predict_share_samples(
+        rows, availability_samples=samples, seed=5
+    ).shares.mean(axis=1)
+
+
+def test_coupling_is_off_by_default_and_leaves_the_posterior_unchanged():
+    # The candidate must not alter the accepted architecture until it clears a
+    # validation gate, so an un-opted-in fit carries no availability term.
+    assert QBWorkloadShareModel().couple_gate_to_availability is False
+    assert "hurdle_availability_beta" not in _hand_fitted(False).idata.posterior
+
+
+def test_an_uncoupled_gate_ignores_the_availability_draw():
+    # This is the incoherence: the softmax offset moves with availability while
+    # the gate is drawn from the same probability regardless, so within one draw
+    # "available all season" can be paired with a closed gate.
+    model = _hand_fitted(False)
+
+    low = _mean_share(model, 0.10)
+    high = _mean_share(model, 0.95)
+
+    # Shares renormalise within the room, so a uniform availability shift that
+    # the gate ignores leaves every share where it was.
+    assert np.allclose(low, high)
+
+
+def test_a_coupled_gate_responds_to_the_availability_draw():
+    model = _hand_fitted(True)
+    rows = model._design(_rows())["rows"]
+    third = rows["player_key"].str.endswith("qb3").to_numpy()
+
+    low = _mean_share(model, 0.10)
+    high = _mean_share(model, 0.95)
+
+    # With a positive loading, higher availability opens more gates, so the room
+    # is shared more widely and the deepest passer picks up more of it.
+    assert high[third].sum() > low[third].sum()

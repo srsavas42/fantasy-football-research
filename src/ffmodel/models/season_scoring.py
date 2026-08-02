@@ -33,6 +33,13 @@ class SeasonAverageScoringPipeline:
     )
     volume_feature_alpha: float = 300.0
     draw_conditioned_efficiency: bool = False
+    # How the training-time ``oof_*`` volume covariates are built. Serving
+    # always builds them from this pipeline's own posterior, so "pipeline" is
+    # the matched choice; "ridge" is cheaper but trains the efficiency
+    # coefficient on a noisier covariate than it is applied to. See
+    # ``add_walk_forward_volume_features``.
+    volume_feature_estimator: str = "ridge"
+    volume_feature_sample_kwargs: dict[str, object] | None = None
 
     def fit_efficiency(
         self,
@@ -44,6 +51,8 @@ class SeasonAverageScoringPipeline:
             data,
             include_efficiency=True,
             alpha=self.volume_feature_alpha,
+            estimator=self.volume_feature_estimator,
+            sample_kwargs=self.volume_feature_sample_kwargs,
         )
         self.efficiency_model.fit(rows, **sample_kwargs)
         missing = set(REQUIRED_EFFICIENCY_TARGETS) - set(self.efficiency_model.models)
@@ -90,6 +99,7 @@ class SeasonAverageScoringPipeline:
                     "architecture_version": 2,
                     "volume_feature_alpha": self.volume_feature_alpha,
                     "draw_conditioned_efficiency": self.draw_conditioned_efficiency,
+                    "volume_feature_estimator": self.volume_feature_estimator,
                 },
                 indent=2,
                 sort_keys=True,
@@ -110,5 +120,8 @@ class SeasonAverageScoringPipeline:
             volume_feature_alpha=float(metadata.get("volume_feature_alpha", 300.0)),
             draw_conditioned_efficiency=bool(
                 metadata.get("draw_conditioned_efficiency", False)
+            ),
+            volume_feature_estimator=str(
+                metadata.get("volume_feature_estimator", "ridge")
             ),
         )

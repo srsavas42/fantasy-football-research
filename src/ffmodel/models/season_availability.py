@@ -377,8 +377,20 @@ class QBWorkloadShareModel:
     The room is close to winner-take-all, so a backup's realized share is a
     mixture: nothing in most seasons, a substantial share when the starter goes
     down. A softmax alone cannot represent that, because it never emits an exact
-    zero. ``hurdle_min_attempts`` sets how many attempts count as taking a
+    zero. ``hurdle_min_attempts`` sets how much workload counts as taking a
     meaningful share when labelling the gate during fitting.
+
+    The two halves are a factorisation of one distribution, not two independent
+    models: the softmax is fit over the gated-in room and is therefore the share
+    *conditional* on clearing the hurdle, and multiplying it by the gate at
+    prediction time recovers the marginal. Fitting the softmax unconditionally
+    and then gating it would count the zeros twice and pull expected share away
+    from backups toward starters.
+
+    ``hurdle_min_attempts`` is compared against ``_observed_counts``, which is
+    offensive snaps where snap counts exist and pass attempts otherwise, so the
+    threshold is not a pure attempt count. Both are small-workload bars, but
+    putting the gate on one basis is worth revisiting.
     """
 
     feature_names: list[str] = field(default_factory=list)
@@ -388,6 +400,23 @@ class QBWorkloadShareModel:
     extra_features: tuple[str, ...] = ()
     role_innovation_scale: float = 0.60
     hurdle_min_attempts: int = 25
+    # Availability reaches this layer twice — as the softmax's exposure offset
+    # and again through the gate. Drawing the two independently lets one draw
+    # pair "available all season" with a closed gate; this makes the gate a
+    # function of the same availability value the offset uses, so the pair moves
+    # together within a draw.
+    #
+    # Promoted 2026-08-02 on the 1000/1000/4 walk-forward: CRPS improves 4.06%
+    # on pass attempts and 5.16% on workload share, winning all three holdouts
+    # on both, with coverage up at 80% and 95% on both and CRPS wins on all
+    # three scoring systems downstream. It carries one documented exception to
+    # the acceptance rule — workload-share MAE wins one holdout of three rather
+    # than two, with both losses on 2023 — accepted deliberately because this is
+    # a distributional model and every distributional metric is unanimous. See
+    # docs/volume-fix-validation-2026-08.md.
+    couple_gate_to_availability: bool = True
+    hurdle_availability_mean: float = 0.0
+    hurdle_availability_scale: float = 1.0
     idata: object = None
 
     def _prepare_all(self, rows: pd.DataFrame) -> pd.DataFrame:
@@ -443,12 +472,19 @@ class QBWorkloadShareModel:
             quarterbacks.get("offense_snaps", pd.Series(np.nan, index=quarterbacks.index)),
             errors="coerce",
         )
+        # ``snap_counts_observed`` answers "does this *team-season* have snap
+        # coverage", not "were this player's snaps measured" — ``_merge_snap_usage``
+        # sets it from the team's presence in the snap feed and zero-fills the
+        # players the feed omits. Reading it as a per-player flag makes every
+        # omitted passer look like a measured zero, so the pass-attempt fallback
+        # never fires and the whole room can collapse to an all-zero response.
+        # Require the player's own positive snap count before preferring snaps.
         observed = pd.to_numeric(
             quarterbacks.get(
                 "snap_counts_observed", pd.Series(0, index=quarterbacks.index)
             ),
             errors="coerce",
-        ).fillna(0).gt(0)
+        ).fillna(0).gt(0) & snaps.fillna(0).gt(0)
         passing = pd.to_numeric(
             quarterbacks.get("pass_att", pd.Series(0, index=quarterbacks.index)),
             errors="coerce",
@@ -461,17 +497,28 @@ class QBWorkloadShareModel:
         quarterbacks: pd.DataFrame,
         counts: np.ndarray,
         role: np.ndarray,
+        support: np.ndarray | None = None,
     ) -> float:
+        """RMS log-share error of the *conditional* room, on training rows only.
+
+        ``support`` marks the quarterbacks the softmax is fit over. Passers who
+        did not clear the hurdle are excluded, because their near-zero share is
+        represented by the gate rather than by this dispersion term — leaving
+        them in would charge the same zero-inflation twice.
+        """
         availability = pd.to_numeric(
             quarterbacks.get(
                 "observed_availability", pd.Series(1.0, index=quarterbacks.index)
             ),
             errors="coerce",
         ).fillna(1.0).clip(0.03, 1.0).to_numpy(dtype=float)
+        if support is None:
+            support = np.ones(len(quarterbacks), dtype=bool)
         residuals = []
         for _, group in quarterbacks.groupby(GROUP_KEYS, sort=False, dropna=False):
             indices = group.index.to_numpy(dtype=int)
-            if counts[indices].sum() <= 0:
+            indices = indices[support[indices]]
+            if len(indices) < 2 or counts[indices].sum() <= 0:
                 continue
             expected = role[indices] * availability[indices]
             expected = expected / expected.sum()
@@ -496,7 +543,10 @@ class QBWorkloadShareModel:
         counts_flat = self._observed_counts(quarterbacks)
         if fit:
             self.role_innovation_scale = self._estimate_role_innovation(
-                quarterbacks, counts_flat, role
+                quarterbacks,
+                counts_flat,
+                role,
+                support=counts_flat >= self.hurdle_min_attempts,
             )
         groups = list(quarterbacks.groupby(GROUP_KEYS, sort=True, dropna=False))
         group_lookup = {tuple(key): index for index, (key, _) in enumerate(groups)}
@@ -546,24 +596,57 @@ class QBWorkloadShareModel:
             "full_index": full_index[valid],
         }
 
+    def _conditional_design(self, design: dict) -> dict:
+        """Split one room design into its gated-in share fit and its hurdle fit.
+
+        The softmax is the share *conditional on* clearing the hurdle, so it is
+        fit over the gated-in room only. Fitting it over every quarterback would
+        make its mean the marginal share; gating that same mean at prediction
+        time and renormalising would then shift it, scoring a backup who takes a
+        large share in the seasons he plays as if he took a small share every
+        season. Rooms where nobody cleared the gate carry no conditional
+        information and drop out of the share fit, but still label the hurdle.
+        """
+        active = design["mask"] > 0
+        played = (design["counts"] >= self.hurdle_min_attempts) & active
+        graded = played.any(axis=1)
+        return {
+            "support": played[graded],
+            "counts": np.where(played, design["counts"], 0)[graded],
+            "role_offset": design["role_offset"][graded],
+            "availability_offset": design["availability_offset"][graded],
+            "X": design["X"][graded],
+            "hurdle_X": design["X"][active],
+            "hurdle_y": played[active].astype(float),
+            # Log availability, the same quantity the softmax uses as its
+            # exposure offset, so an enabled coupling ties the two together.
+            "hurdle_availability": design["availability_offset"][active],
+        }
+
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "QBWorkloadShareModel":
         import pymc as pm
 
         design = self._design(rows, fit=True)
-        active = design["mask"] > 0
-        played = (design["counts"] >= self.hurdle_min_attempts).astype(float)[active]
-        hurdle_X = design["X"][active]
+        if design["counts"].size == 0:
+            raise ValueError(
+                "QB workload fitting found no room with a positive workload "
+                "response; check that offense_snaps or pass_att are populated"
+            )
+        conditional = self._conditional_design(design)
+        share_counts = conditional["counts"]
+        hurdle_X = conditional["hurdle_X"]
+        hurdle_y = conditional["hurdle_y"]
         with pm.Model() as model:
             beta = pm.Normal("beta", 0.0, 0.50, shape=len(self.feature_names))
-            eta = design["role_offset"] + design["availability_offset"]
-            eta = eta + pm.math.sum(design["X"] * beta, axis=2)
-            eta = pm.math.switch(design["mask"] > 0, eta, -20.0)
+            eta = conditional["role_offset"] + conditional["availability_offset"]
+            eta = eta + pm.math.sum(conditional["X"] * beta, axis=2)
+            eta = pm.math.switch(conditional["support"], eta, -20.0)
             probability = pm.math.softmax(eta, axis=1)
             pm.Multinomial(
                 "workload_obs",
-                n=design["counts"].sum(axis=1),
+                n=share_counts.sum(axis=1),
                 p=probability,
-                observed=design["counts"],
+                observed=share_counts,
             )
             # Whether a quarterback takes a meaningful share at all. The softmax
             # above cannot emit an exact zero, so without this every backup gets
@@ -571,22 +654,47 @@ class QBWorkloadShareModel:
             # actually occur: nothing in most seasons, a large share when the
             # starter goes down.
             hurdle_intercept = pm.Normal(
-                "hurdle_intercept", float(_logit_scalar(played.mean())), 1.0
+                "hurdle_intercept", float(_logit_scalar(hurdle_y.mean())), 1.0
             )
             hurdle_beta = pm.Normal(
                 "hurdle_beta", 0.0, 0.75, shape=len(self.feature_names)
             )
-            pm.Bernoulli(
-                "played_obs",
-                logit_p=hurdle_intercept + pm.math.dot(hurdle_X, hurdle_beta),
-                observed=played,
-            )
+            hurdle_eta = hurdle_intercept + pm.math.dot(hurdle_X, hurdle_beta)
+            if self.couple_gate_to_availability:
+                scaled = self._scaled_hurdle_availability(
+                    conditional["hurdle_availability"], fit=True
+                )
+                hurdle_availability_beta = pm.Normal(
+                    "hurdle_availability_beta", 0.0, 1.0
+                )
+                hurdle_eta = hurdle_eta + hurdle_availability_beta * scaled
+            pm.Bernoulli("played_obs", logit_p=hurdle_eta, observed=hurdle_y)
             sample_kwargs.setdefault("target_accept", 0.92)
             self.idata = sample_model(model, **sample_kwargs)
         return self
 
-    def _hurdle_gate(self, design, draws: int, rng) -> np.ndarray | None:
-        """Per-draw Bernoulli gate over the room, or None for legacy posteriors."""
+    def _scaled_hurdle_availability(
+        self, values: np.ndarray, *, fit: bool = False
+    ) -> np.ndarray:
+        values = np.asarray(values, dtype=float)
+        if fit:
+            self.hurdle_availability_mean = float(values.mean())
+            scale = float(values.std())
+            self.hurdle_availability_scale = scale if scale > 1e-8 else 1.0
+        return (values - self.hurdle_availability_mean) / self.hurdle_availability_scale
+
+    def _hurdle_gate(self, design, rng, log_availability=None) -> np.ndarray | None:
+        """Per-draw Bernoulli gate over the room, or None for legacy posteriors.
+
+        Gating is what turns the conditional softmax fitted above back into a
+        marginal share, so the two must stay paired: a posterior without
+        ``hurdle_beta`` was fitted unconditionally and must not be gated.
+
+        ``log_availability`` carries the per-draw exposure the softmax is using.
+        When the coupling is enabled the gate reads it, so within one draw a
+        passer who is available is also more likely to clear the hurdle instead
+        of the two being sampled independently.
+        """
         posterior = self.idata.posterior
         if "hurdle_beta" not in posterior:
             return None
@@ -595,6 +703,14 @@ class QBWorkloadShareModel:
         eta = intercept[None, None, :] + np.einsum(
             "gkf,fs->gks", design["X"], hurdle_beta
         )
+        if "hurdle_availability_beta" in posterior:
+            if log_availability is None:
+                log_availability = np.repeat(
+                    design["availability_offset"][..., None], eta.shape[-1], axis=2
+                )
+            eta = eta + self._scaled_hurdle_availability(log_availability) * _stack(
+                posterior, "hurdle_availability_beta"
+            )
         probability = 1.0 / (1.0 + np.exp(-eta))
         gate = rng.random(probability.shape) < probability
         gate &= design["mask"][..., None] > 0
@@ -621,6 +737,7 @@ class QBWorkloadShareModel:
         beta = _stack(self.idata.posterior, "beta")
         draws = beta.shape[-1]
         eta = design["role_offset"][..., None]
+        log_availability = None
         if availability_samples is None:
             eta = eta + design["availability_offset"][..., None]
         else:
@@ -634,11 +751,12 @@ class QBWorkloadShareModel:
                 active = design["mask"][group_i].astype(bool)
                 indices = design["full_index"][group_i, active]
                 availability[group_i, active] = availability_samples[indices]
-            eta = eta + np.log(np.clip(availability, 0.03, 1.0))
+            log_availability = np.log(np.clip(availability, 0.03, 1.0))
+            eta = eta + log_availability
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         rng = np.random.default_rng(seed)
         eta = eta + rng.normal(size=eta.shape) * self.role_innovation_scale
-        gate = self._hurdle_gate(design, draws, rng)
+        gate = self._hurdle_gate(design, rng, log_availability)
         if gate is not None:
             eta = np.where(gate, eta, -20.0)
         eta = np.where(design["mask"][..., None] > 0, eta, -20.0)

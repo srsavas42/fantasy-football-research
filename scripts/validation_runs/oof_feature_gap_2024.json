@@ -1,0 +1,32 @@
+{
+  "oof_pass_attempts_per_team_game": {
+    "mean_fit": 1.54519368723099,
+    "mean_serve": 1.5317945607224237,
+    "sd_fit": 5.698346604789683,
+    "sd_serve": 5.823637282738024,
+    "corr": 0.895627952467967,
+    "mae_fit_vs_truth": 0.9309795106235468,
+    "mae_serve_vs_truth": 0.6511848046248628,
+    "mean_abs_gap": 0.6643067481867443
+  },
+  "oof_targets_per_team_game": {
+    "mean_fit": 1.4728669085998818,
+    "mean_serve": 1.4434402692210313,
+    "sd_fit": 2.1180312754008734,
+    "sd_serve": 1.9759651310801,
+    "corr": 0.9230214528196328,
+    "mae_fit_vs_truth": 0.811889411007912,
+    "mae_serve_vs_truth": 0.7527851506456242,
+    "mean_abs_gap": 0.464852509771773
+  },
+  "oof_carries_per_team_game": {
+    "mean_fit": 1.2312431428812558,
+    "mean_serve": 1.243051417841168,
+    "sd_fit": 2.8638469167730407,
+    "sd_serve": 2.631180348471004,
+    "corr": 0.9112769275848782,
+    "mae_fit_vs_truth": 0.8171837973330581,
+    "mae_serve_vs_truth": 0.7257396193771626,
+    "mean_abs_gap": 0.5158245103490448
+  }
+}

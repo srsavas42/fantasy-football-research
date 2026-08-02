@@ -22,7 +22,11 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
-from ffmodel.features.season_average import SeasonAverageData, TEAM_KEYS
+from ffmodel.features.season_average import (
+    POSTSEASON_FEATURES,
+    SeasonAverageData,
+    TEAM_KEYS,
+)
 from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
     load_idata,
@@ -608,35 +612,51 @@ class SeasonRosterShareModel:
             self.feature_mean[name] = float(filled.mean())
             self.feature_scale[name] = scale if scale > 1e-8 else 1.0
 
+        # The cold-start prior stands in for ``per_snap_role`` in ``_role_prior``,
+        # so it has to be a per-snap rate. Only rows with observed snaps can
+        # supply one: dividing a count by an availability fraction instead puts a
+        # season snap total (hundreds) and a fraction (at most one) in the same
+        # average, which inflates the estimate by orders of magnitude and does so
+        # differently per position — so the roster softmax cannot normalise it
+        # away, and the clip in ``_role_prior`` then flattens every position onto
+        # the same saturated value.
         snaps = pd.to_numeric(
             d.get("offense_snaps", pd.Series(np.nan, index=d.index)),
             errors="coerce",
+        ).to_numpy(dtype=float)
+        measured = np.isfinite(snaps) & (snaps > 0)
+        opportunity_rate = np.divide(
+            d[self.count_col].to_numpy(dtype=float),
+            snaps,
+            out=np.full(len(d), np.nan, dtype=float),
+            where=measured,
         )
-        availability = pd.to_numeric(
-            d.get("observed_availability", pd.Series(1.0, index=d.index)),
+        is_cold = pd.to_numeric(
+            d.get("cold_start", pd.Series(0, index=d.index)), errors="coerce"
+        ).fillna(0).to_numpy(dtype=int) == 1
+        prior_availability = pd.to_numeric(
+            d.get("prior_availability", pd.Series(np.nan, index=d.index)),
             errors="coerce",
-        ).fillna(1.0)
-        exposure = snaps.where(snaps.gt(0), availability.clip(0.03, 1.0))
-        opportunity_rate = d[self.count_col].to_numpy(dtype=float) / np.clip(
-            exposure.to_numpy(dtype=float), 0.03, None
         )
         fallback = STREAMS[self.stream]["fallback"]
         for position in MODEL_POSITIONS:
             is_position = d["position"].to_numpy() == position
-            is_cold = pd.to_numeric(
-                d.get("cold_start", pd.Series(0, index=d.index)), errors="coerce"
-            ).fillna(0).to_numpy(dtype=int) == 1
             values = opportunity_rate[is_position & is_cold]
+            values = values[np.isfinite(values)]
             if not len(values):
                 values = opportunity_rate[is_position]
+                values = values[np.isfinite(values)]
             estimate = float(np.mean(values)) if len(values) else fallback[position]
-            self.cold_role_prior[position] = max(estimate, 1e-4)
-            availability = pd.to_numeric(
-                d.loc[d["position"] == position, "prior_availability"],
-                errors="coerce",
-            ).dropna()
+            # A per-snap rate cannot exceed one opportunity per snap. Clipping
+            # here rather than only in ``_role_prior`` keeps a saturated estimate
+            # visible in the persisted metadata instead of silently becoming the
+            # same number for every position.
+            self.cold_role_prior[position] = float(np.clip(estimate, 1e-4, 1.0))
+            position_availability = prior_availability[is_position].dropna()
             self.availability_prior[position] = (
-                float(availability.median()) if len(availability) else 0.75
+                float(position_availability.median())
+                if len(position_availability)
+                else 0.75
             )
         self.role_innovation_scale = min(
             self._estimate_role_innovation(d), float(self.innovation_cap)
@@ -944,6 +964,50 @@ class SeasonRosterShareModel:
         )
 
 
+def volume_input_problems(data: SeasonAverageData) -> list[str]:
+    """Preconditions the season-average fit needs, checked before any sampling.
+
+    The pipeline fits eight components in sequence, and the quarterback layers
+    come fourth. A source that cannot support them therefore used to spend three
+    posterior fits before failing, and failed from inside whichever model noticed
+    first — for the committed CSVs that was a PyTensor ``MemoryError`` on an empty
+    softmax, which says nothing about the actual problem. Check the responses up
+    front instead, and name the source limitation rather than the symptom.
+    """
+    problems: list[str] = []
+    team_rows = data.team_rows
+    player_rows = data.player_rows
+    if team_rows is None or team_rows.empty:
+        problems.append("team_rows is empty; no team-season volume to fit")
+    if player_rows is None or player_rows.empty:
+        problems.append("player_rows is empty; no roster to allocate over")
+        return problems
+
+    quarterbacks = player_rows[player_rows["position"].astype(str).str.upper().eq("QB")]
+    if quarterbacks.empty:
+        problems.append("player_rows contain no quarterbacks; QB volume cannot be fit")
+        return problems
+
+    snaps = pd.to_numeric(
+        quarterbacks.get("offense_snaps", pd.Series(np.nan, index=quarterbacks.index)),
+        errors="coerce",
+    ).fillna(0.0)
+    if not snaps.gt(0).any():
+        sources = sorted(
+            player_rows.get(
+                "roster_snapshot_source", pd.Series(dtype=object)
+            ).dropna().unique()
+        )
+        problems.append(
+            "no quarterback has a positive offense_snaps value, which the QB "
+            "workload and pass-propensity models both require. The committed "
+            "snapcount CSVs contain no quarterback rows, so a legacy-only run "
+            "cannot fit these layers — use source='nflverse' or 'auto'"
+            + (f" (roster snapshot sources present: {', '.join(sources)})" if sources else "")
+        )
+    return problems
+
+
 @dataclass
 class SeasonAveragePrediction:
     team: dict[str, object]
@@ -1002,6 +1066,9 @@ class SeasonAverageVolumePipeline:
     # Upstream likelihood challenger: out-of-fold regime probabilities enter
     # role and availability regressions instead of tilting fitted shares.
     regime_likelihood_features: bool = False
+    # Lagged postseason role signal. Off until it clears the acceptance gate;
+    # see docs/postseason-history-assessment.md for the feature-level screen.
+    postseason_role_features: bool = False
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1009,6 +1076,14 @@ class SeasonAverageVolumePipeline:
     def fit(self, data: SeasonAverageData, **sample_kwargs) -> "SeasonAverageVolumePipeline":
         if self.role_regime_coupling and self.regime_likelihood_features:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
+        if self.postseason_role_features:
+            self._enable_postseason_role_features()
+        problems = volume_input_problems(data)
+        if problems:
+            raise ValueError(
+                "season-average volume inputs are not fittable:\n  - "
+                + "\n  - ".join(problems)
+            )
         player_rows = data.player_rows
         if self.regime_likelihood_features:
             started = perf_counter()
@@ -1049,6 +1124,29 @@ class SeasonAverageVolumePipeline:
             )
             self.fit_seconds["regime"] = perf_counter() - started
         return self
+
+    def _enable_postseason_role_features(self) -> None:
+        """Offer the lagged postseason signal to the role-shaped submodels.
+
+        Only the models that decide *who holds a role* see it. Availability and
+        the team layer are deliberately excluded: postseason participation is a
+        property of the team's quality, and letting it into an availability
+        regression would let "my team was good" stand in for "I stayed healthy".
+        """
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *POSTSEASON_FEATURES)))
+
+        self.snap_model.extra_features = merged(self.snap_model.extra_features)
+        self.workload_model.extra_features = merged(self.workload_model.extra_features)
+        self.target_role_model.extra_features = merged(
+            self.target_role_model.extra_features
+        )
+        self.carry_eligibility_model.extra_features = merged(
+            self.carry_eligibility_model.extra_features
+        )
+        self.target_model.extra_features = merged(self.target_model.extra_features)
+        self.carry_model.extra_features = merged(self.carry_model.extra_features)
 
     def _enable_regime_likelihood_features(self) -> None:
         """Append the leakage-safe regime contract to upstream submodels."""
@@ -1418,6 +1516,16 @@ class SeasonAverageVolumePipeline:
             "workload": {
                 **self._feature_metadata(self.workload_model),
                 "role_innovation_scale": self.workload_model.role_innovation_scale,
+                # The hurdle's availability term is standardised on the training
+                # fold, so its centre and scale are fitted state. Without them a
+                # reloaded pipeline would gate on (x - 0) / 1 and shift every
+                # gate probability while raising no error.
+                "hurdle_min_attempts": self.workload_model.hurdle_min_attempts,
+                "couple_gate_to_availability": bool(
+                    self.workload_model.couple_gate_to_availability
+                ),
+                "hurdle_availability_mean": self.workload_model.hurdle_availability_mean,
+                "hurdle_availability_scale": self.workload_model.hurdle_availability_scale,
             },
             "role_regime": {
                 "enabled": self.role_regime_coupling,
@@ -1505,7 +1613,17 @@ class SeasonAverageVolumePipeline:
         availability.idata = load_idata(directory / "availability.nc")
         workload_state = metadata["workload"]
         workload = QBWorkloadShareModel(
-            role_innovation_scale=float(workload_state["role_innovation_scale"])
+            role_innovation_scale=float(workload_state["role_innovation_scale"]),
+            hurdle_min_attempts=int(workload_state.get("hurdle_min_attempts", 25)),
+            couple_gate_to_availability=bool(
+                workload_state.get("couple_gate_to_availability", False)
+            ),
+            hurdle_availability_mean=float(
+                workload_state.get("hurdle_availability_mean", 0.0)
+            ),
+            hurdle_availability_scale=float(
+                workload_state.get("hurdle_availability_scale", 1.0)
+            ),
         )
         cls._restore_feature_metadata(workload, workload_state)
         workload.idata = load_idata(directory / "workload.nc")

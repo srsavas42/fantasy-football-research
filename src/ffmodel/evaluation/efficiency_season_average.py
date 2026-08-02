@@ -34,15 +34,33 @@ def add_walk_forward_volume_features(
     include_experimental: bool = False,
     feature_overrides: dict[str, tuple[str, ...]] | None = None,
     alpha: float = 10.0,
+    estimator: str = "ridge",
+    sample_kwargs: dict[str, object] | None = None,
 ) -> pd.DataFrame:
     """Cross-fit leak-free point volume projections for every player-season.
 
     Each season is predicted using only earlier response seasons. The first
     transition season falls back to the lagged-role persistence allocator.
-    These columns are the deterministic posterior-mean interface used by the
-    efficiency-v1 model; Bayesian posterior summaries can replace them without
-    changing the downstream feature contract.
+
+    ``estimator`` selects what produces the projection.
+
+    ``"ridge"`` (default) is cheap: a regularized roster softmax times the
+    team's prior-season per-game rate. ``"pipeline"`` cross-fits the production
+    Bayesian volume pipeline instead and takes its posterior mean, which is what
+    actually generates these columns at serving time
+    (``simulation.season_scoring.volume_efficiency_rows``).
+
+    The two are not interchangeable, and the default is the mismatched one. On
+    holdout 2024 they correlate 0.90-0.92 and agree on level, but they differ
+    row-by-row by 0.46-0.66 opportunities per team game, and the ridge is the
+    *less* accurate of the two against realized volume (pass 0.931 against
+    0.651 MAE). Training an efficiency coefficient on the noisier construction
+    and applying it to the cleaner one attenuates that coefficient. Prefer
+    ``"pipeline"`` for a production efficiency fit and accept the cost: it is
+    one full pipeline fit per response season.
     """
+    if estimator not in {"ridge", "pipeline"}:
+        raise ValueError("estimator must be 'ridge' or 'pipeline'")
     rows = data.player_rows.copy().reset_index(drop=True)
     rows["_oof_row"] = np.arange(len(rows))
     team_rows = data.team_rows.copy()
@@ -66,6 +84,15 @@ def add_walk_forward_volume_features(
             test_model = test.drop(columns=efficiency_columns, errors="ignore")
         training_seasons = int(train["season"].nunique())
         rows.loc[test.index, "oof_volume_training_seasons"] = training_seasons
+
+        if estimator == "pipeline" and not train_model.empty:
+            projected = _pipeline_fold_projection(
+                team_rows, train_model, test_model, holdout, sample_kwargs
+            )
+            if projected is not None:
+                for output, values in projected.items():
+                    rows.loc[test.index, output] = values
+                continue
 
         team_lookup = team_rows[team_rows["season"] == holdout].set_index(
             ["season", "team"]
@@ -91,6 +118,47 @@ def add_walk_forward_volume_features(
     )
 
     return rows.sort_values("_oof_row").drop(columns="_oof_row").reset_index(drop=True)
+
+
+def _pipeline_fold_projection(
+    team_rows: pd.DataFrame,
+    train_rows: pd.DataFrame,
+    test_rows: pd.DataFrame,
+    holdout: float,
+    sample_kwargs: dict[str, object] | None,
+) -> dict[str, np.ndarray] | None:
+    """Posterior-mean volume for one fold, built the way serving builds it.
+
+    Returns ``None`` when the fold cannot support a pipeline fit — early folds
+    have too little history, and a source without quarterback snaps cannot fit
+    the QB layers at all — so the caller falls back to the ridge path rather
+    than losing the fold.
+    """
+    from ffmodel.models.volume_season_average import (
+        SeasonAverageVolumePipeline,
+        volume_input_problems,
+    )
+    from ffmodel.simulation.season_scoring import volume_efficiency_rows
+
+    train = SeasonAverageData(
+        team_rows[team_rows["season"] < holdout].copy(), train_rows
+    )
+    test = SeasonAverageData(
+        team_rows[team_rows["season"] == holdout].copy(), test_rows
+    )
+    if volume_input_problems(train) or volume_input_problems(test):
+        return None
+    pipeline = SeasonAverageVolumePipeline().fit(train, **(sample_kwargs or {}))
+    served = volume_efficiency_rows(pipeline.predict_samples(test, seed=0))
+
+    # The pipeline sorts its own rows and adds replacement buckets, so align
+    # back onto the caller's row order by identity rather than by position.
+    keys = ["season", "team", "player_key"]
+    outputs = [output for output, _, _ in VOLUME_OUTPUTS.values()]
+    lookup = served.drop_duplicates(keys).set_index(keys)[outputs]
+    wanted = pd.MultiIndex.from_frame(test_rows[keys])
+    aligned = lookup.reindex(wanted)
+    return {output: aligned[output].to_numpy(dtype=float) for output in outputs}
 
 
 def walk_forward_efficiency_predictions(

@@ -99,12 +99,39 @@ correction it was built to make: committee MAE improves in all three folds. The
 cost is that starters move further into a negative bias they already had, by
 about 1.4 to 1.7 in each fold.
 
-So the coupling's cost lands on the population an upstream layer is already
-biasing, and it is largest where that bias is largest. **Fixing the team-level
-pass-attempt bias should shrink the coupling's cost rather than the other way
-round**, which makes the team pass-rate layer — not the gate — the place to
-work next. Overall quarterback MAE still improved in all three folds in this
-diagnostic (4.82→4.56, 6.28→6.17, 5.04→4.97).
+So the coupling's cost lands on a population that is already biased low, and it
+is largest where that bias is largest. Overall quarterback MAE still improved in
+all three folds in this diagnostic (4.82→4.56, 6.28→6.17, 5.04→4.97).
+
+**Correction: the starter bias is not mainly a team-total problem.** An earlier
+draft of this section blamed the team pass-attempt layer. Checking it, the
+persistence baseline's team-level bias alternates sign and stays within about
+one attempt per game (+1.04 in 2022, -0.32 in 2023, +0.93 in 2024), while the
+starter bias is negative in every fold and up to 4.4. Most of the gap is
+therefore in the *allocation*, not the team total.
+
+The likely mechanism is the roster softmax itself. Predictions add innovation
+noise in log space and then renormalise, and for a concentrated room that is not
+mean-preserving — by Jensen, symmetric noise moves mass off the leader and onto
+the tail. Simulating the prediction path at the workload model's default
+`role_innovation_scale = 0.60`, on a room split 0.90 / 0.08 / 0.02:
+
+| innovation sd | leader E[share] | bias |
+|---:|---:|---:|
+| 0.00 | 0.9000 | — |
+| 0.30 | 0.8933 | -0.0067 |
+| **0.60** | **0.8733** | **-0.0267** |
+| 0.90 | 0.8418 | -0.0582 |
+
+At 34 team attempts per game, -0.0267 of share is about **0.9 attempts per game
+of systematic starter under-projection from the noise alone**, before any data
+enters — and real quarterback rooms are often more concentrated than 0.90, where
+the pull is larger. The quarterback room is the most concentrated simplex in the
+pipeline, which is why this shows up there first; target and carry rooms are
+flatter and should be affected far less.
+
+That makes the roster-share innovation, not the team layer, the place to work
+next: the noise needs to be applied so it does not move the expected share.
 
 ## Step 3 — postseason features, promoted for skill positions only
 

@@ -206,7 +206,29 @@ class TeamSeasonAverageModel:
     sack_prior_center: float = -2.67
     target_prior_center: float = 2.6
     models_sacks: bool = False
+    # plays_obs is NegativeBinomial, a Poisson-Gamma mixture that already carries
+    # overdispersion. A per-row log-normal term on the same mean is a second
+    # dispersion source on one likelihood, and the two are not separately
+    # identified: the variance posterior collapses to 0.008 with r-hat 1.02 and
+    # drags the intercept's effective sample size down with it. The pass and
+    # target likelihoods are Binomial, which has no free dispersion parameter, so
+    # their transition terms are doing real work and are unconditional.
+    models_play_transition: bool = False
+    # Each stream's intercept and its 32 team effects are additively confounded:
+    # a shift shared across all teams is indistinguishable from a shift in the
+    # intercept, and ``Normal(0, small)`` identifies that only softly, through
+    # the prior. The pair mixes slowly as a result. Constraining the effects to
+    # sum to zero removes the direction entirely, which is what
+    # ``_position_effect`` already does for position effects elsewhere.
+    sum_to_zero_team_effects: bool = True
     idata: object = None
+
+    def _team_effect(self, pm, name: str, scale: float):
+        size = len(self.teams)
+        if not self.sum_to_zero_team_effects or size < 2:
+            return pm.Normal(name, 0.0, scale, shape=size)
+        raw = pm.Normal(f"{name}_raw", 0.0, scale, shape=size - 1)
+        return pm.Deterministic(name, pm.math.dot(_sum_to_zero_basis(size), raw))
 
     def _design(self, rows: pd.DataFrame, *, fit: bool = False):
         required = {
@@ -332,18 +354,20 @@ class TeamSeasonAverageModel:
             play_intercept = pm.Normal("play_intercept", play_center, 0.20)
             play_persistence = pm.Normal("play_persistence", 0.75, 0.25)
             play_era = pm.Normal("play_era", 0.0, 0.12)
-            play_team = pm.Normal("play_team", 0.0, 0.06, shape=len(self.teams))
-            play_transition_sd = pm.HalfNormal("play_transition_sd", 0.12)
-            play_transition_z = pm.Normal(
-                "play_transition_z", 0.0, 1.0, shape=len(d)
-            )
-            play_mu_pg = pm.math.exp(
+            play_team = self._team_effect(pm, "play_team", 0.06)
+            play_eta = (
                 play_intercept
                 + play_persistence * play_prior
                 + play_era * era
                 + play_team[team_idx]
-                + play_transition_z * play_transition_sd
             )
+            if self.models_play_transition:
+                play_transition_sd = pm.HalfNormal("play_transition_sd", 0.12)
+                play_transition_z = pm.Normal(
+                    "play_transition_z", 0.0, 1.0, shape=len(d)
+                )
+                play_eta = play_eta + play_transition_z * play_transition_sd
+            play_mu_pg = pm.math.exp(play_eta)
             play_alpha_pg = pm.Gamma("play_alpha_pg", alpha=3.0, beta=0.15)
             pm.NegativeBinomial(
                 "plays_obs",
@@ -355,7 +379,7 @@ class TeamSeasonAverageModel:
             pass_intercept = pm.Normal("pass_intercept", pass_center, 0.30)
             pass_persistence = pm.Normal("pass_persistence", 0.75, 0.25)
             pass_era = pm.Normal("pass_era", 0.0, 0.15)
-            pass_team = pm.Normal("pass_team", 0.0, 0.12, shape=len(self.teams))
+            pass_team = self._team_effect(pm, "pass_team", 0.12)
             pass_transition_sd = pm.HalfNormal("pass_transition_sd", 0.25)
             pass_transition_z = pm.Normal(
                 "pass_transition_z", 0.0, 1.0, shape=len(d)
@@ -380,9 +404,7 @@ class TeamSeasonAverageModel:
                 )
                 sack_persistence = pm.Normal("sack_persistence", 0.50, 0.30)
                 sack_era = pm.Normal("sack_era", 0.0, 0.15)
-                sack_team = pm.Normal(
-                    "sack_team", 0.0, 0.10, shape=len(self.teams)
-                )
+                sack_team = self._team_effect(pm, "sack_team", 0.10)
                 sack_eta = (
                     sack_intercept
                     + sack_persistence * sack_prior
@@ -399,7 +421,7 @@ class TeamSeasonAverageModel:
             target_intercept = pm.Normal("target_intercept", target_center, 0.30)
             target_persistence = pm.Normal("target_persistence", 0.65, 0.30)
             target_era = pm.Normal("target_era", 0.0, 0.15)
-            target_team = pm.Normal("target_team", 0.0, 0.10, shape=len(self.teams))
+            target_team = self._team_effect(pm, "target_team", 0.10)
             target_transition_sd = pm.HalfNormal("target_transition_sd", 0.25)
             target_transition_z = pm.Normal(
                 "target_transition_z", 0.0, 1.0, shape=len(d)
@@ -461,9 +483,10 @@ class TeamSeasonAverageModel:
         )
         play_eta = play_eta + era[:, None] * _stack(post, "play_era")[None, :]
         play_eta = play_eta + self._known_effect(post, "play_team", team_idx)
-        play_eta = play_eta + rng.normal(size=play_eta.shape) * _stack(
-            post, "play_transition_sd"
-        )[None, :]
+        if "play_transition_sd" in post:
+            play_eta = play_eta + rng.normal(size=play_eta.shape) * _stack(
+                post, "play_transition_sd"
+            )[None, :]
         pass_eta = _stack(post, "pass_intercept")[None, :]
         pass_eta = pass_eta + (
             pass_prior[:, None] * _stack(post, "pass_persistence")[None, :]
@@ -1399,7 +1422,11 @@ class SeasonAverageVolumePipeline:
                     "play_intercept",
                     "play_persistence",
                     "play_alpha_pg",
-                    "play_transition_sd",
+                    *(
+                        ["play_transition_sd"]
+                        if self.team_model.models_play_transition
+                        else []
+                    ),
                     "pass_intercept",
                     "pass_persistence",
                     "pass_transition_sd",
@@ -1509,6 +1536,8 @@ class SeasonAverageVolumePipeline:
                 "sack_prior_center": self.team_model.sack_prior_center,
                 "target_prior_center": self.team_model.target_prior_center,
                 "models_sacks": self.team_model.models_sacks,
+                "models_play_transition": self.team_model.models_play_transition,
+                "sum_to_zero_team_effects": self.team_model.sum_to_zero_team_effects,
             },
             "target": self._share_metadata(self.target_model),
             "carry": self._share_metadata(self.carry_model),

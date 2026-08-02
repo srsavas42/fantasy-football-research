@@ -41,7 +41,7 @@ import numpy as np
 # direction — an 88% interval that covers 95% of outcomes is as wrong as one
 # that covers 81%, and only one of those looks like an improvement to a rule
 # that treats "higher is better".
-LOWER_IS_BETTER = ("mae", "crps", "brier", "rmse", "value")
+LOWER_IS_BETTER = ("mae", "crps", "brier", "rmse")
 # The volume and scoring walk-forwards spell coverage differently — ``cov80``
 # and ``coverage_80``. Both belong here. Missing one meant the scoring runs, the
 # ones the final promotion decisions are actually made on, had their coverage
@@ -111,10 +111,15 @@ class MetricComparison:
         how ``coverage_80`` came to be scored upside down for every scoring-run
         comparison. An unrecognised metric is now surfaced instead of silently
         given a direction.
+
+        A run may also report a bare number rather than a metric block —
+        ``carry_eligibility_brier`` is one. There the direction is carried by
+        the stream's own name, so that is what gets checked. Reading a metric
+        literally called ``value`` as an error would be the same guess in
+        different clothing.
         """
-        return self.is_coverage or any(
-            self.metric.endswith(m) for m in LOWER_IS_BETTER
-        )
+        name = self.stream if self.metric == "value" else self.metric
+        return self.is_coverage or any(name.endswith(m) for m in LOWER_IS_BETTER)
 
     @property
     def relative_change(self) -> np.ndarray:

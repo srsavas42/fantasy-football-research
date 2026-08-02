@@ -305,3 +305,39 @@ def test_accepted_and_worthwhile_are_different_questions():
     assert report.accepted
     assert not report.worthwhile
     assert "weigh the cost" in format_report(report, baseline="b", candidate="c")
+
+
+def test_a_bare_scalar_takes_its_direction_from_the_stream_name():
+    """``carry_eligibility_brier`` is a number, not a metric block.
+
+    Its direction lives in the stream's own name. Reading a metric literally
+    called ``value`` as an error metric would be the same guess the gate refuses
+    to make elsewhere, just in different clothing.
+    """
+    def brier(value):
+        return lambda fold: {"carry_eligibility_brier": value}
+
+    base = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=brier(0.150))
+    cand = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=brier(0.140))
+
+    report = compare_runs(base, cand)
+    scalar = next(
+        m for m in report.metrics if m.stream == "carry_eligibility_brier"
+    )
+
+    assert scalar.recognized
+    assert scalar.pooled < 0
+    assert scalar.verdict == "improved"
+
+
+def test_a_bare_scalar_the_gate_cannot_name_is_still_refused():
+    def mystery(value):
+        return lambda fold: {"some_index": value}
+
+    base = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=mystery(0.5))
+    cand = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=mystery(0.4))
+
+    report = compare_runs(base, cand)
+
+    assert not report.accepted
+    assert any("some_index" in b for b in report.blockers)

@@ -286,3 +286,82 @@ does not clear the gate, so `exposure_floor` stays `None`. Searching for a
 better floor value on these same holdouts would be selecting on the test set,
 which is the process risk recorded as S9 in the review — the right next step is
 an inner fold, not a sweep.
+
+---
+
+# Step 7 — process and allocation
+
+## The role innovation was reallocating the rooms it was meant to widen
+
+This is the mechanism behind the starter under-projection that step 6 wrongly
+attributed to the team pass-rate layer.
+
+The role models perturb a log-odds vector with Gaussian noise and take a
+softmax. The softmax is not linear, so renormalization does not merely spread
+the shares — it takes probability mass from whoever leads the room and hands it
+to everyone else. No model term claims that transfer is real, and its size is
+set by how concentrated the room is:
+
+| room | leader's allocation | leader's draw-average | loss |
+|---|---:|---:|---:|
+| quarterback (0.90 / 0.08 / 0.02) | 0.9000 | 0.8733 | **-0.0267** |
+| two-man (0.65 / 0.35) | 0.6500 | 0.6306 | -0.0194 |
+| seven-deep target room | 0.2600 | 0.2526 | -0.0074 |
+
+At the quarterback room's default innovation scale of 0.60 that is about nine
+tenths of an attempt per game, going to passers who were never projected to
+take them.
+
+The fix solves for a per-player offset, constant across draws, that puts the
+draw-average back on the noiseless allocation — the usual proportional-fitting
+step in log space, four passes, machine precision at these room sizes. Because
+the offset is a pure location shift, every pairwise log-odds contrast is
+preserved exactly; the innovation still says exactly as much about how far a
+room can reshuffle as it did before.
+
+One consequence worth stating rather than hiding: the leader's *share-scale*
+standard deviation falls, 0.086 to 0.072 in the quarterback case, purely because
+his mean moved nearer the ceiling of 1.0. On the log-odds scale where the
+innovation is defined nothing changed. The point estimate rises and the interval
+narrows slightly with it, which is the calibration behaviour the walk-forward
+has to answer for.
+
+The baseline the correction targets includes every other per-draw effect —
+availability, the carry hurdle, the quarterback gate. Those are estimated
+components and are meant to move the mean. The innovation is a dispersion device
+and is not.
+
+Behind `mean_preserving_innovation`. With it off, the path is unchanged to
+4e-08.
+
+## The acceptance gate is now code
+
+See [acceptance-gate.md](acceptance-gate.md). All three defects recorded against
+it are addressed: it enumerates every metric and every component rather than the
+ones somebody tabulated, it reports pooled change against fold spread rather
+than counting wins across folds that are not exchangeable, and it gates R-hat
+with headroom at 1.02 with a reseed band below that, since seed 42 and seed 7
+disagree at the old 1.01 line.
+
+Running it against the already-accepted postseason promotion taught it two
+things about itself, both now fixed: coverage cannot be scored as a ratio
+against a near-nominal baseline, and a verdict needs a materiality floor as well
+as a spread test.
+
+## What the ingest layer discards
+
+See [ingest-filter-audit-2026-08.md](ingest-filter-audit-2026-08.md). The
+position filter drops 66.9% of rows and 0.094% of opportunity, and is applied to
+team denominators and player numerators alike. The 3–7% of league opportunity
+belonging to players no preseason roster could name is absorbed by the
+replacement bucket rather than discarded. Team identity survives the
+relocations. One silent path — `load_injuries` dropping a season the feed
+declines — now warns.
+
+## S5 revisited: the floor is chosen on an inner fold
+
+`scripts/select_exposure_floor.py` picks the floor by fitting on seasons
+< H−1 and scoring on H−1, then refits on seasons < H and scores H. The holdout
+is only ever scored, never searched, which is what step 6 said the right next
+step was. `None` is always a candidate, so the procedure can decline to change
+anything.

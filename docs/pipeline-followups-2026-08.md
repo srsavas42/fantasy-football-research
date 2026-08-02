@@ -172,6 +172,45 @@ The matched path is implemented, validated as directionally correct, and worth
 switching on if the covariate is ever given more weight than it currently
 carries.
 
+## Step 5 — the scoring coverage puzzle, resolved
+
+season-scoring v1 recorded 95% coverage of 0.879-0.892 against a 0.90 floor.
+Re-fitting both layers gives 0.916-0.920 on the same folds — on this branch and
+on unmodified main alike — so whatever changed is not recent. v1 paired a
+volume-v2 checkpoint with separately fitted efficiency posteriors.
+
+The decisive test is where the interval width comes from.
+`scale_efficiency_dispersion(0)` removes latent season-to-season efficiency
+variation while keeping event noise, so what survives is volume plus sampling:
+
+| holdout | 95% coverage, full | efficiency dispersion off |
+|---|---:|---:|
+| 2022 | 0.899 | 0.899 |
+| 2023 | 0.903 | 0.895 |
+| 2024 | 0.950 | 0.948 |
+
+**Removing latent efficiency dispersion entirely moves 95% coverage by at most
+0.008.** Total-scoring interval width is a property of the volume layer, not the
+efficiency layer.
+
+Two conclusions follow.
+
+The v1 coverage number describes a volume layer that no longer exists. It was
+measured against volume-v2; the volume layer has since been replaced by v3 and
+then by the availability coupling and the fixes here. Comparing a current number
+to it is not meaningful, and the gate should be re-run rather than referenced.
+
+And v1's calibration ablations were pulling the wrong lever. Sweeping efficiency
+dispersion from 0.75x to 1.50x could not have fixed coverage, because efficiency
+dispersion is not what sets the width — which is exactly what that sweep found
+("did not produce a candidate that passed accuracy, CRPS stability, and coverage
+together"). The `1.10x` total-dispersion result that did move coverage worked by
+inflating everything, including the volume component, which is why it cost CRPS.
+
+Coverage also varies far more by fold (0.899, 0.903, 0.950) than by any
+configuration tested here, which is worth remembering before reading a pooled
+number as a property of the architecture.
+
 ## Step 6 — S5, S7, S8
 
 **S7 (fixed).** `vacated_opportunity` counted a player who stayed but recorded

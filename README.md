@@ -263,11 +263,11 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 0 | Package scaffolding, config, scoring, tests | ✅ |
 | 1 | Hybrid data layer (nflverse + legacy CSVs, parquet cache) | ✅ |
 | 2 | Features: usage shares, empirical role tiers, trailing efficiency, game script, active-set/injury logic | ✅ |
-| 3A | **Season-average volume** (coherent team rates + availability, snaps, per-snap roles, replacement demand) | volume v3 validated and promoted; final all-data fit pending |
+| 3A | **Season-average volume** (coherent team rates + availability, snaps, per-snap roles, replacement demand) | volume v3 promoted; availability-coupled QB gate and postseason role features promoted 2026-08 ([followups](docs/pipeline-followups-2026-08.md)); final all-data fit pending |
 | 3B | Within-season **volume models** (team plays/pass rate + Dirichlet-Multinomial share) | core models complete |
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
-| 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; promotion gate not yet cleared |
-| 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active |
+| 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
+| 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
 | 7 | Weekly pillar: start/sit lineup optimization | |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |

@@ -1540,12 +1540,21 @@ def _divide(numerator, denominator) -> np.ndarray:
 
 
 def _normalize_teams(frame: pd.DataFrame) -> pd.DataFrame:
-    """Map era/provider abbreviations onto stable franchise codes."""
+    """Map era/provider abbreviations onto stable franchise codes.
+
+    Resolved over the distinct ``(team, season)`` pairs rather than every row.
+    ``team_identity`` is a long string comparison chain, this runs nine times in
+    a build, and the frames reach player-week scale — while a decade of football
+    contains on the order of 350 distinct pairs.
+    """
     out = frame.copy()
-    out["team"] = [
-        team_identity(team, int(season)).franchise_code
-        for team, season in zip(out["team"], out["season"])
-    ]
+    pairs = pd.MultiIndex.from_arrays([out["team"], out["season"]])
+    codes, uniques = pd.factorize(pairs)
+    resolved = np.array(
+        [team_identity(team, int(season)).franchise_code for team, season in uniques],
+        dtype=object,
+    )
+    out["team"] = resolved[codes]
     return out
 
 

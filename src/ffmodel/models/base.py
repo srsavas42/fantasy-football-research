@@ -1,7 +1,7 @@
 """Shared PyMC plumbing: sampling defaults, diagnostics, and persistence.
 
 Every model in this package fits through `sample_model` (uniform defaults and
-seeding), checks convergence with `convergence_summary` (R-hat / ESS via arviz),
+seeding), checks convergence with `sampling_quality` (R-hat / ESS / divergences),
 and serializes its posterior with `save_idata` / `load_idata`. PyMC and arviz
 are imported lazily so the data/feature layers stay importable without them.
 """
@@ -125,15 +125,6 @@ def sample_model(model, draws: int = 1000, tune: int = 1000, chains: int = 4,
             random_seed=seed, progressbar=False,
             target_accept=kwargs.pop("target_accept", 0.9), **kwargs,
         )
-
-
-def convergence_summary(idata, var_names=None):
-    """Return an arviz summary and a boolean 'converged' (all R-hat < 1.01)."""
-    import arviz as az
-
-    summ = az.summary(idata, var_names=var_names)
-    converged = bool((summ["r_hat"] < 1.01).all())
-    return summ, converged
 
 
 def sampling_quality(

@@ -11,10 +11,18 @@ roster_mode="inferred")` build on this checkout; the fast test suite passes
 
 | Finding | State |
 |---|---|
-| S1 cold-start role prior | **fixed**, regression tests in `tests/test_role_prior_units.py` |
-| S2 QB workload hurdle | **fixed**, regression tests in `tests/test_qb_workload_hurdle.py` |
-| S0 team-level snap flag read per player | **fixed** — found while verifying S1/S2; see below |
+| S1 cold-start role prior | **fixed**; severity corrected downward on nflverse (see below) |
+| S2 QB workload hurdle | **fixed**; improves QB CRPS, enables the coupling below |
+| S0 team-level snap flag read per player | **fixed**; provable no-op on nflverse, unblocks legacy |
+| S6 leaky/non-running validation default | **fixed**; `--source` now defaults to `auto`, inputs checked up front |
+| QB gate / availability incoherence | **candidate implemented**, off by default, validated — recommend promotion |
+| postseason in the late-season role signal | **assessed**, recommended shape written up |
 | everything else | open |
+
+All of the above are now measured end to end against unmodified main on the
+volume-v3 walk-forward: see
+[volume-fix-validation-2026-08.md](volume-fix-validation-2026-08.md) and
+[postseason-history-assessment.md](postseason-history-assessment.md).
 
 ### S0 — `snap_counts_observed` is a team-level flag read as a per-player one  *(found during the fix, high)*
 
@@ -46,14 +54,16 @@ convention. On nflverse the change is a no-op except for passers the snap feed
 omits entirely, but it does change what the workload model fits on, so it is
 kept as its own commit and needs an nflverse revalidation before promotion.
 
-### What could not be verified here
+### Verification status
 
-There is no nflverse access in this environment, so **no end-to-end holdout
-comparison was run**. `scripts/validate_season_average.py --source legacy`
-cannot reach the Bayesian stage even after S0: `QBPassPropensityModel.fit`
-raises `QB propensity fitting requires observed quarterback snaps`, because the
-committed snapcount CSVs contain no quarterback rows at all. Both unmodified
-`7867cba` and this branch fail there identically.
+The walk-forward has since been run: nflverse is reachable from this
+environment after all, and the results — including a correction to S1's
+severity — are in
+[volume-fix-validation-2026-08.md](volume-fix-validation-2026-08.md).
+
+The legacy source still cannot reach the Bayesian stage even after S0, because
+`QBPassPropensityModel.fit` has no quarterback snaps to fit; that is now caught
+up front by `volume_input_problems` instead of failing three models deep.
 
 The fixes are therefore verified by:
 
@@ -94,7 +104,18 @@ most repos of this kind:
 
 ## Scientific issues
 
-### S1 — Cold-start role prior is unit-mixed, then clipped flat, and dominates the roster softmax  **(critical)**
+### S1 — Cold-start role prior is unit-mixed, then clipped flat  **(critical on the legacy path, minor on nflverse — see correction)**
+
+> **Correction (2026-08-02).** The severity below was measured on a legacy
+> build, the only source runnable offline when this was written, and does not
+> transfer to the production nflverse path. There, `_role_prior`'s fall-through
+> means the cold branch is reached only by quarterbacks for targets (who are
+> masked out of that multinomial anyway) and by WR/TE for carries, where the
+> prior moves ~1.6x rather than 468x. The walk-forward measures the whole of S1
+> as +0.40% carry MAE and -0.03% carry CRPS, with target, snap and availability
+> bit-identical. The defect is real; the blast radius on the production path is
+> not what this section implies. See
+> [volume-fix-validation-2026-08.md](volume-fix-validation-2026-08.md).
 
 `models/volume_season_average.py:611-643` (`SeasonRosterShareModel._fit_metadata`):
 

@@ -471,7 +471,12 @@ and `k` argsorts for every supported row. Vectorizable across rows in one
 
 ## Suggested order of work
 
-S1, S2 and S0 are done. What is left, in the order I would take it:
+S0, S1, S2, S3, S4 and S6 are done, the availability coupling and the
+postseason role features are implemented as validated/screened candidates, and
+the results are in
+[volume-fix-validation-2026-08.md](volume-fix-validation-2026-08.md) and
+[postseason-history-assessment.md](postseason-history-assessment.md). What is
+left, in the order I would take it:
 
 1. **Re-run the nflverse walk-forward** (2022-2024, the volume-v3 protocol) on
    this branch. S1 changes the cold-start prior for roughly half of all carry
@@ -490,10 +495,12 @@ S1, S2 and S0 are done. What is left, in the order I would take it:
    item 1). It is now the dominant remaining bias in that layer, larger than the
    mean shift just fixed. Coupling the gate to the availability draw is the
    natural fix and needs its own ablation.
-4. **S4 / S3** — the efficiency covariate's train/serve gap and the ridge
-   log-share floor behind it. These feed the promoted efficiency models, and the
-   parity test pattern from `tests/test_projection_feature_parity.py` applies
-   directly.
+4. ~~**S4 / S3**~~ — done. The ridge floor is replaced by within-roster Laplace
+   smoothing, which improved the `oof_*` columns the promoted efficiency models
+   read by 11.2% target MAE and 6.9% carry MAE. The train/serve gap is measured
+   (correlation 0.90-0.92, but the training construction is the less accurate of
+   the two) and a matched `estimator="pipeline"` path is available, defaulted
+   off because it costs one pipeline fit per response season.
 5. **E1** — make `cores` configurable in `sample_model`. One line, roughly 4x
    faster validation loops on a multi-core machine, which makes steps 1-4
    materially cheaper to iterate on.

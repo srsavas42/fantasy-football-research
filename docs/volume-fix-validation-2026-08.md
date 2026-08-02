@@ -124,3 +124,54 @@ and they affect all three configurations equally, including unmodified main.
    failed on 95% coverage, and pass_qb 95% coverage moves 0.925 → 0.937 here,
    so the scoring layer's inputs are meaningfully better calibrated than when
    that gate was last evaluated.
+
+---
+
+# Total-season scoring gate, re-run
+
+`docs/season-scoring-v1-validation.md` failed its gate on 95% coverage
+(0.879-0.892 pooled against a 0.90 floor) and on CRPS, which "wins only one
+holdout for each scoring system". Since the quarterback inputs are now better
+calibrated, the gate was re-run.
+
+`validate_season_scoring_posteriors.py` loads pre-fitted posteriors from
+`.cache/season-average-validation/...`, which do not exist in a fresh container.
+This run instead fits **both layers from data per holdout** through
+`SeasonAverageScoringPipeline`, at 400/400/2. Absolute levels therefore are not
+comparable to the v1 table; the paired comparison within this harness is.
+
+| scoring | metric | main | + coupling | change | fold wins |
+|---|---|---:|---:|---:|---:|
+| standard | MAE | 33.2043 | 33.0958 | -0.33% | 2/3 |
+| standard | CRPS | 24.2523 | 24.1020 | **-0.62%** | **3/3** |
+| half-PPR | MAE | 38.2897 | 38.1769 | -0.29% | 2/3 |
+| half-PPR | CRPS | 28.0801 | 27.9317 | **-0.53%** | **3/3** |
+| PPR | MAE | 43.5221 | 43.4077 | -0.26% | 2/3 |
+| PPR | CRPS | 32.0176 | 31.8712 | **-0.46%** | **3/3** |
+
+Coverage moves slightly up everywhere: 80% from 0.773-0.775 to 0.776-0.777, 95%
+from 0.917-0.918 to 0.918-0.920.
+
+Two things to read carefully.
+
+**CRPS now wins 3/3 on every scoring system.** That is precisely the criterion
+v1 failed, and it is the criterion a distributional model should be judged on.
+The MAE gain is small but consistent at 2/3.
+
+**The 95% coverage failure does not reproduce in this harness — and that is not
+a claim that the coupling fixed it.** Both configurations sit at 0.917-0.920,
+comfortably above the floor, *including unmodified main*. The difference from
+the v1 table is the harness, not the architecture: v1 combined a volume-v2
+checkpoint with separately-fitted efficiency-v2 posteriors, whereas this fits
+both layers together on the same folds. That is worth chasing on its own —
+it suggests the recorded coverage failure may be partly an artifact of the
+checkpoint combination rather than a property of the scoring architecture. The
+honest next step is to re-run the original harness with its checkpoints and see
+which explanation survives, not to declare the gate passed.
+
+## Files
+
+`scripts/validate_volume_fix_walkforward.py` and the JSON under
+`scripts/validation_runs/` reproduce the volume comparison. The scoring
+comparison uses the same cached nflverse frames through
+`SeasonAverageScoringPipeline`.

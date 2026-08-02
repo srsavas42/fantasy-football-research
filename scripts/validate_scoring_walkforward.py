@@ -69,6 +69,9 @@ def main(argv=None) -> None:
                 "chains": 2,
             }
         pipeline.volume_model.postseason_role_features = args.postseason
+        pipeline.volume_model.mean_preserving_innovation = (
+            args.mean_preserving_innovation
+        )
         pipeline.volume_model.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.volume_model.workload_model.couple_gate_to_availability = coupling

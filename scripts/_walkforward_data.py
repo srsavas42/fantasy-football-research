@@ -49,6 +49,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="enable the lagged postseason role features",
     )
     parser.add_argument(
+        "--mean-preserving-innovation",
+        action="store_true",
+        help="correct the softmax renormalization bias the role innovation "
+             "introduces in the workload, target and carry allocations",
+    )
+    parser.add_argument(
         "--efficiency-exposure-floor",
         type=int,
         default=None,

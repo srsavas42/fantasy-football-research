@@ -22,7 +22,11 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
-from ffmodel.features.season_average import SeasonAverageData, TEAM_KEYS
+from ffmodel.features.season_average import (
+    POSTSEASON_FEATURES,
+    SeasonAverageData,
+    TEAM_KEYS,
+)
 from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
     load_idata,
@@ -1062,6 +1066,9 @@ class SeasonAverageVolumePipeline:
     # Upstream likelihood challenger: out-of-fold regime probabilities enter
     # role and availability regressions instead of tilting fitted shares.
     regime_likelihood_features: bool = False
+    # Lagged postseason role signal. Off until it clears the acceptance gate;
+    # see docs/postseason-history-assessment.md for the feature-level screen.
+    postseason_role_features: bool = False
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1069,6 +1076,8 @@ class SeasonAverageVolumePipeline:
     def fit(self, data: SeasonAverageData, **sample_kwargs) -> "SeasonAverageVolumePipeline":
         if self.role_regime_coupling and self.regime_likelihood_features:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
+        if self.postseason_role_features:
+            self._enable_postseason_role_features()
         problems = volume_input_problems(data)
         if problems:
             raise ValueError(
@@ -1115,6 +1124,29 @@ class SeasonAverageVolumePipeline:
             )
             self.fit_seconds["regime"] = perf_counter() - started
         return self
+
+    def _enable_postseason_role_features(self) -> None:
+        """Offer the lagged postseason signal to the role-shaped submodels.
+
+        Only the models that decide *who holds a role* see it. Availability and
+        the team layer are deliberately excluded: postseason participation is a
+        property of the team's quality, and letting it into an availability
+        regression would let "my team was good" stand in for "I stayed healthy".
+        """
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *POSTSEASON_FEATURES)))
+
+        self.snap_model.extra_features = merged(self.snap_model.extra_features)
+        self.workload_model.extra_features = merged(self.workload_model.extra_features)
+        self.target_role_model.extra_features = merged(
+            self.target_role_model.extra_features
+        )
+        self.carry_eligibility_model.extra_features = merged(
+            self.carry_eligibility_model.extra_features
+        )
+        self.target_model.extra_features = merged(self.target_model.extra_features)
+        self.carry_model.extra_features = merged(self.carry_model.extra_features)
 
     def _enable_regime_likelihood_features(self) -> None:
         """Append the leakage-safe regime contract to upstream submodels."""

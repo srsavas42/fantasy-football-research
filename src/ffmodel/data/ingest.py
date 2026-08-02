@@ -138,8 +138,22 @@ def load_weekly(
     seasons: Iterable[int],
     refresh: bool = False,
     cache_dir: Path | None = None,
+    *,
+    season_type: str = "REG",
 ) -> pd.DataFrame:
-    """Regular-season player-week stat lines in the canonical schema."""
+    """Player-week stat lines in the canonical schema, regular season by default.
+
+    ``season_type="POST"`` returns playoff weeks instead. They are deliberately
+    not part of the default: every exposure quantity downstream — ``games``,
+    ``team_games``, ``observed_availability`` — counts regular-season games, and
+    the team totals every usage share divides by are built from the same rows.
+    Postseason belongs in its own lagged features, not mixed into those.
+
+    The cached parquet holds both season types, so switching this costs no
+    additional fetch.
+    """
+    if season_type not in {"REG", "POST"}:
+        raise ValueError("season_type must be 'REG' or 'POST'")
     raw = _by_season(
         "player_stats",
         seasons,
@@ -150,7 +164,9 @@ def load_weekly(
     if raw.empty:
         return conform(raw)
     if "season_type" in raw.columns:
-        raw = raw[raw["season_type"] == "REG"]
+        raw = raw[raw["season_type"] == season_type]
+    elif season_type == "POST":
+        return conform(raw.iloc[0:0])
     has_pass_sacks = "sacks_suffered" in raw.columns
     df = _map_weekly_aliases(raw)
     # Keep an explicit observation flag. The committed legacy files do not

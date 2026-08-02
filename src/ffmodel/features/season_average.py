@@ -484,6 +484,131 @@ def player_team_season_usage(player_weeks: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(PLAYER_KEYS).reset_index(drop=True)
 
 
+POSTSEASON_FEATURES = (
+    "prior_post_pass_attempt_share",
+    "prior_post_target_share",
+    "prior_post_carry_share",
+    "prior_post_games",
+    "prior_post_available",
+)
+
+
+def postseason_player_usage(player_weeks_post: pd.DataFrame) -> pd.DataFrame:
+    """Player shares of their team's postseason opportunity, kept separate.
+
+    Playoff rotations are shorter than regular-season ones — mean top-1
+    within-team target share runs about 0.242 in late regular season against
+    0.279 in the postseason — so these are not on the same scale as the
+    regular-season shares and are deliberately not pooled with them. They ride
+    alongside as their own lagged signal, with a game count so a model can
+    weight one playoff game differently from four.
+    """
+    columns = TEAM_KEYS + [
+        "player_key",
+        "post_pass_attempt_share",
+        "post_target_share",
+        "post_carry_share",
+        "post_games",
+    ]
+    if player_weeks_post is None or player_weeks_post.empty:
+        return pd.DataFrame(columns=columns)
+    pw = normalize_model_positions(player_weeks_post)
+    if pw.empty:
+        return pd.DataFrame(columns=columns)
+    pw = _normalize_teams(pw)
+    pw["player_key"] = crossseason.player_key(pw)
+    out = (
+        pw.groupby(PLAYER_KEYS, dropna=False)
+        .agg(
+            pass_att=("pass_att", "sum"),
+            targets=("targets", "sum"),
+            rush_att=("rush_att", "sum"),
+            post_games=("week", "nunique"),
+        )
+        .reset_index()
+    )
+    for count, share in (
+        ("pass_att", "post_pass_attempt_share"),
+        ("targets", "post_target_share"),
+        ("rush_att", "post_carry_share"),
+    ):
+        total = out.groupby(TEAM_KEYS)[count].transform("sum")
+        out[share] = np.divide(
+            out[count].to_numpy(dtype=float),
+            total.to_numpy(dtype=float),
+            out=np.zeros(len(out), dtype=float),
+            where=total.to_numpy(dtype=float) > 0,
+        )
+    return out[columns].sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+def load_postseason_usage(
+    seasons: Iterable[int], source: str = "auto", cache_dir=None
+) -> pd.DataFrame:
+    """Postseason usage for the given seasons, empty when the source lacks it.
+
+    The committed CSVs stop at the regular-season finale, so a legacy run has no
+    postseason at all. That is reported as absence rather than as zero usage:
+    the two are different facts and ``prior_post_available`` carries which one
+    a row is.
+    """
+    columns = TEAM_KEYS + [
+        "player_key",
+        "post_pass_attempt_share",
+        "post_target_share",
+        "post_carry_share",
+        "post_games",
+    ]
+    if source == "legacy":
+        return pd.DataFrame(columns=columns)
+    try:
+        weeks = ingest.load_weekly(
+            sorted(set(map(int, seasons))), cache_dir=cache_dir, season_type="POST"
+        )
+    except (ingest.DataUnavailableError, OSError, ValueError):
+        return pd.DataFrame(columns=columns)
+    return postseason_player_usage(weeks)
+
+
+def _merge_postseason_features(
+    out: pd.DataFrame, postseason: pd.DataFrame
+) -> pd.DataFrame:
+    """Attach season ``Y`` postseason usage to the season ``Y+1`` rows.
+
+    Season Y's playoffs finish before season Y+1 opens, so this is inside the
+    existing lag contract. Missingness is emphatically not at random — a team
+    with no postseason row did not qualify — so absence is flagged rather than
+    filled with a zero share, which would read as "played and earned nothing".
+    """
+    if postseason is None or postseason.empty:
+        for column in POSTSEASON_FEATURES:
+            out[column] = 0.0 if column == "prior_post_available" else np.nan
+        return out
+    prior = postseason.copy()
+    prior["season"] = pd.to_numeric(prior["season"], errors="coerce").astype("Int64") + 1
+    prior = prior.rename(
+        columns={
+            "post_pass_attempt_share": "prior_post_pass_attempt_share",
+            "post_target_share": "prior_post_target_share",
+            "post_carry_share": "prior_post_carry_share",
+            "post_games": "prior_post_games",
+        }
+    )
+    # Join on player identity and prior team: a postseason share describes the
+    # role a player held on that roster, and carrying it onto a new team would
+    # assert continuity the move itself calls into question.
+    prior = prior.rename(columns={"team": "prior_team"})
+    keys = ["season", "prior_team", "player_key"]
+    out = out.merge(
+        prior[keys + [column for column in prior.columns if column not in keys]],
+        on=keys,
+        how="left",
+    )
+    out["prior_post_available"] = out["prior_post_games"].notna().astype(float)
+    out["prior_post_games"] = out["prior_post_games"].fillna(0.0)
+    return out
+
+
 def player_preseason_rows(
     seasons: Iterable[int],
     *,
@@ -495,6 +620,7 @@ def player_preseason_rows(
     weekly_rosters: pd.DataFrame | None = None,
     injury_snapshot: pd.DataFrame | None = None,
     injury_cutoff_week: int = 1,
+    postseason: pd.DataFrame | None = None,
     projection_seasons: Iterable[int] = (),
 ) -> pd.DataFrame:
     """Build roster rows with prior-year predictors and current-year labels.
@@ -527,6 +653,8 @@ def player_preseason_rows(
     history["player_key"] = crossseason.player_key(history)
     if player_weeks is None:
         player_weeks = load_player_weeks(observed, source=source)
+    if postseason is None:
+        postseason = load_postseason_usage(observed, source=source)
     if team_volume is None:
         team_volume = team_season_volume(player_weeks)
     efficiency = player_season_efficiency(player_weeks)
@@ -715,6 +843,7 @@ def player_preseason_rows(
     out["team_change"] = (
         out["prior_team"].notna() & (out["prior_team"] != out["team"])
     ).astype(int)
+    out = _merge_postseason_features(out, postseason)
     out["prior_availability"] = _divide(out["prior_games"], out["prior_team_games"])
     out["observed_availability"] = _divide(out["games"], out["team_games"])
     out["prior_target_per_snap"] = _divide(
@@ -815,6 +944,7 @@ def build_season_average_data(
     injury_reports: pd.DataFrame | None = None,
     weekly_rosters: pd.DataFrame | None = None,
     injury_snapshot: pd.DataFrame | None = None,
+    postseason: pd.DataFrame | None = None,
     projection_seasons: Iterable[int] = (),
 ) -> SeasonAverageData:
     """Build the complete season-average modeling dataset.
@@ -890,6 +1020,7 @@ def build_season_average_data(
         weekly_rosters=weekly_rosters,
         injury_snapshot=injury_snapshot,
         injury_cutoff_week=roster_cutoff_week,
+        postseason=postseason,
         projection_seasons=projection,
     )
     return SeasonAverageData(
@@ -1454,5 +1585,10 @@ PRESEASON_FEATURES = (
     *CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,
     *PLAYER_PATHWAY_FEATURES,
     *INJURY_AVAILABILITY_FEATURES,
+    # Season Y's playoffs finish before season Y+1 opens, so these sit inside
+    # the lag contract. Kept separate from the regular-season role terms because
+    # playoff rotations are measurably more concentrated, and flagged rather
+    # than zero-filled because a missing value means the team did not qualify.
+    *POSTSEASON_FEATURES,
     "prior_advanced_efficiency_available",
 )

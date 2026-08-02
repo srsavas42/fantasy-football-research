@@ -455,12 +455,19 @@ class QBWorkloadShareModel:
             quarterbacks.get("offense_snaps", pd.Series(np.nan, index=quarterbacks.index)),
             errors="coerce",
         )
+        # ``snap_counts_observed`` answers "does this *team-season* have snap
+        # coverage", not "were this player's snaps measured" — ``_merge_snap_usage``
+        # sets it from the team's presence in the snap feed and zero-fills the
+        # players the feed omits. Reading it as a per-player flag makes every
+        # omitted passer look like a measured zero, so the pass-attempt fallback
+        # never fires and the whole room can collapse to an all-zero response.
+        # Require the player's own positive snap count before preferring snaps.
         observed = pd.to_numeric(
             quarterbacks.get(
                 "snap_counts_observed", pd.Series(0, index=quarterbacks.index)
             ),
             errors="coerce",
-        ).fillna(0).gt(0)
+        ).fillna(0).gt(0) & snaps.fillna(0).gt(0)
         passing = pd.to_numeric(
             quarterbacks.get("pass_att", pd.Series(0, index=quarterbacks.index)),
             errors="coerce",

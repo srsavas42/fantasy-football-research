@@ -7,6 +7,67 @@ group by severity. Every claim marked *measured* was reproduced against a
 roster_mode="inferred")` build on this checkout; the fast test suite passes
 (163 passed, 10 skipped, 1 xfailed) once `.cache/` exists.
 
+## Status
+
+| Finding | State |
+|---|---|
+| S1 cold-start role prior | **fixed**, regression tests in `tests/test_role_prior_units.py` |
+| S2 QB workload hurdle | **fixed**, regression tests in `tests/test_qb_workload_hurdle.py` |
+| S0 team-level snap flag read per player | **fixed** — found while verifying S1/S2; see below |
+| everything else | open |
+
+### S0 — `snap_counts_observed` is a team-level flag read as a per-player one  *(found during the fix, high)*
+
+`_merge_snap_usage` sets `snap_counts_observed` from the **team-season's**
+presence in the snap feed and zero-fills `offense_snaps` for players the feed
+omits. `QBWorkloadShareModel._observed_counts` then reads that flag as "were
+this player's snaps measured", so an omitted passer looks like a measured zero
+and the pass-attempt fallback never fires.
+
+Measured on the legacy build: all 300 QB rows carry `snap_counts_observed = 1`
+and `offense_snaps = 0`, while 289 of them have positive `pass_att`. Every QB
+workload count is therefore zero, `_design`'s `counts.sum(axis=1) > 0` filter
+empties the design, and the fit dies inside PyTensor with
+`MemoryError: failed to create Softmax iterator` on a `(0, 4)` softmax.
+
+The practical consequence is bigger than the crash: **the primary volume
+validation script cannot run its Bayesian stage at all under its own default
+flags** (`--source legacy`, which resolves to `roster_mode="inferred"`). This
+was confirmed against unmodified `7867cba`, so it predates the fixes here. It
+also compounds S6 — the default configuration of the acceptance gate is both
+the leakage-unsafe mode *and* a non-running one.
+
+Fixed by requiring the player's own positive snap count before preferring snaps,
+plus a clear error in `fit` in place of the PyTensor `MemoryError`. This matches
+what every sibling model already does — `SeasonSnapShareModel.fit` gates on
+`snap_observed & snap_share.gt(0)` and `QBPassPropensityModel.fit` on
+`observed & snaps.gt(0)` — so `_observed_counts` was the outlier, not the
+convention. On nflverse the change is a no-op except for passers the snap feed
+omits entirely, but it does change what the workload model fits on, so it is
+kept as its own commit and needs an nflverse revalidation before promotion.
+
+### What could not be verified here
+
+There is no nflverse access in this environment, so **no end-to-end holdout
+comparison was run**. `scripts/validate_season_average.py --source legacy`
+cannot reach the Bayesian stage even after S0: `QBPassPropensityModel.fit`
+raises `QB propensity fitting requires observed quarterback snaps`, because the
+committed snapcount CSVs contain no quarterback rows at all. Both unmodified
+`7867cba` and this branch fail there identically.
+
+The fixes are therefore verified by:
+
+- unit-level measurement against real legacy feature frames (the tables above,
+  re-measured after the fix);
+- a sampled synthetic QB-room fit for S2, comparing the conditional fit against
+  a reproduction of the merged unconditional-then-gated behaviour;
+- regression tests that fail against pre-fix source and pass after
+  (`tests/test_role_prior_units.py`, `tests/test_qb_workload_hurdle.py`);
+- the full suite: 216 fast tests plus 5 sampler-heavy `-m slow` tests passing.
+
+Running the nflverse walk-forward is the first thing to do on a machine with
+data access, and is listed as step 1 below.
+
 ## What holds up
 
 Worth stating first, because the leakage discipline is genuinely better than
@@ -82,12 +143,22 @@ gating most WR/TE out per draw, but conditional on being gated in they soak up
 carries. This is very likely a real contributor to the top-quartile
 over-dispersion recorded in `docs/season-scoring-coverage-diagnosis.md`.
 
-**Fix.** Compute `opportunity_rate` on one basis — per-snap throughout, with a
-per-snap fallback for snapless rows rather than an availability fraction — and
-either drop the upper clip on the cold branch or clip on the per-snap scale
-(e.g. `1e-5, 0.5`). Add a test asserting `cold_role_prior[pos] < 1.0` for every
-position and stream; today nothing catches this because every value silently
-saturates to the same legal number.
+**Fixed.** `opportunity_rate` is now per-snap throughout: rows without an
+observed snap count contribute nothing to it rather than dividing by an
+availability fraction, and the position estimate is clipped onto the per-snap
+scale where it is persisted, so a saturated value stays visible in the metadata
+instead of silently becoming the same number for every position. Re-measured on
+the same 2017-2020 frame:
+
+| stream | before | after |
+|---|---|---|
+| target | QB 1.53, RB 1.80, WR 7.40, TE 7.44 | QB 0.0001, RB 0.072, WR 0.092, TE 0.057 |
+| carry | QB 38.1, RB 8.95, WR 3.09, TE 1.50 | QB 0.080, RB 0.281, WR 0.008, TE 0.0008 |
+
+Rows sitting on the `_role_prior` upper clip fall from 1083/2273 (48%) to 1/2273
+for carries and from 270/2273 to 0 for targets. A cold-start receiver's carry
+prior goes from 1.0 — about 5x an established back's 0.219 — to 0.008, about 27x
+below it, which is the right side of the comparison.
 
 ### S2 — The new QB workload hurdle biases the mean share it gates  **(high)**
 
@@ -113,14 +184,41 @@ team pass attempts are conserved by `_allocate_season_counts`, the error shows
 up purely as within-room misallocation — which is precisely the quantity the
 backup-QB projections depend on.
 
-**Fix.** Fit the softmax *conditional on the gate*: mask non-gated rows out of
-the Multinomial likelihood at fit time (or model the mixture jointly), so the
-softmax estimates the conditional-on-playing share and gating restores the
-marginal. Two smaller points in the same code: `_hurdle_gate(design, draws, rng)`
-never uses `draws`; and the hurdle regresses only on `QB_WORKLOAD_FEATURES`
-(depth rank, listed starter, age, …) and not on `prior_qb_snap_share`, which is
-in the role *offset* rather than the design matrix — so a proven starter and an
-unproven one with the same depth-chart entry get the same gate probability.
+**Fixed.** The softmax is now fit over the gated-in room only, via
+`_conditional_design`, so it estimates the share *conditional* on clearing the
+hurdle and multiplying by the gate restores the marginal. Rooms where nobody
+cleared the bar carry no conditional information and leave the share fit, but
+still label the hurdle. `_estimate_role_innovation` takes the same support, so
+a sub-threshold passer's near-zero share is no longer charged to dispersion as
+well as to the gate. The unused `draws` parameter is gone.
+
+On a sampled synthetic QB panel (14 seasons x 24 rooms, starters missing 25% of
+seasons), predicting with the pipeline's flat availability fallback:
+
+| role | realized | before (bias) | after (bias) |
+|---|---:|---:|---:|
+| starter | 0.7826 | 0.8017 (+0.019) | 0.7602 (-0.022) |
+| backup | 0.2149 | 0.1926 (-0.022) | 0.2162 (+0.001) |
+
+The backup bias — the fantasy-relevant quantity — drops from -10.4% to +0.6%.
+
+**Still open in the same layer.** Two things this fix does not address:
+
+1. Availability now enters the workload softmax twice: once as
+   `availability_offset`, and once through the gate, and at prediction time the
+   two are drawn *independently*. Feeding realized availability into the same
+   synthetic panel leaves a large residual backup bias (-53% before, -47%
+   after) that is dominated by this incoherence rather than by the mean shift.
+   Coupling the gate to the availability draw is a modelling change that needs
+   its own validation.
+2. The hurdle regresses only on `QB_WORKLOAD_FEATURES` and not on
+   `prior_qb_snap_share`, which lives in the role *offset* rather than the
+   design matrix — so a proven starter and an unproven one with the same
+   depth-chart entry get the same gate probability.
+3. `hurdle_min_attempts` is compared against `_observed_counts`, which is snaps
+   where measured and attempts otherwise, so the threshold is not a pure attempt
+   count. Both are small-workload bars; putting the gate on one basis is worth
+   revisiting. Documented in the class docstring.
 
 ### S3 — Ridge roster baseline regresses on an arbitrary log-share floor  **(high)**
 
@@ -352,13 +450,32 @@ and `k` argsorts for every supported row. Vectorizable across rows in one
 
 ## Suggested order of work
 
-1. **S1** — the cold-start prior. Largest measured distortion, affects the
-   promoted volume path, and is cheap to fix and test.
-2. **S2** — the QB hurdle, before it is relied on. It is new, so the fix is not
-   yet load-bearing on any published result.
-3. **S4 / S3** — the efficiency covariate's train/serve gap and the ridge floor
-   behind it.
-4. **S6** — change the validation default so the acceptance gate stops running,
-   by default, in the mode the README disclaims.
-5. **E1** — one-line change, ~4× faster validation loops, which makes everything
-   above cheaper to iterate on.
+S1, S2 and S0 are done. What is left, in the order I would take it:
+
+1. **Re-run the nflverse walk-forward** (2022-2024, the volume-v3 protocol) on
+   this branch. S1 changes the cold-start prior for roughly half of all carry
+   rows and S2 changes every QB room, so the published volume-v3 numbers no
+   longer describe this code. Nothing else should be promoted until that is
+   re-measured. S0 needs the same run to confirm it is the no-op it should be
+   on nflverse.
+2. **Make the legacy path either work or fail loudly at the top.**
+   `--source legacy` cannot fit the QB layers at all — the committed snapcount
+   CSVs have no quarterback rows — so `validate_season_average.py` dies partway
+   through under its own defaults. Either default to `--source auto` /
+   `--roster-mode point_in_time`, or check the source up front and refuse with
+   one clear message instead of failing three models in. This is S6 plus S0 and
+   it is what makes every other experiment awkward to run.
+3. **The availability/gate incoherence in the QB workload layer** (S2's open
+   item 1). It is now the dominant remaining bias in that layer, larger than the
+   mean shift just fixed. Coupling the gate to the availability draw is the
+   natural fix and needs its own ablation.
+4. **S4 / S3** — the efficiency covariate's train/serve gap and the ridge
+   log-share floor behind it. These feed the promoted efficiency models, and the
+   parity test pattern from `tests/test_projection_feature_parity.py` applies
+   directly.
+5. **E1** — make `cores` configurable in `sample_model`. One line, roughly 4x
+   faster validation loops on a multi-core machine, which makes steps 1-4
+   materially cheaper to iterate on.
+6. **S8** — give simulated yardage its own residual instead of deriving it
+   deterministically from the count. This is the most likely remaining
+   contributor to the 95% coverage floor that season-scoring v1 failed.

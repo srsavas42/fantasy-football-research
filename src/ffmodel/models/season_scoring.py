@@ -40,6 +40,8 @@ class SeasonAverageScoringPipeline:
     # ``add_walk_forward_volume_features``.
     volume_feature_estimator: str = "ridge"
     volume_feature_sample_kwargs: dict[str, object] | None = None
+    # Passed through to the efficiency pipeline; see its ``exposure_floor``.
+    efficiency_exposure_floor: int | None = None
 
     def fit_efficiency(
         self,
@@ -54,6 +56,8 @@ class SeasonAverageScoringPipeline:
             estimator=self.volume_feature_estimator,
             sample_kwargs=self.volume_feature_sample_kwargs,
         )
+        if self.efficiency_exposure_floor is not None:
+            self.efficiency_model.exposure_floor = self.efficiency_exposure_floor
         self.efficiency_model.fit(rows, **sample_kwargs)
         missing = set(REQUIRED_EFFICIENCY_TARGETS) - set(self.efficiency_model.models)
         if missing:

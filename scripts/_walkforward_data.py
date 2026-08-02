@@ -37,6 +37,39 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         action="store_true",
         help="force the availability-coupled QB gate off, for ablations",
     )
+    parser.add_argument(
+        "--play-transition",
+        action="store_true",
+        help="restore the per-row play-rate random effect (redundant with the "
+             "NegativeBinomial's own dispersion; off by default)",
+    )
+    parser.add_argument(
+        "--postseason",
+        action="store_true",
+        help="enable the lagged postseason role features",
+    )
+    parser.add_argument(
+        "--efficiency-exposure-floor",
+        type=int,
+        default=None,
+        help="lower every efficiency response's training exposure floor to at "
+             "most this many opportunities (scoring runs only)",
+    )
+    parser.add_argument(
+        "--volume-feature-draws",
+        type=int,
+        default=200,
+        help="sampler budget for the per-season cross-fits that build the "
+             "training-time oof_* covariates under --volume-feature-estimator "
+             "pipeline. Only their posterior *mean* is consumed, so this can be "
+             "far cheaper than the fits being validated (scoring runs only)",
+    )
+    parser.add_argument(
+        "--volume-feature-estimator",
+        choices=("ridge", "pipeline"),
+        default=None,
+        help="how training-time oof_* volume covariates are built (scoring runs only)",
+    )
     return parser
 
 

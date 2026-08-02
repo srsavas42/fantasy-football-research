@@ -10,7 +10,7 @@ draws rather than treating a point estimate as certain.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 from pathlib import Path
 from time import perf_counter
@@ -1057,6 +1057,17 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     use_volume: bool = True
     use_advanced: bool = True
     ridge_alpha: float = 500.0
+    # Each response is fitted only on rows clearing its ``min_exposure`` but is
+    # then scored on every row, and the gap is large: on the nflverse frame 57%
+    # of quarterback rows, 58% of receiving rows and 82% of rushing rows fall
+    # below their floor. So the fitted mean describes high-usage players and is
+    # extrapolated onto everyone else. Both likelihoods already downweight a
+    # thin row correctly — a Beta-Binomial with n=3 carries almost no
+    # information, and the Student-t scale grows as sqrt(1/n) — so the hard
+    # floor is doing by exclusion what the likelihood does by weighting, and it
+    # buys that at the cost of selecting on usage. Lowering this admits the
+    # excluded population; ``None`` keeps each spec's own floor.
+    exposure_floor: int | None = None
     models: dict[str, PosteriorSeasonEfficiencyModel] = field(default_factory=dict)
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
@@ -1081,6 +1092,10 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         for index, spec in enumerate(EFFICIENCY_MODEL_SPECS):
             if spec.target not in selected:
                 continue
+            if self.exposure_floor is not None:
+                spec = replace(
+                    spec, min_exposure=min(spec.min_exposure, int(self.exposure_floor))
+                )
             model = PosteriorSeasonEfficiencyModel(
                 spec,
                 use_volume=self.use_volume,

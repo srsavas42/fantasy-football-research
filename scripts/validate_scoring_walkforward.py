@@ -56,7 +56,20 @@ def main(argv=None) -> None:
             team_rows[team_rows.season == holdout].copy(),
             player_rows[player_rows.season == holdout].copy(),
         )
-        pipeline = SeasonAverageScoringPipeline()
+        pipeline = SeasonAverageScoringPipeline(
+            efficiency_exposure_floor=args.efficiency_exposure_floor,
+        )
+        if args.volume_feature_estimator is not None:
+            pipeline.volume_feature_estimator = args.volume_feature_estimator
+            # These cross-fits only contribute a posterior mean to a covariate,
+            # so they do not need the budget of the models being validated.
+            pipeline.volume_feature_sample_kwargs = {
+                "draws": args.volume_feature_draws,
+                "tune": args.volume_feature_draws,
+                "chains": 2,
+            }
+        pipeline.volume_model.postseason_role_features = args.postseason
+        pipeline.volume_model.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.volume_model.workload_model.couple_gate_to_availability = coupling
         pipeline.fit(

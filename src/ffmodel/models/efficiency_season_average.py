@@ -234,6 +234,19 @@ EFFICIENCY_MODEL_SPECS = (
 
 EFFICIENCY_MODEL_BY_TARGET = {spec.target: spec for spec in EFFICIENCY_MODEL_SPECS}
 
+# Each response draws from its own seed, offset from the caller's. Deriving that
+# offset from the response's position in ``self.models`` made it depend on
+# insertion order, and insertion order is not stable across a save/load round
+# trip: ``fit`` inserts in spec order while ``load`` reads a JSON object written
+# with ``sort_keys=True`` and inserts alphabetically. A reloaded artifact
+# therefore handed every response a different seed and produced a different
+# realization from the pipeline it was saved from — 302 PPR points at the
+# maximum, distributionally identical and reproducibly wrong. Key the offset to
+# the response itself instead, which no ordering can disturb.
+EFFICIENCY_SEED_OFFSET = {
+    spec.target: index for index, spec in enumerate(EFFICIENCY_MODEL_SPECS)
+}
+
 BASE_EFFICIENCY_FEATURES = (
     "prior_availability",
     "prior_snap_share",
@@ -1137,7 +1150,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         rates: dict[str, np.ndarray] = {}
         exposure_samples = exposure_samples or {}
         volume_feature_samples = volume_feature_samples or {}
-        for index, (target, model) in enumerate(self.models.items()):
+        for target, model in self.models.items():
             exposure = exposure_samples.get(
                 target, exposure_samples.get(model.spec.exposure)
             )
@@ -1147,7 +1160,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 draws=draws,
                 exposure_samples=exposure,
                 volume_feature_samples=volume_features,
-                seed=seed + index,
+                seed=seed + EFFICIENCY_SEED_OFFSET[target],
             )
             means[target] = prediction.mean
             rates[target] = prediction.rate
@@ -1309,7 +1322,14 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 for key, value in metadata.get("fit_seconds", {}).items()
             },
         )
-        for target, state in metadata["models"].items():
+        # Restore in spec order rather than the alphabetical order the metadata
+        # is written in, so a reloaded pipeline iterates exactly as a fitted one
+        # does. The per-response seed no longer depends on this, but anything
+        # else that walks ``self.models`` still gets the same order either way.
+        saved = metadata["models"]
+        ordered = sorted(saved, key=lambda t: EFFICIENCY_SEED_OFFSET.get(t, len(saved)))
+        for target in ordered:
+            state = saved[target]
             if target not in EFFICIENCY_MODEL_BY_TARGET:
                 raise ValueError(f"saved efficiency target is unsupported: {target}")
             model = PosteriorSeasonEfficiencyModel(

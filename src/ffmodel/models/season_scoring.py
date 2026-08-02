@@ -104,6 +104,10 @@ class SeasonAverageScoringPipeline:
                     "volume_feature_alpha": self.volume_feature_alpha,
                     "draw_conditioned_efficiency": self.draw_conditioned_efficiency,
                     "volume_feature_estimator": self.volume_feature_estimator,
+                    # Without this a reloaded pipeline silently reverts to each
+                    # response's own floor, which changes what the efficiency
+                    # layer was fitted on and raises nothing.
+                    "efficiency_exposure_floor": self.efficiency_exposure_floor,
                 },
                 indent=2,
                 sort_keys=True,
@@ -127,5 +131,10 @@ class SeasonAverageScoringPipeline:
             ),
             volume_feature_estimator=str(
                 metadata.get("volume_feature_estimator", "ridge")
+            ),
+            efficiency_exposure_floor=(
+                None
+                if metadata.get("efficiency_exposure_floor") is None
+                else int(metadata["efficiency_exposure_floor"])
             ),
         )

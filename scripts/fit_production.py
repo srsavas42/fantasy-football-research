@@ -10,8 +10,10 @@ lagged-feature contract. This produces the artifact that is allowed to serve.
 What it does beyond calling ``fit``:
 
 * records sampler health for every component, not the ones someone remembered
-  to check, and **fails** if any component diverges or misses the R-hat and ESS
-  bounds the acceptance gate uses;
+  to check, and refuses to publish if any component diverges or misses the
+  R-hat and ESS bounds the acceptance gate uses — the posteriors are kept under
+  a ``.rejected`` name so half an hour of sampling is not lost, but nothing
+  loads them by accident;
 * round-trips the saved artifact and re-predicts, because several promoted
   settings live in metadata rather than in the posterior, and a flag that fails
   to serialize produces a model that differs from the one that was validated
@@ -44,42 +46,34 @@ from _walkforward_data import DEFAULT_CACHE, load_frames
 
 from ffmodel.evaluation.acceptance import MIN_BULK_ESS, RHAT_ACCEPT
 from ffmodel.features.season_average import SeasonAverageData
-from ffmodel.models.base import sampling_quality
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 
 
 def _component_diagnostics(pipeline) -> dict[str, dict[str, float]]:
-    """Sampler health for every fitted component in both layers."""
-    out: dict[str, dict[str, float]] = {}
-    volume = pipeline.volume_model
-    components = {
-        "team": volume.team_model,
-        "availability": volume.availability_model,
-        "snap": volume.snap_model,
-        "workload": volume.workload_model,
-        "qb_propensity": volume.qb_propensity_model,
-        "target_role": volume.target_role_model,
-        "carry_eligibility": volume.carry_eligibility_model,
-        "target": volume.target_model,
-        "carry": volume.carry_model,
-    }
-    for target, model in pipeline.efficiency_model.models.items():
-        components[f"efficiency::{target}"] = model
+    """Sampler health for every fitted component in both layers.
 
-    for name, model in components.items():
-        idata = getattr(model, "idata", None)
-        if idata is None:
-            continue
-        try:
-            quality = sampling_quality(idata)
-        except Exception as error:  # a component with no scalar parameters
-            out[name] = {"error": str(error)}
-            continue
-        out[name] = {
-            "max_rhat": float(quality["max_rhat"]),
-            "min_bulk_ess": float(quality["min_bulk_ess"]),
-            "divergences": int(quality["divergences"]),
-        }
+    Both pipelines already expose a ``diagnostics()`` that names the global and
+    variance terms worth gating on, which is what ``sampling_quality`` is built
+    for — its docstring says so. Summarizing every variable instead is not just
+    noisier: at a production budget of 2000 draws it fails outright, because
+    ArviZ tries to build a summary row for each entry of the team model's
+    per-team-season terms and overflows. Ask the pipelines rather than
+    re-deriving the list here and getting it wrong.
+    """
+    out: dict[str, dict[str, float]] = {}
+    layers = {
+        "": pipeline.volume_model.diagnostics(),
+        "efficiency::": pipeline.efficiency_model.diagnostics(),
+    }
+    for prefix, results in layers.items():
+        for name, quality in results.items():
+            if not isinstance(quality, dict) or "max_rhat" not in quality:
+                continue
+            out[f"{prefix}{name}"] = {
+                "max_rhat": float(quality["max_rhat"]),
+                "min_bulk_ess": float(quality["min_bulk_ess"]),
+                "divergences": int(quality["divergences"]),
+            }
     return out
 
 
@@ -173,15 +167,24 @@ def main(argv=None) -> int:
     problems = _unhealthy(diagnostics)
     for problem in problems:
         print(f"  UNHEALTHY {problem}", flush=True)
-    if problems and not args.allow_unhealthy:
-        raise SystemExit(
-            f"{len(problems)} component(s) failed their sampler bounds; "
-            "nothing was saved. Re-run with a longer chain, or with "
-            "--allow-unhealthy if the failure is understood and recorded."
+
+    # An unhealthy fit must not land where something could serve it, but half an
+    # hour of sampling should not be thrown away either — the first run of this
+    # script lost exactly that to a bug in the diagnostics rather than in the
+    # model. Quarantine instead: the posteriors are kept, under a name nothing
+    # loads by accident, with a manifest saying why.
+    destination = args.output
+    rejected = bool(problems) and not args.allow_unhealthy
+    if rejected:
+        destination = args.output.with_name(args.output.name + ".rejected")
+        print(
+            f"  saving to {destination} instead; this artifact must not serve",
+            flush=True,
         )
 
-    args.output.mkdir(parents=True, exist_ok=True)
-    pipeline.save(args.output)
+    destination.mkdir(parents=True, exist_ok=True)
+    pipeline.save(destination)
+    args.output = destination
     round_trip = _round_trip(args.output, data, pipeline)
     if not round_trip["identical"]:
         print(
@@ -207,13 +210,21 @@ def main(argv=None) -> int:
         },
         "diagnostics": diagnostics,
         "unhealthy": problems,
+        "rejected": rejected,
+        "servable": bool(not rejected and round_trip["identical"]),
         "round_trip": round_trip,
     }
     (args.output / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
     )
     print(f"wrote {args.output}/manifest.json")
-    return 0 if round_trip["identical"] else 1
+    if rejected:
+        print(
+            f"{len(problems)} component(s) failed their sampler bounds. The fit is "
+            f"kept at {args.output} for inspection and must not be served.",
+            flush=True,
+        )
+    return 0 if manifest["servable"] else 1
 
 
 if __name__ == "__main__":

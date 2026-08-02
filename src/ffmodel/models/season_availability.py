@@ -408,6 +408,14 @@ class QBWorkloadShareModel:
     # renormalization makes it do both unless corrected: see
     # ``mean_preserving_shares``. Quarterback rooms are the most concentrated
     # simplex in the pipeline, so this is where the leakage is largest.
+    #
+    # Rejected by the walk-forward 2026-08-02 and left off: pass-attempt CRPS
+    # +4.30% and workload-share CRPS +5.42%, against a 0.5% allowance on both.
+    # The reason is a second defect in the same three lines —
+    # ``role_innovation_scale`` is measured as *realized* log-share dispersion
+    # and then applied on the input side of the softmax, which compresses it by
+    # 0.70-0.93x depending on room shape. Correcting the mean while the scale is
+    # wrong makes the distribution worse. See docs/role-innovation-2026-08.md.
     mean_preserving_innovation: bool = False
     hurdle_min_attempts: int = 25
     # Availability reaches this layer twice — as the softmax's exposure offset

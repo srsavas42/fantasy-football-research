@@ -331,8 +331,24 @@ availability, the carry hurdle, the quarterback gate. Those are estimated
 components and are meant to move the mean. The innovation is a dispersion device
 and is not.
 
-Behind `mean_preserving_innovation`. With it off, the path is unchanged to
-4e-08.
+Behind `mean_preserving_innovation`, and **the gate rejects it**: pass-attempt
+CRPS +4.30% and workload-share CRPS +5.42%, against a 0.5% allowance on both
+protected streams, with point accuracy a wash. The flag stays off.
+
+Diagnosing that rejection found the larger defect. `role_innovation_scale` is
+measured as *realized* log-share dispersion and then applied as the standard
+deviation of the noise on the **input** side of the softmax. Renormalization
+compresses, so the pipeline realizes only 0.70-0.93 of the churn it measured,
+worst in the small concentrated rooms — which is why quarterback workload
+coverage runs 0.647 / 0.619 / 0.726 against an 80% nominal. The mean-preserving
+correction happens to pass slightly more dispersion through, which is why it is
+the one change that improved that coverage while making everything else worse:
+it moved a mis-scaled distribution's mean without fixing the scale.
+
+Both are written up in [role-innovation-2026-08.md](role-innovation-2026-08.md).
+The scale fix is left open on purpose — it moves the calibration of every
+allocation layer at once and needs its own walk-forward, and the mean-preserving
+correction should be re-tested on top of it rather than separately.
 
 ## The acceptance gate is now code
 

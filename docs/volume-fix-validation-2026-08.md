@@ -237,13 +237,23 @@ Honest scoring against the volume-v3 criteria:
 - Sampling quality for the promoted component — passes.
 - No protected pass-stream regression; `pass_qb` improves.
 
-So one required metric misses one fold-win. **The default is therefore left at
-`couple_gate_to_availability=False`.** The case for promoting it anyway is
-strong and worth a decision rather than a default: this is a distributional
-model, CRPS is unanimous at 3/3 on both quarterback responses, coverage improves
-at both levels on both, and the total-scoring gate below improves CRPS 3/3 on
-all three scoring systems. But the rule as written is not met, and quietly
-flipping a default past a stated gate is how gates stop meaning anything.
+So one required metric misses one fold-win.
+
+**Decision (2026-08-02): promoted, with that exception recorded.**
+`couple_gate_to_availability` now defaults to `True`. The exception is
+`qb_workload` MAE winning one holdout of three rather than two; pooled MAE still
+improves 0.62%. It was accepted deliberately because this is a distributional
+model and every distributional criterion is unanimous — CRPS 3/3 on both
+quarterback responses, coverage up at both levels on both, and CRPS 3/3 on all
+three scoring systems downstream. Recording the exception is the point: a gate
+that is silently bent stops being a gate, and the next candidate should be held
+to the rule as written unless it makes the same argument explicitly.
+
+Promoting it also required persisting the hurdle's fitted standardisation.
+The availability term is centred and scaled on the training fold, and those two
+numbers were not written to the pipeline's metadata — a reloaded model would
+have fallen back to `(x - 0) / 1`, shifting every gate probability with nothing
+raised. Fixed, with a round-trip test.
 
 Both MAE losses land on **2023**, for `pass_qb` and `qb_workload` alike. That is
 the thread to pull before re-deciding: one fold behaving differently on the mean

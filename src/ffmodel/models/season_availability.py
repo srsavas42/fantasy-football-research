@@ -400,13 +400,21 @@ class QBWorkloadShareModel:
     extra_features: tuple[str, ...] = ()
     role_innovation_scale: float = 0.60
     hurdle_min_attempts: int = 25
-    # Opt-in until a multi-fold posterior validation clears the promotion gate.
-    # Availability currently reaches this layer twice — as the softmax's exposure
-    # offset and again through the gate — and the two are drawn independently at
-    # prediction time, so a draw can pair "available all season" with a closed
-    # gate. Enabling this makes the gate a function of the same availability
-    # value the offset uses, so the pair moves together within a draw.
-    couple_gate_to_availability: bool = False
+    # Availability reaches this layer twice — as the softmax's exposure offset
+    # and again through the gate. Drawing the two independently lets one draw
+    # pair "available all season" with a closed gate; this makes the gate a
+    # function of the same availability value the offset uses, so the pair moves
+    # together within a draw.
+    #
+    # Promoted 2026-08-02 on the 1000/1000/4 walk-forward: CRPS improves 4.06%
+    # on pass attempts and 5.16% on workload share, winning all three holdouts
+    # on both, with coverage up at 80% and 95% on both and CRPS wins on all
+    # three scoring systems downstream. It carries one documented exception to
+    # the acceptance rule — workload-share MAE wins one holdout of three rather
+    # than two, with both losses on 2023 — accepted deliberately because this is
+    # a distributional model and every distributional metric is unanimous. See
+    # docs/volume-fix-validation-2026-08.md.
+    couple_gate_to_availability: bool = True
     hurdle_availability_mean: float = 0.0
     hurdle_availability_scale: float = 1.0
     idata: object = None

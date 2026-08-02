@@ -1,32 +1,39 @@
-"""Volume-v3 walk-forward over cached nflverse rows: holdouts 2022/2023/2024.
+"""Volume walk-forward over cached nflverse rows: holdouts 2022/2023/2024.
 
-Used to validate the S0/S1/S2 fixes and the availability-coupled QB gate; the
-results are in docs/volume-fix-validation-2026-08.md and scripts/validation_runs.
+Used to validate the S0/S1/S2 fixes and the availability-coupled QB gate. The
+results are in docs/volume-fix-validation-2026-08.md and the JSON it refers to
+is in scripts/validation_runs/.
 
-Expects nfl_pr.pkl / nfl_tr.pkl built by::
+    python scripts/validate_volume_fix_walkforward.py coupled
+    python scripts/validate_volume_fix_walkforward.py uncoupled --no-couple-gate
 
-    build_season_average_data(range(2014, 2025), source="nflverse",
-                              roster_mode="point_in_time")
-
-Usage: validate_volume_fix_walkforward.py LABEL DRAWS TUNE CHAINS [--cache DIR]
-Set FFMODEL_COUPLE_GATE=1 to enable the candidate availability coupling.
+Both configurations read the same cached frames, so the comparison is
+controlled. The first run builds and caches them.
 """
-import warnings; warnings.filterwarnings("ignore")
-import json, os, sys, time
-import numpy as np, pandas as pd
 
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+import warnings
+from pathlib import Path
+
+warnings.filterwarnings("ignore")
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _walkforward_data import add_common_arguments, gate_override, load_frames
+
+from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
 from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
-
-label, draws, tune, chains = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4])
-SCRATCH = sys.argv[6] if len(sys.argv) > 6 and sys.argv[5] == "--cache" else "."
-
-pr = pd.read_pickle(f"{SCRATCH}/nfl_pr.pkl")
-tr = pd.read_pickle(f"{SCRATCH}/nfl_tr.pkl")
 
 
-def dist(observed, samples):
+def distribution(observed, samples) -> dict[str, float]:
     observed = np.asarray(observed, dtype=float)
     mean = samples.mean(axis=1)
     return {
@@ -38,52 +45,119 @@ def dist(observed, samples):
     }
 
 
-out = {}
-for holdout in (2022, 2023, 2024):
-    started = time.perf_counter()
-    train = SeasonAverageData(tr[tr.season < holdout].copy(), pr[pr.season < holdout].copy())
-    test = SeasonAverageData(tr[tr.season == holdout].copy(), pr[pr.season == holdout].copy())
-    pipeline = SeasonAverageVolumePipeline()
-    if os.environ.get('FFMODEL_COUPLE_GATE') == '1':
-        pipeline.workload_model.couple_gate_to_availability = True
-    pipeline = pipeline.fit(train, draws=draws, tune=tune, chains=chains)
-    pred = pipeline.predict_samples(test, seed=42)
-    rows = pred.player_rows
-    named = pd.to_numeric(
-        rows.get("is_replacement_player", pd.Series(0, index=rows.index)), errors="coerce"
-    ).fillna(0).ne(1).to_numpy()
-    qb = rows["position"].eq("QB").to_numpy()
-    games = pd.to_numeric(rows["team_games"], errors="coerce").to_numpy(float)
-    snaps_obs = pd.to_numeric(rows["snap_counts_observed"], errors="coerce").fillna(0).gt(0).to_numpy()
-
-    fold = {
-        "target": dist(pd.to_numeric(rows["targets"], errors="coerce").to_numpy(float)[named] / games[named],
-                       pred.targets_per_team_game[named]),
-        "carry": dist(pd.to_numeric(rows["rush_att"], errors="coerce").to_numpy(float)[named] / games[named],
-                      pred.carries_per_team_game[named]),
-        "pass_qb": dist(pd.to_numeric(rows["pass_att"], errors="coerce").to_numpy(float)[qb & named] / games[qb & named],
-                        pred.pass_attempts_per_team_game[qb & named]),
-        "snap": dist(pd.to_numeric(rows.loc[snaps_obs & named, "snap_share"], errors="coerce").to_numpy(float),
-                     pred.snap_share[snaps_obs & named]),
-        "availability": dist(pd.to_numeric(rows.loc[named, "observed_availability"], errors="coerce").to_numpy(float),
-                             pred.availability[named]),
-    }
-    any_carry = pd.to_numeric(rows.loc[named, "rush_att"], errors="coerce").fillna(0).gt(0).to_numpy(float)
-    fold["carry_eligibility_brier"] = float(
-        np.mean((any_carry - pred.carry_eligibility_probability[named].mean(axis=1)) ** 2)
+def main(argv=None) -> None:
+    parser = add_common_arguments(argparse.ArgumentParser(description=__doc__))
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("scripts/validation_runs")
     )
-    # QB workload share, the layer S2 changes most directly.
-    wl = rows["observed_qb_workload_share"]
-    fold["qb_workload"] = dist(pd.to_numeric(wl, errors="coerce").fillna(0.0).to_numpy(float)[qb & named],
-                               pred.qb_workload_share[qb & named])
-    fold["seconds"] = round(time.perf_counter() - started, 1)
-    fold["diagnostics"] = {
-        name: {"max_rhat": float(r["max_rhat"]), "min_ess": float(r["min_bulk_ess"]),
-               "divergences": int(r["divergences"])}
-        for name, r in pipeline.diagnostics().items()
-    }
-    out[str(holdout)] = fold
-    print(f"[{label}] holdout {holdout} done in {fold['seconds']}s", flush=True)
+    args = parser.parse_args(argv)
 
-json.dump(out, open(f"{SCRATCH}/wf_{label}.json", "w"), indent=2, sort_keys=True)
-print(f"[{label}] wrote wf_{label}.json")
+    player_rows, team_rows = load_frames(args.cache_dir)
+    coupling = gate_override(args)
+    sample_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
+
+    report: dict[str, object] = {}
+    for holdout in args.holdouts:
+        started = time.perf_counter()
+        train = SeasonAverageData(
+            team_rows[team_rows.season < holdout].copy(),
+            player_rows[player_rows.season < holdout].copy(),
+        )
+        test = SeasonAverageData(
+            team_rows[team_rows.season == holdout].copy(),
+            player_rows[player_rows.season == holdout].copy(),
+        )
+        pipeline = SeasonAverageVolumePipeline()
+        if coupling is not None:
+            pipeline.workload_model.couple_gate_to_availability = coupling
+        pipeline.fit(train, **sample_kwargs)
+        prediction = pipeline.predict_samples(test, seed=42)
+
+        rows = prediction.player_rows
+        named = (
+            pd.to_numeric(
+                rows.get("is_replacement_player", pd.Series(0, index=rows.index)),
+                errors="coerce",
+            )
+            .fillna(0)
+            .ne(1)
+            .to_numpy()
+        )
+        quarterback = rows["position"].eq("QB").to_numpy()
+        games = pd.to_numeric(rows["team_games"], errors="coerce").to_numpy(float)
+        snaps_seen = (
+            pd.to_numeric(rows["snap_counts_observed"], errors="coerce")
+            .fillna(0)
+            .gt(0)
+            .to_numpy()
+        )
+
+        def per_game(column: str, mask: np.ndarray) -> np.ndarray:
+            values = pd.to_numeric(rows[column], errors="coerce").to_numpy(float)
+            return values[mask] / games[mask]
+
+        fold: dict[str, object] = {
+            "target": distribution(
+                per_game("targets", named), prediction.targets_per_team_game[named]
+            ),
+            "carry": distribution(
+                per_game("rush_att", named), prediction.carries_per_team_game[named]
+            ),
+            "pass_qb": distribution(
+                per_game("pass_att", quarterback & named),
+                prediction.pass_attempts_per_team_game[quarterback & named],
+            ),
+            "snap": distribution(
+                pd.to_numeric(
+                    rows.loc[snaps_seen & named, "snap_share"], errors="coerce"
+                ).to_numpy(float),
+                prediction.snap_share[snaps_seen & named],
+            ),
+            "availability": distribution(
+                pd.to_numeric(
+                    rows.loc[named, "observed_availability"], errors="coerce"
+                ).to_numpy(float),
+                prediction.availability[named],
+            ),
+            "qb_workload": distribution(
+                pd.to_numeric(rows["observed_qb_workload_share"], errors="coerce")
+                .fillna(0.0)
+                .to_numpy(float)[quarterback & named],
+                prediction.qb_workload_share[quarterback & named],
+            ),
+        }
+        any_carry = (
+            pd.to_numeric(rows.loc[named, "rush_att"], errors="coerce")
+            .fillna(0)
+            .gt(0)
+            .to_numpy(float)
+        )
+        fold["carry_eligibility_brier"] = float(
+            np.mean(
+                (
+                    any_carry
+                    - prediction.carry_eligibility_probability[named].mean(axis=1)
+                )
+                ** 2
+            )
+        )
+        fold["seconds"] = round(time.perf_counter() - started, 1)
+        fold["diagnostics"] = {
+            name: {
+                "max_rhat": float(result["max_rhat"]),
+                "min_ess": float(result["min_bulk_ess"]),
+                "divergences": int(result["divergences"]),
+            }
+            for name, result in pipeline.diagnostics().items()
+        }
+        report[str(holdout)] = fold
+        print(f"[{args.label}] holdout {holdout} done in {fold['seconds']}s", flush=True)
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    path = args.output_dir / f"wf_{args.label}.json"
+    path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"[{args.label}] wrote {path}")
+
+
+if __name__ == "__main__":
+    main()

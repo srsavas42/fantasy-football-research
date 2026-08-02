@@ -160,10 +160,11 @@ def _mean_share(model: QBWorkloadShareModel, availability: float) -> np.ndarray:
     ).shares.mean(axis=1)
 
 
-def test_coupling_is_off_by_default_and_leaves_the_posterior_unchanged():
-    # The candidate must not alter the accepted architecture until it clears a
-    # validation gate, so an un-opted-in fit carries no availability term.
-    assert QBWorkloadShareModel().couple_gate_to_availability is False
+def test_the_coupling_is_on_by_default_and_can_still_be_turned_off():
+    # Promoted on the full-budget walk-forward. Turning it off must remain
+    # possible so the ablation stays reproducible, and an uncoupled fit must
+    # carry no availability term at all rather than a neutralised one.
+    assert QBWorkloadShareModel().couple_gate_to_availability is True
     assert "hurdle_availability_beta" not in _hand_fitted(False).idata.posterior
 
 
@@ -192,3 +193,54 @@ def test_a_coupled_gate_responds_to_the_availability_draw():
     # With a positive loading, higher availability opens more gates, so the room
     # is shared more widely and the deepest passer picks up more of it.
     assert high[third].sum() > low[third].sum()
+
+
+def test_the_hurdles_fitted_standardisation_survives_save_and_load():
+    """A reload must gate the same way the fit did.
+
+    The availability term is standardised on the training fold, so its centre
+    and scale are fitted state, not configuration. If they are not persisted the
+    reloaded model silently falls back to ``(x - 0) / 1``: log-availability runs
+    roughly -3.5 to 0, so that shifts every gate's linear predictor by most of a
+    unit and raises nothing.
+    """
+    import json
+
+    from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
+
+    workload = QBWorkloadShareModel(couple_gate_to_availability=True)
+    workload._design(_rows(), fit=True)
+    workload.hurdle_availability_mean = -0.4718
+    workload.hurdle_availability_scale = 0.8123
+
+    metadata = {
+        **SeasonAverageVolumePipeline._feature_metadata(workload),
+        "role_innovation_scale": workload.role_innovation_scale,
+        "hurdle_min_attempts": workload.hurdle_min_attempts,
+        "couple_gate_to_availability": workload.couple_gate_to_availability,
+        "hurdle_availability_mean": workload.hurdle_availability_mean,
+        "hurdle_availability_scale": workload.hurdle_availability_scale,
+    }
+    # Round-trip through JSON the way ``save`` does, so a non-serialisable
+    # value fails here rather than at the end of a fit.
+    restored_state = json.loads(json.dumps(metadata, sort_keys=True))
+
+    restored = QBWorkloadShareModel(
+        role_innovation_scale=float(restored_state["role_innovation_scale"]),
+        hurdle_min_attempts=int(restored_state["hurdle_min_attempts"]),
+        couple_gate_to_availability=bool(
+            restored_state["couple_gate_to_availability"]
+        ),
+        hurdle_availability_mean=float(restored_state["hurdle_availability_mean"]),
+        hurdle_availability_scale=float(restored_state["hurdle_availability_scale"]),
+    )
+
+    assert restored.hurdle_availability_mean == workload.hurdle_availability_mean
+    assert restored.hurdle_availability_scale == workload.hurdle_availability_scale
+    assert restored.couple_gate_to_availability is True
+    # And the standardisation itself agrees, which is what actually matters.
+    values = np.array([-3.5, -1.0, 0.0])
+    assert np.allclose(
+        restored._scaled_hurdle_availability(values),
+        workload._scaled_hurdle_availability(values),
+    )

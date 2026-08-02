@@ -1516,6 +1516,16 @@ class SeasonAverageVolumePipeline:
             "workload": {
                 **self._feature_metadata(self.workload_model),
                 "role_innovation_scale": self.workload_model.role_innovation_scale,
+                # The hurdle's availability term is standardised on the training
+                # fold, so its centre and scale are fitted state. Without them a
+                # reloaded pipeline would gate on (x - 0) / 1 and shift every
+                # gate probability while raising no error.
+                "hurdle_min_attempts": self.workload_model.hurdle_min_attempts,
+                "couple_gate_to_availability": bool(
+                    self.workload_model.couple_gate_to_availability
+                ),
+                "hurdle_availability_mean": self.workload_model.hurdle_availability_mean,
+                "hurdle_availability_scale": self.workload_model.hurdle_availability_scale,
             },
             "role_regime": {
                 "enabled": self.role_regime_coupling,
@@ -1603,7 +1613,17 @@ class SeasonAverageVolumePipeline:
         availability.idata = load_idata(directory / "availability.nc")
         workload_state = metadata["workload"]
         workload = QBWorkloadShareModel(
-            role_innovation_scale=float(workload_state["role_innovation_scale"])
+            role_innovation_scale=float(workload_state["role_innovation_scale"]),
+            hurdle_min_attempts=int(workload_state.get("hurdle_min_attempts", 25)),
+            couple_gate_to_availability=bool(
+                workload_state.get("couple_gate_to_availability", False)
+            ),
+            hurdle_availability_mean=float(
+                workload_state.get("hurdle_availability_mean", 0.0)
+            ),
+            hurdle_availability_scale=float(
+                workload_state.get("hurdle_availability_scale", 1.0)
+            ),
         )
         cls._restore_feature_metadata(workload, workload_state)
         workload.idata = load_idata(directory / "workload.nc")

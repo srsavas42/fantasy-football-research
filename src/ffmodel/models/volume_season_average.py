@@ -1089,9 +1089,14 @@ class SeasonAverageVolumePipeline:
     # Upstream likelihood challenger: out-of-fold regime probabilities enter
     # role and availability regressions instead of tilting fitted shares.
     regime_likelihood_features: bool = False
-    # Lagged postseason role signal. Off until it clears the acceptance gate;
-    # see docs/postseason-history-assessment.md for the feature-level screen.
-    postseason_role_features: bool = False
+    # Lagged postseason role signal, restricted to the skill-position role
+    # models. Promoted 2026-08-02: carry MAE -2.77% and CRPS -1.47%, snap MAE
+    # -0.82% and CRPS -0.63%, all winning three holdouts of three, with the
+    # protected pass stream unchanged to five decimal places. One documented
+    # exception: target MAE moves +0.07% at 1/3, against target CRPS -0.29% at
+    # 2/3. See docs/pipeline-followups-2026-08.md and
+    # docs/postseason-history-assessment.md.
+    postseason_role_features: bool = True
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)

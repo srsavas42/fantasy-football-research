@@ -106,10 +106,10 @@ def test_load_weekly_rejects_an_unknown_season_type():
         ingest.load_weekly([2023], season_type="PRE")
 
 
-def test_the_pipeline_flag_is_off_by_default_and_reaches_only_role_models():
+def test_the_pipeline_flag_is_on_and_reaches_only_skill_role_models():
     from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
 
-    assert SeasonAverageVolumePipeline().postseason_role_features is False
+    assert SeasonAverageVolumePipeline().postseason_role_features is True
 
     pipeline = SeasonAverageVolumePipeline(postseason_role_features=True)
     pipeline._enable_postseason_role_features()

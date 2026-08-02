@@ -15,7 +15,8 @@ roster_mode="inferred")` build on this checkout; the fast test suite passes
 | S2 QB workload hurdle | **fixed**; improves QB CRPS, enables the coupling below |
 | S0 team-level snap flag read per player | **fixed**; provable no-op on nflverse, unblocks legacy |
 | S6 leaky/non-running validation default | **fixed**; `--source` now defaults to `auto`, inputs checked up front |
-| QB gate / availability incoherence | **candidate implemented**, off by default, validated — recommend promotion |
+| QB gate / availability incoherence | **candidate implemented**, off by default; misses one fold-win at full budget — decision pending |
+| team-model R-hat 1.0177 | **new open item**, pre-existing and unwatched by the current gate |
 | postseason in the late-season role signal | **assessed**, recommended shape written up |
 | everything else | open |
 
@@ -478,12 +479,12 @@ the results are in
 [postseason-history-assessment.md](postseason-history-assessment.md). What is
 left, in the order I would take it:
 
-1. **Re-run the nflverse walk-forward** (2022-2024, the volume-v3 protocol) on
-   this branch. S1 changes the cold-start prior for roughly half of all carry
-   rows and S2 changes every QB room, so the published volume-v3 numbers no
-   longer describe this code. Nothing else should be promoted until that is
-   re-measured. S0 needs the same run to confirm it is the no-op it should be
-   on nflverse.
+1. ~~**Re-run the nflverse walk-forward**~~ — done at both 400/400/2 and the
+   protocol's 1000/1000/4. Results and the S1 severity correction are in
+   [volume-fix-validation-2026-08.md](volume-fix-validation-2026-08.md).
+   **Newly open from that run:** the `team` model's R-hat is 1.0177 at full
+   budget, identical on unmodified main. It is not a promoted component so the
+   gate does not watch it, which means nothing currently does.
 2. **Make the legacy path either work or fail loudly at the top.**
    `--source legacy` cannot fit the QB layers at all — the committed snapcount
    CSVs have no quarterback rows — so `validate_season_average.py` dies partway

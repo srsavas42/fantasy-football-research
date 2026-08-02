@@ -175,3 +175,77 @@ which explanation survives, not to declare the gate passed.
 `scripts/validation_runs/` reproduce the volume comparison. The scoring
 comparison uses the same cached nflverse frames through
 `SeasonAverageScoringPipeline`.
+
+---
+
+# Full-budget confirmation (1000/1000/4)
+
+Re-run of the volume comparison at the protocol's own sampler budget, to settle
+the R-hat question the reduced-budget run left open. Same folds, same data.
+
+| metric | main | + coupling | change | fold wins |
+|---|---:|---:|---:|---:|
+| pass_qb MAE | 5.35225 | 5.21205 | **-2.62%** | 2/3 |
+| pass_qb CRPS | 4.19485 | 4.02449 | **-4.06%** | **3/3** |
+| qb_workload MAE | 0.15285 | 0.15190 | -0.62% | **1/3** |
+| qb_workload CRPS | 0.12506 | 0.11861 | **-5.16%** | **3/3** |
+| carry MAE | 0.80610 | 0.80939 | +0.41% | 0/3 |
+| carry CRPS | 0.57583 | 0.57591 | +0.01% | 1/3 |
+| target, snap, availability | — | unchanged | +0.00% | — |
+
+Coverage: pass_qb 80% 0.743 → 0.759 and 95% 0.929 → 0.945; qb_workload 80%
+0.636 → 0.664 and 95% 0.802 → 0.822; carry 80% 0.880 → 0.885 and 95% 0.950 →
+0.957.
+
+## The reduced-budget run was wrong about R-hat
+
+It called the 1.0435 a budget artifact. It is not. At 1000 draws in 4 chains the
+worst R-hat is **1.0177, and it is the team model**, in *both* configurations,
+to four decimal places:
+
+| component | max R-hat | min ESS | divergences | gate |
+|---|---:|---:|---:|---|
+| team | **1.0177** | 376 | 0 | **FAIL** |
+| workload | 1.0032 | 2166 | 0 | PASS |
+| availability | 1.0032 | 2151 | 0 | PASS |
+| snap | 1.0036 | 1069 | 0 | PASS |
+| qb_propensity | 1.0036 | 6044 | 0 | PASS |
+| carry_eligibility | 1.0030 | 1789 | 0 | PASS |
+| target | 1.0031 | 1435 | 0 | PASS |
+| carry | 1.0036 | 1444 | 0 | PASS |
+
+The team model is untouched by every change on this branch and its R-hat is
+identical on unmodified main (delta +0.0000), so it is a pre-existing convergence
+problem, not something the coupling introduced. The volume-v3 notes record
+"max R-hat was 1.004635" across promoted component fits; the team model is not a
+promoted component there, which is consistent, but it does mean nothing in the
+current protocol is watching it. **That is a new open item**, independent of
+anything here.
+
+The gate reads "for every promoted component". The component this candidate
+promotes — `workload` — passes at 1.0032 with 2,166 minimum ESS and zero
+divergences.
+
+## Verdict: the coupling does not fully clear the gate
+
+Honest scoring against the volume-v3 criteria:
+
+- `pass_qb` MAE -2.62% at 2/3, CRPS -4.06% at 3/3 — **passes**.
+- `qb_workload` CRPS -5.16% at 3/3 — passes. But MAE wins only **1/3**
+  (2022 -5.13%, 2023 +0.88%, 2024 +1.99%), against a rule requiring two of
+  three. Pooled MAE still improves 0.62%.
+- Sampling quality for the promoted component — passes.
+- No protected pass-stream regression; `pass_qb` improves.
+
+So one required metric misses one fold-win. **The default is therefore left at
+`couple_gate_to_availability=False`.** The case for promoting it anyway is
+strong and worth a decision rather than a default: this is a distributional
+model, CRPS is unanimous at 3/3 on both quarterback responses, coverage improves
+at both levels on both, and the total-scoring gate below improves CRPS 3/3 on
+all three scoring systems. But the rule as written is not met, and quietly
+flipping a default past a stated gate is how gates stop meaning anything.
+
+Both MAE losses land on **2023**, for `pass_qb` and `qb_workload` alike. That is
+the thread to pull before re-deciding: one fold behaving differently on the mean
+while the distribution improves everywhere suggests something specific to that
+season's quarterback rooms rather than a flaw in the coupling.

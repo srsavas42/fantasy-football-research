@@ -608,35 +608,51 @@ class SeasonRosterShareModel:
             self.feature_mean[name] = float(filled.mean())
             self.feature_scale[name] = scale if scale > 1e-8 else 1.0
 
+        # The cold-start prior stands in for ``per_snap_role`` in ``_role_prior``,
+        # so it has to be a per-snap rate. Only rows with observed snaps can
+        # supply one: dividing a count by an availability fraction instead puts a
+        # season snap total (hundreds) and a fraction (at most one) in the same
+        # average, which inflates the estimate by orders of magnitude and does so
+        # differently per position — so the roster softmax cannot normalise it
+        # away, and the clip in ``_role_prior`` then flattens every position onto
+        # the same saturated value.
         snaps = pd.to_numeric(
             d.get("offense_snaps", pd.Series(np.nan, index=d.index)),
             errors="coerce",
+        ).to_numpy(dtype=float)
+        measured = np.isfinite(snaps) & (snaps > 0)
+        opportunity_rate = np.divide(
+            d[self.count_col].to_numpy(dtype=float),
+            snaps,
+            out=np.full(len(d), np.nan, dtype=float),
+            where=measured,
         )
-        availability = pd.to_numeric(
-            d.get("observed_availability", pd.Series(1.0, index=d.index)),
+        is_cold = pd.to_numeric(
+            d.get("cold_start", pd.Series(0, index=d.index)), errors="coerce"
+        ).fillna(0).to_numpy(dtype=int) == 1
+        prior_availability = pd.to_numeric(
+            d.get("prior_availability", pd.Series(np.nan, index=d.index)),
             errors="coerce",
-        ).fillna(1.0)
-        exposure = snaps.where(snaps.gt(0), availability.clip(0.03, 1.0))
-        opportunity_rate = d[self.count_col].to_numpy(dtype=float) / np.clip(
-            exposure.to_numpy(dtype=float), 0.03, None
         )
         fallback = STREAMS[self.stream]["fallback"]
         for position in MODEL_POSITIONS:
             is_position = d["position"].to_numpy() == position
-            is_cold = pd.to_numeric(
-                d.get("cold_start", pd.Series(0, index=d.index)), errors="coerce"
-            ).fillna(0).to_numpy(dtype=int) == 1
             values = opportunity_rate[is_position & is_cold]
+            values = values[np.isfinite(values)]
             if not len(values):
                 values = opportunity_rate[is_position]
+                values = values[np.isfinite(values)]
             estimate = float(np.mean(values)) if len(values) else fallback[position]
-            self.cold_role_prior[position] = max(estimate, 1e-4)
-            availability = pd.to_numeric(
-                d.loc[d["position"] == position, "prior_availability"],
-                errors="coerce",
-            ).dropna()
+            # A per-snap rate cannot exceed one opportunity per snap. Clipping
+            # here rather than only in ``_role_prior`` keeps a saturated estimate
+            # visible in the persisted metadata instead of silently becoming the
+            # same number for every position.
+            self.cold_role_prior[position] = float(np.clip(estimate, 1e-4, 1.0))
+            position_availability = prior_availability[is_position].dropna()
             self.availability_prior[position] = (
-                float(availability.median()) if len(availability) else 0.75
+                float(position_availability.median())
+                if len(position_availability)
+                else 0.75
             )
         self.role_innovation_scale = min(
             self._estimate_role_innovation(d), float(self.innovation_cap)

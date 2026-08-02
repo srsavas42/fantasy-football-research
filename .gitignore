@@ -9,3 +9,7 @@ utils.py
 build/
 dist/
 .pytest_cache/
+
+# Fitted posteriors. Large binary build outputs — the manifest and metadata
+# JSON beside them are small and are the provenance worth keeping in git.
+artifacts/**/*.nc

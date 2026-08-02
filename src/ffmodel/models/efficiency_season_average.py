@@ -1312,6 +1312,12 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             "use_volume": self.use_volume,
             "use_advanced": self.use_advanced,
             "ridge_alpha": self.ridge_alpha,
+            # Records which rows the responses were fitted on. It has no effect
+            # at prediction time, which is exactly why it has to be written
+            # down: without it a reloaded pipeline reports whatever the current
+            # default happens to be, and a refit from that configuration would
+            # silently train on a different sample.
+            "exposure_floor": self.exposure_floor,
             "fit_seconds": self.fit_seconds,
             "models": {},
         }
@@ -1331,6 +1337,11 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             use_volume=bool(metadata["use_volume"]),
             use_advanced=bool(metadata["use_advanced"]),
             ridge_alpha=float(metadata.get("ridge_alpha", 500.0)),
+            exposure_floor=(
+                None
+                if metadata.get("exposure_floor") is None
+                else int(metadata["exposure_floor"])
+            ),
             fit_seconds={
                 key: float(value)
                 for key, value in metadata.get("fit_seconds", {}).items()

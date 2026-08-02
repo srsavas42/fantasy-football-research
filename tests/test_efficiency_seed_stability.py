@@ -131,3 +131,71 @@ def test_the_exposure_floor_survives_a_round_trip():
         SeasonAverageScoringPipeline(efficiency_exposure_floor=5).efficiency_exposure_floor
         == 5
     )
+
+
+def test_the_exposure_floor_is_written_into_the_efficiency_metadata():
+    """It changes which rows were fitted, and nothing at prediction time.
+
+    That combination is why it must be recorded: a reloaded pipeline that
+    reports the current default instead of the fitted value looks correct in
+    every prediction, and a refit from that configuration silently trains on a
+    different sample.
+    """
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from ffmodel.models.efficiency_season_average import (
+        SeasonAveragePosteriorEfficiencyPipeline,
+    )
+
+    directory = Path(tempfile.mkdtemp()) / "efficiency"
+    directory.mkdir(parents=True)
+    (directory / "metadata.json").write_text(
+        json.dumps(
+            {
+                "use_volume": True,
+                "use_advanced": True,
+                "ridge_alpha": 500.0,
+                "exposure_floor": 20,
+                "fit_seconds": {},
+                "models": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    restored = SeasonAveragePosteriorEfficiencyPipeline.load(directory)
+
+    # Not the promoted default of 5 — the value this artifact was fitted with.
+    assert restored.exposure_floor == 20
+    assert SeasonAveragePosteriorEfficiencyPipeline().exposure_floor == 5
+
+
+def test_an_artifact_written_before_the_floor_existed_still_loads():
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from ffmodel.models.efficiency_season_average import (
+        SeasonAveragePosteriorEfficiencyPipeline,
+    )
+
+    directory = Path(tempfile.mkdtemp()) / "efficiency"
+    directory.mkdir(parents=True)
+    (directory / "metadata.json").write_text(
+        json.dumps(
+            {
+                "use_volume": True,
+                "use_advanced": True,
+                "ridge_alpha": 500.0,
+                "fit_seconds": {},
+                "models": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    restored = SeasonAveragePosteriorEfficiencyPipeline.load(directory)
+
+    assert restored.exposure_floor is None

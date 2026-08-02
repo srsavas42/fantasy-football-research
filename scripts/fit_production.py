@@ -100,12 +100,26 @@ def _round_trip(directory: Path, data: SeasonAverageData, original) -> dict[str,
     — live in metadata rather than in a posterior. A flag that fails to
     serialize yields a served model quietly different from the validated one, so
     this is checked rather than assumed.
+
+    Checked on the most recent season only. A season-scoring prediction holds
+    roughly twenty arrays of (rows x draws); over ten seasons at a 2000-draw,
+    four-chain budget that is about half a gigabyte each, and holding two
+    pipelines' worth at once exhausted a 15 GB machine. One season is a
+    twentieth of that, it exercises every serialized path the same way, and it
+    is the season a projection is actually served for.
     """
+    latest = max(int(s) for s in pd.unique(data.player_rows["season"]))
+    slice_ = SeasonAverageData(
+        data.team_rows[data.team_rows["season"] == latest].copy(),
+        data.player_rows[data.player_rows["season"] == latest].copy(),
+    )
+    before = np.asarray(original.predict_samples(slice_, seed=11).fantasy_points["ppr"])
     reloaded = SeasonAverageScoringPipeline.load(directory)
-    before = original.predict_samples(data, seed=11).fantasy_points["ppr"]
-    after = reloaded.predict_samples(data, seed=11).fantasy_points["ppr"]
-    difference = float(np.abs(np.asarray(before) - np.asarray(after)).max())
+    after = np.asarray(reloaded.predict_samples(slice_, seed=11).fantasy_points["ppr"])
+    difference = float(np.abs(before - after).max())
     return {
+        "season": latest,
+        "rows": int(before.shape[0]),
         "max_abs_ppr_difference": difference,
         "identical": bool(difference < 1e-9),
     }
@@ -199,7 +213,12 @@ def main(argv=None) -> int:
         "sample_kwargs": sample_kwargs,
         "configuration": {
             "volume_feature_estimator": args.volume_feature_estimator,
-            "efficiency_exposure_floor": args.efficiency_exposure_floor,
+            # Read off the efficiency pipeline, not off the command line. The
+            # scoring pipeline's own field is an *override* and stays None when
+            # the promoted default is being used, so reporting it would have
+            # this manifest say "null" about a fit that used 5.
+            "efficiency_exposure_floor": pipeline.efficiency_model.exposure_floor,
+            "efficiency_exposure_floor_override": args.efficiency_exposure_floor,
             "postseason_role_features": pipeline.volume_model.postseason_role_features,
             "mean_preserving_innovation": (
                 pipeline.volume_model.mean_preserving_innovation

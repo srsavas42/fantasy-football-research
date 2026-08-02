@@ -31,9 +31,11 @@ from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
     load_idata,
     logit,
+    mean_preserving_shares,
     sample_model,
     sampling_quality,
     save_idata,
+    simplex_shares,
 )
 from ffmodel.models.season_availability import (
     AvailabilityPrediction,
@@ -578,6 +580,9 @@ class SeasonRosterShareModel:
     cold_role_prior: dict[str, float] = field(default_factory=dict)
     availability_prior: dict[str, float] = field(default_factory=dict)
     role_innovation_scale: float = 0.75
+    # See ``mean_preserving_shares``: the softmax renormalization turns role
+    # churn into a systematic transfer away from whoever leads the room.
+    mean_preserving_innovation: bool = False
     per_snap_weight: float | None = None
     innovation_cap: float | None = None
     idata: object = None
@@ -941,7 +946,7 @@ class SeasonRosterShareModel:
         else:
             eta = eta + design["starter_offset"][..., None]
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
-        eta = np.where(design["mask"][..., None] > 0, eta, -20.0)
+        live = np.broadcast_to(design["mask"][..., None] > 0, eta.shape)
         if eligibility_samples is not None:
             eligibility_samples = np.asarray(eligibility_samples, dtype=float)
             if eligibility_samples.shape != (len(design["rows"]), draws):
@@ -955,12 +960,13 @@ class SeasonRosterShareModel:
             # supported player so the team total can still be allocated.
             none_eligible = eligibility.sum(axis=1) <= 0
             if none_eligible.any():
-                fallback = np.argmax(eta, axis=1)
+                fallback = np.argmax(np.where(live, eta, -np.inf), axis=1)
                 group_draw = np.argwhere(none_eligible)
                 eligibility[
                     group_draw[:, 0], fallback[none_eligible], group_draw[:, 1]
                 ] = 1.0
-            eta = np.where(eligibility > 0, eta, -20.0)
+            live = live & (eligibility > 0)
+        live = np.ascontiguousarray(live)
 
         rng = np.random.default_rng(seed)
         innovation_z = rng.normal(
@@ -970,13 +976,14 @@ class SeasonRosterShareModel:
                 draws,
             )
         )
-        innovation = np.einsum(
-            "gkj,gjs->gks", design["innovation_basis"], innovation_z
+        innovation = (
+            np.einsum("gkj,gjs->gks", design["innovation_basis"], innovation_z)
+            * self.role_innovation_scale
         )
-        eta = eta + innovation * self.role_innovation_scale
-        eta -= eta.max(axis=1, keepdims=True)
-        probability = np.exp(eta) * design["mask"][..., None]
-        probability /= probability.sum(axis=1, keepdims=True)
+        if self.mean_preserving_innovation:
+            probability = mean_preserving_shares(eta, eta + innovation, live)
+        else:
+            probability = simplex_shares(eta + innovation, live)
         shares = np.zeros((len(design["rows"]), draws), dtype=float)
         for group_i in range(len(design["group_keys"])):
             active = design["mask"][group_i].astype(bool)
@@ -1097,6 +1104,9 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
+    # Correct the softmax renormalization bias the role innovation introduces,
+    # in every allocation layer at once. See ``mean_preserving_shares``.
+    mean_preserving_innovation: bool = False
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1106,6 +1116,8 @@ class SeasonAverageVolumePipeline:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.mean_preserving_innovation:
+            self._enable_mean_preserving_innovation()
         problems = volume_input_problems(data)
         if problems:
             raise ValueError(
@@ -1152,6 +1164,17 @@ class SeasonAverageVolumePipeline:
             )
             self.fit_seconds["regime"] = perf_counter() - started
         return self
+
+    def _enable_mean_preserving_innovation(self) -> None:
+        """Turn the correction on for every layer that allocates over a simplex.
+
+        There are three: the quarterback workload room, and the target and carry
+        rooms. The snap and eligibility layers are per-player and never
+        renormalize, so they have nothing to correct.
+        """
+        self.workload_model.mean_preserving_innovation = True
+        self.target_model.mean_preserving_innovation = True
+        self.carry_model.mean_preserving_innovation = True
 
     def _enable_postseason_role_features(self) -> None:
         """Offer the lagged postseason signal to the role-shaped submodels.
@@ -1571,6 +1594,9 @@ class SeasonAverageVolumePipeline:
                 ),
                 "hurdle_availability_mean": self.workload_model.hurdle_availability_mean,
                 "hurdle_availability_scale": self.workload_model.hurdle_availability_scale,
+                "mean_preserving_innovation": bool(
+                    self.workload_model.mean_preserving_innovation
+                ),
             },
             "role_regime": {
                 "enabled": self.role_regime_coupling,
@@ -1616,6 +1642,7 @@ class SeasonAverageVolumePipeline:
             "role_innovation_scale": model.role_innovation_scale,
             "per_snap_weight": model.per_snap_weight,
             "innovation_cap": model.innovation_cap,
+            "mean_preserving_innovation": bool(model.mean_preserving_innovation),
             "extra_features": list(model.extra_features),
         }
 
@@ -1669,6 +1696,9 @@ class SeasonAverageVolumePipeline:
             hurdle_availability_scale=float(
                 workload_state.get("hurdle_availability_scale", 1.0)
             ),
+            mean_preserving_innovation=bool(
+                workload_state.get("mean_preserving_innovation", False)
+            ),
         )
         cls._restore_feature_metadata(workload, workload_state)
         workload.idata = load_idata(directory / "workload.nc")
@@ -1693,6 +1723,9 @@ class SeasonAverageVolumePipeline:
                         "innovation_cap",
                         0.50 if state["stream"] in {"target", "carry"} else 2.0,
                     )
+                ),
+                mean_preserving_innovation=bool(
+                    state.get("mean_preserving_innovation", False)
                 ),
             )
             model.players = list(state["players"])
@@ -1757,6 +1790,9 @@ class SeasonAverageVolumePipeline:
             carry_eligibility_model=optional["carry_eligibility"],
             role_regime_coupling=role_regime_coupling,
             regime_likelihood_features=regime_likelihood_features,
+            # Each allocation layer carries its own flag, so the pipeline-level
+            # one only has to agree with what was actually restored.
+            mean_preserving_innovation=workload.mean_preserving_innovation,
             regime_model=(likelihood_regime_model or regime_model),
             regime_coupler=regime_coupler,
         )

@@ -31,6 +31,62 @@ def logit(p: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     return np.log(p / (1 - p))
 
 
+def simplex_shares(eta: np.ndarray, live: np.ndarray) -> np.ndarray:
+    """Softmax over axis 1, restricted to the entries ``live`` marks as supported.
+
+    ``eta`` is (group, player, draw) and ``live`` is a boolean array of the same
+    shape. Unsupported entries get exactly zero rather than a small positive
+    share, and a group-draw with nobody supported gets zeros instead of a NaN.
+    """
+    high = np.max(np.where(live, eta, -np.inf), axis=1, keepdims=True)
+    high = np.where(np.isfinite(high), high, 0.0)
+    weight = np.where(live, np.exp(eta - high), 0.0)
+    total = weight.sum(axis=1, keepdims=True)
+    return np.divide(weight, total, out=np.zeros_like(weight), where=total > 0)
+
+
+def mean_preserving_shares(
+    baseline: np.ndarray,
+    perturbed: np.ndarray,
+    live: np.ndarray,
+    *,
+    iterations: int = 4,
+) -> np.ndarray:
+    """Perturbed roster shares whose draw-average matches the baseline allocation.
+
+    The role models add Gaussian innovation to a log-odds vector and then take a
+    softmax, which is how season-to-season role churn enters the projection. The
+    softmax is not linear, so that noise does not merely spread the shares out —
+    it moves their mean. Renormalization takes the surplus from whoever holds the
+    most probability mass and hands it to everyone else, so the more concentrated
+    the room, the more the leader loses. A quarterback room where the starter
+    holds 0.90 gives up 0.0267 of share at the default innovation scale, about
+    nine tenths of an attempt per game, and it does so with no model term
+    claiming that is true.
+
+    Fix it by solving for a per-player offset, constant across draws, that puts
+    the draw-average back where the noiseless allocation had it. The update is
+    the usual proportional-fitting step in log space: add the log ratio of the
+    target share to the realized one, then recenter within the group, which the
+    softmax is invariant to. Four passes bring the residual well inside Monte
+    Carlo error for rooms of the size this pipeline allocates over.
+
+    The baseline is the noiseless allocation *including* every other per-draw
+    effect — availability, the carry hurdle, the quarterback gate. Those are
+    estimated components and are supposed to move the mean; the innovation is a
+    dispersion device and is not.
+    """
+    target = simplex_shares(baseline, live).mean(axis=2)
+    offset = np.zeros(baseline.shape[:2], dtype=float)
+    tiny = np.finfo(float).tiny
+    for _ in range(iterations):
+        realized = simplex_shares(perturbed + offset[..., None], live).mean(axis=2)
+        step = np.log(np.maximum(target, tiny)) - np.log(np.maximum(realized, tiny))
+        offset = offset + np.where((target > 0) & (realized > 0), step, 0.0)
+        offset = np.clip(offset - offset.mean(axis=1, keepdims=True), -10.0, 10.0)
+    return simplex_shares(perturbed + offset[..., None], live)
+
+
 def default_sampling_cores(chains: int) -> int:
     """Worker processes to use for ``chains``, from the environment.
 

@@ -70,6 +70,37 @@ before the gate will rule on them at all.
 The third rejection was correct and stands as a `watch`: the team model's R-hat
 of 1.0107 on the 2023 fold.
 
+## Two more it learned from the scoring runs
+
+The volume and scoring walk-forwards do not share a metric vocabulary. The
+scoring runs emit `coverage_80` and `rmse`; only `cov80`, `mae`, `crps` and
+`brier` were known. Everything else fell through to "not an error metric,
+therefore higher is better" — so on every scoring-run comparison, the ones the
+final promotion decisions are actually made on, **coverage and RMSE were both
+scored with the sign reversed**. Re-running the matched-`oof_*` comparison after
+the fix flipped `rmse` from "regresses +0.99%" to "improves −0.99%".
+
+The spelling was the symptom; the silent default was the defect. An
+unrecognised metric now blocks with a message naming it, rather than being
+assigned a direction by guess.
+
+**Accepted is not the same question as worthwhile.** The matched estimator
+regressed nothing and improved nothing either — every metric below the
+materiality floor — at roughly forty times the fit cost. A gate that prints only
+"ACCEPTED" hides the judgement that decision actually turned on, so a run where
+nothing improved materially says so explicitly.
+
+## Reproducing the decisions made by hand
+
+The gate was checked against three decisions already taken, and agrees with all
+three:
+
+| comparison | hand decision | gate |
+|---|---|---|
+| postseason role features | promoted | ACCEPTED |
+| matched `oof_*` estimator | declined on cost | ACCEPTED — nothing improved materially |
+| mean-preserving innovation | — | NOT ACCEPTED (protected CRPS +4.3%, +5.4%) |
+
 ## Protected streams
 
 `--protected` names streams that may not be damaged in exchange for gains

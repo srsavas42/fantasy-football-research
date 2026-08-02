@@ -41,9 +41,19 @@ import numpy as np
 # direction — an 88% interval that covers 95% of outcomes is as wrong as one
 # that covers 81%, and only one of those looks like an improvement to a rule
 # that treats "higher is better".
-LOWER_IS_BETTER = ("mae", "crps", "brier")
-COVERAGE_NOMINAL = {"cov80": 0.80, "cov95": 0.95}
-NOT_A_METRIC = ("n", "seconds")
+LOWER_IS_BETTER = ("mae", "crps", "brier", "rmse", "value")
+# The volume and scoring walk-forwards spell coverage differently — ``cov80``
+# and ``coverage_80``. Both belong here. Missing one meant the scoring runs, the
+# ones the final promotion decisions are actually made on, had their coverage
+# scored as "higher is better" rather than "closer to nominal", silently and in
+# the wrong direction.
+COVERAGE_NOMINAL = {
+    "cov80": 0.80,
+    "cov95": 0.95,
+    "coverage_80": 0.80,
+    "coverage_95": 0.95,
+}
+NOT_A_METRIC = ("n", "seconds", "scoring")
 NOT_A_STREAM = ("seconds", "n", "diagnostics")
 
 # How large a move has to be before it is worth a verdict. Coverage is measured
@@ -93,6 +103,20 @@ class MetricComparison:
         return "coverage points" if self.is_coverage else "relative"
 
     @property
+    def recognized(self) -> bool:
+        """Whether the gate knows which direction is better for this metric.
+
+        It refuses to guess. The original code assumed anything it did not
+        recognise as an error metric was one where higher is better, which is
+        how ``coverage_80`` came to be scored upside down for every scoring-run
+        comparison. An unrecognised metric is now surfaced instead of silently
+        given a direction.
+        """
+        return self.is_coverage or any(
+            self.metric.endswith(m) for m in LOWER_IS_BETTER
+        )
+
+    @property
     def relative_change(self) -> np.ndarray:
         """Per-fold change, signed so that negative is always better.
 
@@ -107,8 +131,6 @@ class MetricComparison:
                 nominal = COVERAGE_NOMINAL[self.metric]
                 out.append(abs(cand - nominal) - abs(base - nominal))
                 continue
-            if not any(self.metric.endswith(m) for m in LOWER_IS_BETTER):
-                base, cand = -base, -cand
             if base == 0:
                 out.append(0.0 if cand == 0 else np.inf)
             else:
@@ -148,6 +170,8 @@ class MetricComparison:
         the gate does not rule on differences below the resolution of what is
         being measured.
         """
+        if not self.recognized:
+            return "unrecognized"
         pooled, spread = self.pooled, self.spread
         if not np.isfinite(pooled):
             return "unknown"
@@ -173,7 +197,18 @@ class AcceptanceReport:
 
     @property
     def accepted(self) -> bool:
+        """Whether the candidate damages nothing. Not whether it is worth doing.
+
+        Keep the two apart. The matched ``oof_*`` estimator regressed nothing
+        and improved nothing either — every metric below the materiality floor —
+        at roughly forty times the fit cost. "Accepted" was never the question
+        for that change; ``worthwhile`` is.
+        """
         return not self.blockers
+
+    @property
+    def worthwhile(self) -> bool:
+        return self.accepted and bool(self.by_verdict("improved"))
 
     def by_verdict(self, verdict: str) -> list[MetricComparison]:
         return [m for m in self.metrics if m.verdict == verdict]
@@ -275,7 +310,20 @@ def compare_runs(
     for stream, metric in dropped:
         blockers.append(f"candidate does not report {stream}/{metric}")
 
+    unrecognized = sorted(
+        f"{m.stream}/{m.metric}" for m in metrics if not m.recognized
+    )
+    if unrecognized:
+        blockers.append(
+            "the gate does not know which direction is better for "
+            + ", ".join(unrecognized)
+            + " — add it to LOWER_IS_BETTER or COVERAGE_NOMINAL rather than "
+            "letting it be scored by guess"
+        )
+
     for comparison in metrics:
+        if not comparison.recognized:
+            continue
         if (
             comparison.protected
             and not comparison.is_coverage
@@ -349,7 +397,16 @@ def format_report(report: AcceptanceReport, *, baseline: str, candidate: str) ->
                 f"  [{mark}] {problem['component']} @ {problem['fold']}: {problem['detail']}"
             )
 
-    lines += ["", "ACCEPTED" if report.accepted else "NOT ACCEPTED"]
+    if not report.accepted:
+        verdict = "NOT ACCEPTED"
+    elif report.worthwhile:
+        verdict = "ACCEPTED"
+    else:
+        # Safe and pointless. Worth saying out loud, because the cost of a
+        # change is not in this table and a reader who sees "ACCEPTED" alone
+        # will not weigh it.
+        verdict = "ACCEPTED — but nothing improved materially; weigh the cost"
+    lines += ["", verdict]
     for blocker in report.blockers:
         lines.append(f"  - {blocker}")
     return "\n".join(lines)

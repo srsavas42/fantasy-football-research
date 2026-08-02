@@ -222,3 +222,86 @@ def test_the_report_renders_both_unit_scales():
     assert "pp" in text  # coverage in points
     assert "%" in text  # everything else relative
     assert "ACCEPTED" in text
+
+
+def _scoring_run(coverage_by_fold, *, rmse=50.0):
+    """The scoring walk-forward's schema, which differs from the volume one."""
+    return {
+        fold: {
+            "ppr": {
+                "mae": 40.0,
+                "crps": 30.0,
+                "rmse": rmse,
+                "coverage_80": value,
+                "coverage_95": 0.95,
+                "n": 500,
+                "scoring": "ppr",
+            }
+        }
+        for fold, value in coverage_by_fold.items()
+    }
+
+
+def test_the_scoring_schemas_coverage_spelling_is_recognised():
+    """``coverage_80`` and ``cov80`` are the same quantity.
+
+    Only ``cov80`` was known, so on every scoring-run comparison — the ones the
+    final promotion decisions are made on — coverage was scored as "higher is
+    better" instead of "closer to nominal", in the wrong direction and silently.
+    """
+    base = _scoring_run({"2022": 0.80, "2023": 0.80, "2024": 0.80})
+    cand = _scoring_run({"2022": 0.90, "2023": 0.90, "2024": 0.90})
+
+    report = compare_runs(base, cand, protected=())
+    cov = next(m for m in report.metrics if m.metric == "coverage_80")
+
+    assert cov.is_coverage
+    assert cov.pooled == pytest.approx(0.10)
+    assert cov.verdict == "regressed"  # not an improvement, whatever its sign
+
+
+def test_rmse_is_an_error_metric():
+    base = _scoring_run({"2022": 0.80, "2023": 0.80, "2024": 0.80}, rmse=50.0)
+    cand = _scoring_run({"2022": 0.80, "2023": 0.80, "2024": 0.80}, rmse=45.0)
+
+    report = compare_runs(base, cand, protected=())
+    rmse = next(m for m in report.metrics if m.metric == "rmse")
+
+    assert rmse.pooled < 0
+    assert rmse.verdict == "improved"
+
+
+def test_an_unrecognised_metric_is_surfaced_rather_than_guessed():
+    """The gate must not assign a direction it does not know.
+
+    Assuming "not an error metric, therefore higher is better" is exactly how
+    coverage came to be scored upside down.
+    """
+    base = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0})
+    cand = _run({"2022": 0.9, "2023": 0.9, "2024": 0.9})
+    for fold in (base, cand):
+        for payload in fold.values():
+            payload["target"]["sharpness_index"] = 0.5
+
+    report = compare_runs(base, cand)
+
+    assert not report.accepted
+    assert any("does not know which direction" in b for b in report.blockers)
+    assert any(m.verdict == "unrecognized" for m in report.metrics)
+
+
+def test_accepted_and_worthwhile_are_different_questions():
+    """A change can be safe and pointless.
+
+    The matched oof_* estimator regressed nothing and improved nothing either,
+    at roughly forty times the fit cost. Reporting only "ACCEPTED" would hide
+    the judgement that decision actually turned on.
+    """
+    base = _run({"2022": 1.0000, "2023": 1.0000, "2024": 1.0000})
+    cand = _run({"2022": 0.9994, "2023": 0.9994, "2024": 0.9994})
+
+    report = compare_runs(base, cand)
+
+    assert report.accepted
+    assert not report.worthwhile
+    assert "weigh the cost" in format_report(report, baseline="b", candidate="c")

@@ -203,3 +203,60 @@ pipeline's worst calibration.
 That is a policy question rather than a measurement one — how much point
 accuracy on the quarterback streams is nine points of coverage worth — so both
 flags stay off pending that call.
+
+---
+
+# The 2024 fold was not over-widening (2026-08-03)
+
+This document previously read the 2024 fold's `cov95` of 1.000 as the
+correction over-widening rather than merely repairing. That was wrong, and it
+was wrong in an avoidable way: a coverage *rate* on one fold is a poor statistic
+when the event it counts is rare.
+
+In counts, over 84 quarterback rows, a 95% interval expects about four misses
+with a standard deviation of two:
+
+| level | fold | n | misses | expected | z |
+|---|---|---:|---:|---:|---:|
+| cov95 | 2022 | 85 | 8 | 4.3 | +1.87 |
+| cov95 | 2023 | 84 | 5 | 4.2 | +0.40 |
+| cov95 | 2024 | 84 | **0** | 4.2 | −2.10 |
+| cov95 | **pooled** | 253 | **13** | **12.7** | **+0.10** |
+| cov80 | pooled | 253 | 44 | 50.6 | −1.04 |
+
+Pooled, the calibrated model lands on nominal almost exactly at 95% — 13 misses
+against 12.7 expected, inside the [6, 20] binomial range — and mildly
+conservative at 80%. The baseline it replaced recorded 45 and 85, both far
+outside.
+
+P(0 misses | n=84, p=0.05) is 0.0135, so seeing a fold like 2024 in at least one
+of three has probability 0.04. Unusual, and entirely ordinary noise. There is no
+over-widening to explain.
+
+`scripts/coverage_calibration.py` reports this for any run so the next such
+number is not judged by eye.
+
+## What that tool then found
+
+Run across every stream, the quarterback room this work repaired is now the
+**best-calibrated layer in the pipeline**, and the skill-position streams — each
+carrying seven times the sample — are worse. Pooled over 1,754 rows, and
+unchanged by the calibration work:
+
+| stream | cov80 misses / expected | z | cov95 misses / expected | z |
+|---|---:|---:|---:|---:|
+| carry | 209 / 350.8 | **−8.46** | 76 / 87.7 | −1.28 |
+| target | 272 / 350.8 | **−4.70** | 119 / 87.7 | **+3.43** |
+| snap | 298 / 350.8 | −3.15 | 88 / 87.7 | +0.03 |
+| qb_workload | 44 / 50.6 | −1.04 | 13 / 12.7 | +0.10 |
+
+Carry's 80% intervals contain 88% of outcomes: eight points too wide, at z=−8.46.
+Target is miscalibrated in **both directions at once** — 84.5% coverage at the
+80% level and 93.2% at the 95% level — which is too wide in the body and too
+thin in the tails, and that is a distributional shape problem rather than a
+width one. Neither is caused by anything in this branch; the before and after
+counts differ by two.
+
+This is left open. It is a modelling question about the response distributions
+themselves rather than a parameter to invert, and it is now the largest known
+calibration defect in the pipeline.

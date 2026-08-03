@@ -223,6 +223,16 @@ def main(argv=None) -> int:
             "mean_preserving_innovation": (
                 pipeline.volume_model.mean_preserving_innovation
             ),
+            "calibrated_innovation": pipeline.volume_model.calibrated_innovation,
+            # The scale the calibration actually solved for. It is the whole
+            # point of the flag, it varies with the room sizes in the training
+            # data, and a manifest that records only "calibration was on" cannot
+            # tell two fits apart.
+            "role_innovation_scale": {
+                "workload": pipeline.volume_model.workload_model.role_innovation_scale,
+                "target": pipeline.volume_model.target_model.role_innovation_scale,
+                "carry": pipeline.volume_model.carry_model.role_innovation_scale,
+            },
             "couple_gate_to_availability": (
                 pipeline.volume_model.workload_model.couple_gate_to_availability
             ),

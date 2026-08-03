@@ -16,6 +16,7 @@ import pandas as pd
 
 from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
+    calibrate_innovation_scale,
     logit,
     mean_preserving_shares,
     sample_model,
@@ -417,6 +418,11 @@ class QBWorkloadShareModel:
     # 0.70-0.93x depending on room shape. Correcting the mean while the scale is
     # wrong makes the distribution worse. See docs/role-innovation-2026-08.md.
     mean_preserving_innovation: bool = False
+    # ``role_innovation_scale`` is measured as *realized* log-share dispersion
+    # and then applied on the input side of the softmax, which compresses it by
+    # about 18% for a three-deep room. See ``calibrate_innovation_scale``.
+    calibrated_innovation: bool = False
+    innovation_calibration_seed: int = 0
     hurdle_min_attempts: int = 25
     # Availability reaches this layer twice — as the softmax's exposure offset
     # and again through the gate. Drawing the two independently lets one draw
@@ -549,6 +555,47 @@ class QBWorkloadShareModel:
             return 0.60
         return float(np.clip(np.sqrt(np.mean(np.square(residuals))), 0.10, 2.0))
 
+    def _calibrated_innovation(
+        self,
+        quarterbacks: pd.DataFrame,
+        role: np.ndarray,
+        support: np.ndarray,
+        target: float,
+    ) -> float:
+        """Input scale whose realized log-share spread matches ``target``.
+
+        Quarterback rooms are the smallest simplex the pipeline allocates over,
+        which is where softmax renormalization eats the most dispersion — about
+        18% for a three-deep room against 8% for a seven-deep target room. This
+        is therefore the layer where the uncalibrated scale hurts most, and it
+        matches the coverage: workload share sits 6 to 18 points under its 80%
+        nominal on every holdout.
+        """
+        availability = pd.to_numeric(
+            quarterbacks.get(
+                "observed_availability", pd.Series(1.0, index=quarterbacks.index)
+            ),
+            errors="coerce",
+        ).fillna(1.0).clip(0.03, 1.0).to_numpy(dtype=float)
+        rooms = []
+        for _, group in quarterbacks.groupby(GROUP_KEYS, sort=False, dropna=False):
+            indices = group.index.to_numpy(dtype=int)
+            indices = indices[support[indices]]
+            if len(indices) > 1:
+                weights = role[indices] * availability[indices]
+                rooms.append(weights / weights.sum())
+        if not rooms:
+            return target
+        width = max(len(room) for room in rooms)
+        allocation = np.zeros((len(rooms), width), dtype=float)
+        mask = np.zeros((len(rooms), width), dtype=bool)
+        for row, room in enumerate(rooms):
+            allocation[row, : len(room)] = room
+            mask[row, : len(room)] = True
+        return calibrate_innovation_scale(
+            allocation, mask, target, seed=self.innovation_calibration_seed
+        )
+
     def _design(self, rows: pd.DataFrame, *, fit: bool = False):
         all_rows = self._prepare_all(rows)
         quarterbacks = all_rows[all_rows["position"].eq("QB")].copy()
@@ -560,11 +607,14 @@ class QBWorkloadShareModel:
         role = self._role_prior(quarterbacks)
         counts_flat = self._observed_counts(quarterbacks)
         if fit:
-            self.role_innovation_scale = self._estimate_role_innovation(
-                quarterbacks,
-                counts_flat,
-                role,
-                support=counts_flat >= self.hurdle_min_attempts,
+            support = counts_flat >= self.hurdle_min_attempts
+            target = self._estimate_role_innovation(
+                quarterbacks, counts_flat, role, support=support
+            )
+            self.role_innovation_scale = (
+                self._calibrated_innovation(quarterbacks, role, support, target)
+                if self.calibrated_innovation
+                else target
             )
         groups = list(quarterbacks.groupby(GROUP_KEYS, sort=True, dropna=False))
         group_lookup = {tuple(key): index for index, (key, _) in enumerate(groups)}

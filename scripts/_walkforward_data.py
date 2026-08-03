@@ -49,6 +49,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="enable the lagged postseason role features",
     )
     parser.add_argument(
+        "--calibrated-innovation",
+        action="store_true",
+        help="solve for the input noise scale that realizes the churn the "
+             "estimator measured, instead of using the measurement directly",
+    )
+    parser.add_argument(
         "--mean-preserving-innovation",
         action="store_true",
         help="correct the softmax renormalization bias the role innovation "

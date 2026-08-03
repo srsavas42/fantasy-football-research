@@ -29,6 +29,7 @@ from ffmodel.features.season_average import (
 )
 from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
+    calibrate_innovation_scale,
     load_idata,
     logit,
     mean_preserving_shares,
@@ -583,6 +584,11 @@ class SeasonRosterShareModel:
     # See ``mean_preserving_shares``: the softmax renormalization turns role
     # churn into a systematic transfer away from whoever leads the room.
     mean_preserving_innovation: bool = False
+    # ``role_innovation_scale`` is estimated as *realized* log-share dispersion
+    # and then applied on the input side of the softmax, which compresses it.
+    # See ``calibrate_innovation_scale``.
+    calibrated_innovation: bool = False
+    innovation_calibration_seed: int = 0
     per_snap_weight: float | None = None
     innovation_cap: float | None = None
     idata: object = None
@@ -686,13 +692,54 @@ class SeasonRosterShareModel:
                 if len(position_availability)
                 else 0.75
             )
-        self.role_innovation_scale = min(
-            self._estimate_role_innovation(d), float(self.innovation_cap)
-        )
+        # The cap bounds how much role churn this model is willing to represent,
+        # so it belongs on the measured quantity. Calibration then asks what
+        # input scale delivers that much churn through the softmax.
+        target = min(self._estimate_role_innovation(d), float(self.innovation_cap))
+        if self.calibrated_innovation:
+            allocation, mask = self._innovation_rooms(d)
+            self.role_innovation_scale = calibrate_innovation_scale(
+                allocation, mask, target, seed=self.innovation_calibration_seed
+            )
+        else:
+            self.role_innovation_scale = target
 
-    def _estimate_role_innovation(self, d: pd.DataFrame) -> float:
-        """Training-only RMS log-share error after removing roster location."""
+    def _innovation_support(self, d: pd.DataFrame) -> np.ndarray:
+        """Rows the softmax is actually fitted over.
+
+        For targets, ``_design`` masks quarterbacks out of the likelihood. The
+        innovation estimator used to group over every row regardless, so both
+        the softmax denominator and the observed-share normalization included
+        players the model never allocates to — the scale was estimated under a
+        support the model does not use.
+        """
+        if self.stream == "target":
+            return (~d["position"].eq("QB")).to_numpy()
+        return np.ones(len(d), dtype=bool)
+
+    def _innovation_rooms(self, d: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+        """Padded deterministic allocations per team-season, and their support."""
+        support = self._innovation_support(d)
+        groups = [
+            group.index.to_numpy(dtype=int)[support[group.index.to_numpy(dtype=int)]]
+            for _, group in d.groupby(GROUP_KEYS, sort=False, dropna=False)
+        ]
+        groups = [indices for indices in groups if len(indices) > 1]
+        if not groups:
+            return np.ones((1, 1), dtype=float), np.ones((1, 1), dtype=bool)
         role = self._role_prior(d)
+        exposure = self._innovation_exposure(d)
+        score = np.log(role) + np.log(np.clip(exposure, 0.001, 1.0))
+        width = max(len(indices) for indices in groups)
+        allocation = np.zeros((len(groups), width), dtype=float)
+        mask = np.zeros((len(groups), width), dtype=bool)
+        for row, indices in enumerate(groups):
+            weights = np.exp(score[indices] - score[indices].max())
+            allocation[row, : len(indices)] = weights / weights.sum()
+            mask[row, : len(indices)] = True
+        return allocation, mask
+
+    def _innovation_exposure(self, d: pd.DataFrame) -> np.ndarray:
         snap_share = pd.to_numeric(
             d.get("snap_share", pd.Series(np.nan, index=d.index)), errors="coerce"
         )
@@ -700,20 +747,39 @@ class SeasonRosterShareModel:
             d.get("observed_availability", pd.Series(1.0, index=d.index)),
             errors="coerce",
         ).fillna(1.0)
-        exposure = snap_share.where(snap_share.gt(0), availability).fillna(0.03)
-        score = np.log(role) + np.log(np.clip(exposure.to_numpy(dtype=float), 0.001, 1.0))
-        expected = np.zeros(len(d), dtype=float)
-        residual = np.zeros(len(d), dtype=float)
+        return snap_share.where(snap_share.gt(0), availability).fillna(0.03).to_numpy(
+            dtype=float
+        )
+
+    def _estimate_role_innovation(self, d: pd.DataFrame) -> float:
+        """Training-only RMS log-share error after removing roster location.
+
+        Restricted to the support the model allocates over. For targets that
+        excludes quarterbacks, who ``_design`` masks out of the likelihood; the
+        estimator used to leave them in both the softmax denominator and the
+        observed-share normalization, so it described a room the model never
+        fits.
+        """
+        role = self._role_prior(d)
+        exposure = self._innovation_exposure(d)
+        support = self._innovation_support(d)
+        score = np.log(role) + np.log(np.clip(exposure, 0.001, 1.0))
+        residuals: list[np.ndarray] = []
         for _, group in d.groupby(GROUP_KEYS, sort=False, dropna=False):
             indices = group.index.to_numpy(dtype=int)
-            centered = score[indices] - score[indices].max()
-            weights = np.exp(centered)
-            expected[indices] = weights / weights.sum()
+            indices = indices[support[indices]]
+            if len(indices) < 2:
+                continue
+            weights = np.exp(score[indices] - score[indices].max())
+            expected = weights / weights.sum()
             counts = d.loc[indices, self.count_col].to_numpy(dtype=float)
             observed = (counts + 0.5) / (counts.sum() + 0.5 * len(indices))
-            group_residual = np.log(observed) - np.log(expected[indices])
-            residual[indices] = group_residual - group_residual.mean()
-        return float(np.clip(np.sqrt(np.mean(residual ** 2)), 0.10, 2.0))
+            group_residual = np.log(observed) - np.log(expected)
+            residuals.append(group_residual - group_residual.mean())
+        if not residuals:
+            return 0.10
+        stacked = np.concatenate(residuals)
+        return float(np.clip(np.sqrt(np.mean(stacked**2)), 0.10, 2.0))
 
     def _role_prior(self, d: pd.DataFrame) -> np.ndarray:
         per_snap = pd.to_numeric(
@@ -1107,6 +1173,10 @@ class SeasonAverageVolumePipeline:
     # Correct the softmax renormalization bias the role innovation introduces,
     # in every allocation layer at once. See ``mean_preserving_shares``.
     mean_preserving_innovation: bool = False
+    # Solve for the input noise scale that realizes the churn the estimator
+    # measured, rather than handing the measurement straight to the sampler.
+    # See ``calibrate_innovation_scale``.
+    calibrated_innovation: bool = False
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1118,6 +1188,8 @@ class SeasonAverageVolumePipeline:
             self._enable_postseason_role_features()
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
+        if self.calibrated_innovation:
+            self._enable_calibrated_innovation()
         problems = volume_input_problems(data)
         if problems:
             raise ValueError(
@@ -1175,6 +1247,18 @@ class SeasonAverageVolumePipeline:
         self.workload_model.mean_preserving_innovation = True
         self.target_model.mean_preserving_innovation = True
         self.carry_model.mean_preserving_innovation = True
+
+    def _enable_calibrated_innovation(self) -> None:
+        """Turn calibration on for the three layers that allocate over a simplex.
+
+        The same three as the mean-preserving correction: the quarterback
+        workload room, and the target and carry rooms. The snap and eligibility
+        layers are per-player and never renormalize, so no dispersion is lost
+        there and there is nothing to invert.
+        """
+        self.workload_model.calibrated_innovation = True
+        self.target_model.calibrated_innovation = True
+        self.carry_model.calibrated_innovation = True
 
     def _enable_postseason_role_features(self) -> None:
         """Offer the lagged postseason signal to the role-shaped submodels.

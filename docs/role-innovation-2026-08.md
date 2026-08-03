@@ -310,3 +310,65 @@ worsens, z +3.43 → +5.29. The change itself is not material at that level —
 already bad and remains so. Target is miscalibrated in both directions at once,
 which is a distributional shape problem rather than a width one, and narrowing
 the body cannot fix a thin tail.
+
+---
+
+# The skill-stream "miscalibration" was the diagnostic, not the model (2026-08-03)
+
+The section above reported carry at z=−7.99 and target miscalibrated in both
+directions, and called them the largest known calibration defect in the
+pipeline. That was wrong, and wrong the same way the 2024 fold was: a statistic
+applied to data it does not fit.
+
+Interval coverage assumes a continuous outcome. Carries and targets are counts
+with a large atom at zero — **49.6% of carry rows and 27.9% of target rows have
+none**, which is 89% of tight ends and 62% of receivers for carries. Any
+interval containing zero covers every one of those rows. The population rate
+therefore cannot reach nominal no matter what the model does, and the excess
+reads as over-wide intervals.
+
+Split by the atom, on the 2024 holdout:
+
+| stream | rows | cov80 | cov95 |
+|---|---|---:|---:|
+| carry | all 569 | 0.905 | 0.970 |
+| carry | truth = 0 (282) | **1.000** | **1.000** |
+| carry | **truth > 0 (287)** | **0.812** | **0.941** |
+| target | all 569 | 0.863 | 0.954 |
+| target | truth = 0 (159) | 0.962 | 0.975 |
+| target | **truth > 0 (410)** | **0.824** | **0.946** |
+
+On the rows that actually have carries or targets — the only rows a projection
+is about — both streams sit within about two points of nominal at both levels.
+The zero rows are covered with probability 1.000 by construction. There is no
+width defect to find.
+
+The variance decomposition that preceded this reached the same conclusion from
+the other direction. Ablating each noise source on one fitted posterior:
+
+| ablation | cov80 | mean 80% width |
+|---|---:|---:|
+| full model | 0.905 | 2.878 |
+| no role innovation | 0.902 | 2.805 |
+| no multinomial allocation noise | 0.898 | 2.860 |
+| no any-carry hurdle | 0.877 | 2.596 |
+| neither multinomial nor innovation | 0.898 | 2.786 |
+
+Removing *every* stochastic component still leaves coverage near 0.90. Nothing
+in the model produces that number, because the model is not what produces it.
+
+`scripts/coverage_calibration.py` now warns on any stream with an atom at zero,
+and the non-zero split is recorded in
+`scripts/validation_runs/zero_atom_coverage.json`.
+
+## What this leaves
+
+The two "open findings" this document raised against the skill streams are
+withdrawn. The estimator's internal 2.0 clip is also moot in practice: with the
+innovation cap promoted at 0.25, `min(measured, cap)` is 0.25 whether the
+measurement saturates at 2.0 or not, so the clip can only matter if the cap is
+removed.
+
+That is three of three closed as measurement artifacts rather than defects,
+which is worth stating plainly given how confidently the opposite was written
+here a few hours earlier.

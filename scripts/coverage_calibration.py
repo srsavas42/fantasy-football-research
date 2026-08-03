@@ -15,6 +15,21 @@ sample is large enough for the answer to be stable. Reading the calibration
 work of 2026-08-03 that way: pooled 95% misses went from 45 to 13 against 12.7
 expected, and the fold that looked like over-widening was one draw from a
 distribution centred exactly where it should be.
+
+**Do not read a stream with an atom at zero from this report alone.** Interval
+coverage assumes a continuous outcome. Carries and targets are counts with a
+large point mass at zero — half of carry rows and a quarter of target rows —
+and any interval containing zero covers every one of them. The rate cannot
+reach its nominal level no matter what the model does, and it reads as badly
+over-wide: carry came out at z=-7.99 here, which was reported as the largest
+calibration defect in the pipeline. Split by the atom, the rows that actually
+have carries cover 0.812 at the 80% level and 0.941 at 95%, which is close to
+exact. The defect was in the diagnostic.
+
+``--nonzero-note`` is on by default and prints that warning for any stream whose
+name is in ``ZERO_INFLATED``. The split itself needs per-row predictions, so it
+lives in the walk-forward rather than here; see
+``scripts/validation_runs/zero_atom_coverage.json``.
 """
 
 from __future__ import annotations
@@ -30,6 +45,10 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ffmodel.evaluation.acceptance import COVERAGE_NOMINAL
+
+# Streams whose outcome has a point mass at zero, where a population coverage
+# rate is not interpretable on its own.
+ZERO_INFLATED = frozenset({"carry", "target", "snap", "pass_qb"})
 
 
 def _binomial_interval(n: int, p: float, level: float = 0.95) -> tuple[int, int]:
@@ -70,6 +89,12 @@ def _binomial_interval(n: int, p: float, level: float = 0.95) -> tuple[int, int]
 
 def report(run: dict, stream: str) -> str:
     lines: list[str] = []
+    if stream in ZERO_INFLATED:
+        lines.append(
+            f"  [!] {stream} has an atom at zero; rows whose outcome is zero are"
+            " covered by any interval containing it, so the rate below understates"
+            " nothing and overstates width. Read the non-zero split alongside it."
+        )
     folds = sorted(f for f in run if isinstance(run[f], dict) and stream in run[f])
     if not folds:
         return f"{stream}: not present in this run"

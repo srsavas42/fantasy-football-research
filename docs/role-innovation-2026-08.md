@@ -100,3 +100,74 @@ its own walk-forward rather than being folded into a branch that has already
 been validated. The mean-preserving correction should be re-tested on top of it
 rather than separately: the two interact, and the evidence above is that
 correcting the mean while the scale is wrong makes the distribution worse.
+
+---
+
+# The scale fix, measured (2026-08-03)
+
+`calibrated_innovation` inverts the map: it bisects on the rooms the model was
+actually fitted over to find the input scale whose *realized* log-share spread
+equals what the estimator measured.
+
+On real data the problem is narrower than the toy rooms above suggested, because
+room size drives everything and only one room is small:
+
+| layer | mean room | measured | realized | |
+|---|---:|---:|---:|---|
+| QB workload | **2.37** | 1.2437 | 0.9465 | **76%** |
+| target | 19.1 | — | — | 97% |
+| carry | 22.9 | — | — | 98% |
+
+Calibration raises the quarterback input scale to 1.6361 (1.32×), which realizes
+1.2440. Target and carry barely move and are capped anyway.
+
+## Three configurations, against the promoted baseline
+
+| config | wl cov80 | wl cov95 | wl MAE | wl CRPS | qb MAE | qb CRPS |
+|---|---:|---:|---:|---:|---:|---:|
+| mean-preserving only | −5.94pp | −7.50pp | −0.65% | +5.42% | +0.37% | +4.30% |
+| **calibrated only** | **−9.23pp** | **−9.32pp** | +1.02% | **+0.60%** | +0.91% | **+0.27%** |
+| calibrated + mean-preserving | −6.33pp | −8.93pp | −0.65% | +7.29% | +0.36% | +5.47% |
+
+Per fold, quarterback workload coverage under calibration:
+
+| fold | cov80 (nominal 0.80) | cov95 (nominal 0.95) |
+|---|---|---|
+| 2022 | 0.647 → 0.824 | 0.788 → 0.906 |
+| 2023 | 0.619 → 0.774 | 0.810 → 0.940 |
+| 2024 | 0.726 → 0.881 | 0.869 → **1.000** |
+
+A layer that ran six to eighteen points under nominal now sits within a few
+points of it. It is not uniformly better: 2024 reaches 1.000 at 95%, so on that
+fold the intervals cover every observation and the correction over-widens rather
+than merely repairing.
+
+## A correction to what this document previously claimed
+
+It recorded that the mean-preserving correction failed *because* the scale was
+wrong, and that the two "interact, and the evidence is that correcting the mean
+while the scale is wrong makes the distribution worse" — implying it would fare
+better once the scale was fixed.
+
+It does not. On top of calibration its CRPS cost is **larger**, not smaller:
++7.29% against +5.42% on workload share, +5.47% against +4.30% on pass
+attempts. The cost is intrinsic to the correction rather than a consequence of
+the scale.
+
+What the pairing does show is the other half of the mechanism. Calibration
+raises the input scale, which enlarges the softmax renormalization bias, which
+is why calibration alone costs about 1% of point accuracy. Mean preservation
+removes exactly that — workload MAE goes +1.02% → −0.65%, pass MAE +0.91% →
++0.36% — and charges 5 to 7% of CRPS for it. That trade is not worth taking.
+
+## Status
+
+Neither promotes under the current gate. `calibrated_innovation` fails only on
+the protected-stream allowance: pass-attempt MAE +0.91% and workload MAE +1.02%
+against 0.5%, with workload CRPS +0.60% just over. Everything else it touches is
+unchanged or better, and it buys nine coverage points on the layer with the
+pipeline's worst calibration.
+
+That is a policy question rather than a measurement one — how much point
+accuracy on the quarterback streams is nine points of coverage worth — so both
+flags stay off pending that call.

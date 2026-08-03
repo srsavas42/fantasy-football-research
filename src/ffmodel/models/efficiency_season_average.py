@@ -10,7 +10,7 @@ draws rather than treating a point estimate as certain.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 from pathlib import Path
 from time import perf_counter
@@ -233,6 +233,19 @@ EFFICIENCY_MODEL_SPECS = (
 )
 
 EFFICIENCY_MODEL_BY_TARGET = {spec.target: spec for spec in EFFICIENCY_MODEL_SPECS}
+
+# Each response draws from its own seed, offset from the caller's. Deriving that
+# offset from the response's position in ``self.models`` made it depend on
+# insertion order, and insertion order is not stable across a save/load round
+# trip: ``fit`` inserts in spec order while ``load`` reads a JSON object written
+# with ``sort_keys=True`` and inserts alphabetically. A reloaded artifact
+# therefore handed every response a different seed and produced a different
+# realization from the pipeline it was saved from — 302 PPR points at the
+# maximum, distributionally identical and reproducibly wrong. Key the offset to
+# the response itself instead, which no ordering can disturb.
+EFFICIENCY_SEED_OFFSET = {
+    spec.target: index for index, spec in enumerate(EFFICIENCY_MODEL_SPECS)
+}
 
 BASE_EFFICIENCY_FEATURES = (
     "prior_availability",
@@ -1057,6 +1070,31 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     use_volume: bool = True
     use_advanced: bool = True
     ridge_alpha: float = 500.0
+    # Each response is fitted only on rows clearing its ``min_exposure`` but is
+    # then scored on every row, and the gap is large: on the nflverse frame 57%
+    # of quarterback rows, 58% of receiving rows and 82% of rushing rows fall
+    # below their floor. So the fitted mean describes high-usage players and is
+    # extrapolated onto everyone else. Both likelihoods already downweight a
+    # thin row correctly — a Beta-Binomial with n=3 carries almost no
+    # information, and the Student-t scale grows as sqrt(1/n) — so the hard
+    # floor is doing by exclusion what the likelihood does by weighting, and it
+    # buys that at the cost of selecting on usage. Lowering this admits the
+    # excluded population; ``None`` keeps each spec's own floor.
+    #
+    # Promoted 2026-08-02 at 5, chosen on an inner fold rather than on the
+    # holdouts it is scored against — see scripts/select_exposure_floor.py. The
+    # nested procedure improves efficiency MAE on all three outer holdouts
+    # (-0.437%, -0.373%, -0.314%; pooled -0.374% +/- 0.036%) and CRPS by
+    # 0.68-1.04%. On total fantasy points it is worth 0.31-0.40% MAE across all
+    # three scoring systems, with every coverage move inside half a point.
+    #
+    # The inner folds picked 5, 5 and 10. On the 2022 inner fold 5 and 10 differ
+    # by 0.001 percentage points, so the choice between them is noise; what is
+    # consistent across all three is that lowering the floor beats each spec's
+    # own. 5 is the majority pick and is within 0.18pp of the per-fold argmin
+    # everywhere. Taking the per-fold winner instead would be fitting the noise
+    # this procedure exists to avoid.
+    exposure_floor: int | None = 5
     models: dict[str, PosteriorSeasonEfficiencyModel] = field(default_factory=dict)
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
@@ -1081,6 +1119,10 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         for index, spec in enumerate(EFFICIENCY_MODEL_SPECS):
             if spec.target not in selected:
                 continue
+            if self.exposure_floor is not None:
+                spec = replace(
+                    spec, min_exposure=min(spec.min_exposure, int(self.exposure_floor))
+                )
             model = PosteriorSeasonEfficiencyModel(
                 spec,
                 use_volume=self.use_volume,
@@ -1122,7 +1164,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         rates: dict[str, np.ndarray] = {}
         exposure_samples = exposure_samples or {}
         volume_feature_samples = volume_feature_samples or {}
-        for index, (target, model) in enumerate(self.models.items()):
+        for target, model in self.models.items():
             exposure = exposure_samples.get(
                 target, exposure_samples.get(model.spec.exposure)
             )
@@ -1132,7 +1174,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 draws=draws,
                 exposure_samples=exposure,
                 volume_feature_samples=volume_features,
-                seed=seed + index,
+                seed=seed + EFFICIENCY_SEED_OFFSET[target],
             )
             means[target] = prediction.mean
             rates[target] = prediction.rate
@@ -1270,6 +1312,12 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             "use_volume": self.use_volume,
             "use_advanced": self.use_advanced,
             "ridge_alpha": self.ridge_alpha,
+            # Records which rows the responses were fitted on. It has no effect
+            # at prediction time, which is exactly why it has to be written
+            # down: without it a reloaded pipeline reports whatever the current
+            # default happens to be, and a refit from that configuration would
+            # silently train on a different sample.
+            "exposure_floor": self.exposure_floor,
             "fit_seconds": self.fit_seconds,
             "models": {},
         }
@@ -1289,12 +1337,24 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             use_volume=bool(metadata["use_volume"]),
             use_advanced=bool(metadata["use_advanced"]),
             ridge_alpha=float(metadata.get("ridge_alpha", 500.0)),
+            exposure_floor=(
+                None
+                if metadata.get("exposure_floor") is None
+                else int(metadata["exposure_floor"])
+            ),
             fit_seconds={
                 key: float(value)
                 for key, value in metadata.get("fit_seconds", {}).items()
             },
         )
-        for target, state in metadata["models"].items():
+        # Restore in spec order rather than the alphabetical order the metadata
+        # is written in, so a reloaded pipeline iterates exactly as a fitted one
+        # does. The per-response seed no longer depends on this, but anything
+        # else that walks ``self.models`` still gets the same order either way.
+        saved = metadata["models"]
+        ordered = sorted(saved, key=lambda t: EFFICIENCY_SEED_OFFSET.get(t, len(saved)))
+        for target in ordered:
+            state = saved[target]
             if target not in EFFICIENCY_MODEL_BY_TARGET:
                 raise ValueError(f"saved efficiency target is unsupported: {target}")
             model = PosteriorSeasonEfficiencyModel(

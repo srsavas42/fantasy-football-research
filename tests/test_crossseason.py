@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from ffmodel.features import crossseason as cs
 
@@ -65,3 +66,43 @@ def test_shares_within_unit_interval():
     t = cs.build_transitions([2018, 2019, 2020], source="legacy")
     for col in ("target_share", "carry_share", "next_target_share", "next_carry_share"):
         assert (t[col] >= -1e-9).all() and (t[col] <= 1 + 1e-9).all()
+
+
+def test_a_player_who_stayed_but_never_played_is_not_counted_as_vacated():
+    """Usage is built from stat rows, so "hurt all year" looks like "left".
+
+    That overcount is not neutral: it inflates vacated opportunity with exactly
+    the injury events the model exists to predict. Roster membership separates
+    the two.
+    """
+    usage = pd.DataFrame(
+        [
+            {"season": 2019, "team": "KC", "key": "star|WR",
+             "target_share": 0.30, "carry_share": 0.0},
+            {"season": 2019, "team": "KC", "key": "gone|WR",
+             "target_share": 0.20, "carry_share": 0.0},
+            # 2020: only one of them records a stat line.
+            {"season": 2020, "team": "KC", "key": "other|WR",
+             "target_share": 0.50, "carry_share": 0.0},
+        ]
+    )
+
+    # Without roster information both look departed: 0.30 + 0.20.
+    blind = cs.vacated_opportunity(usage, 2019)
+    assert blind.loc[0, "vacated_target_share"] == pytest.approx(0.50)
+
+    # The star was on the 2020 roster and simply did not play.
+    roster = pd.DataFrame([{"season": 2020, "team": "KC", "key": "star|WR"}])
+    informed = cs.vacated_opportunity(usage, 2019, roster)
+    assert informed.loc[0, "vacated_target_share"] == pytest.approx(0.20)
+
+
+def test_an_empty_current_season_returns_empty_rather_than_raising():
+    # The row-wise membership test this replaced raised KeyError here, because
+    # DataFrame.apply over zero rows returns a frame, not a boolean Series.
+    usage = pd.DataFrame(
+        [{"season": 2020, "team": "KC", "key": "a|WR",
+          "target_share": 0.2, "carry_share": 0.0}]
+    )
+
+    assert cs.vacated_opportunity(usage, 2019).empty

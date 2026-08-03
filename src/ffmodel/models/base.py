@@ -1,7 +1,7 @@
 """Shared PyMC plumbing: sampling defaults, diagnostics, and persistence.
 
 Every model in this package fits through `sample_model` (uniform defaults and
-seeding), checks convergence with `convergence_summary` (R-hat / ESS via arviz),
+seeding), checks convergence with `sampling_quality` (R-hat / ESS / divergences),
 and serializes its posterior with `save_idata` / `load_idata`. PyMC and arviz
 are imported lazily so the data/feature layers stay importable without them.
 """
@@ -9,6 +9,7 @@ are imported lazily so the data/feature layers stay importable without them.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -30,26 +31,100 @@ def logit(p: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     return np.log(p / (1 - p))
 
 
+def simplex_shares(eta: np.ndarray, live: np.ndarray) -> np.ndarray:
+    """Softmax over axis 1, restricted to the entries ``live`` marks as supported.
+
+    ``eta`` is (group, player, draw) and ``live`` is a boolean array of the same
+    shape. Unsupported entries get exactly zero rather than a small positive
+    share, and a group-draw with nobody supported gets zeros instead of a NaN.
+    """
+    high = np.max(np.where(live, eta, -np.inf), axis=1, keepdims=True)
+    high = np.where(np.isfinite(high), high, 0.0)
+    weight = np.where(live, np.exp(eta - high), 0.0)
+    total = weight.sum(axis=1, keepdims=True)
+    return np.divide(weight, total, out=np.zeros_like(weight), where=total > 0)
+
+
+def mean_preserving_shares(
+    baseline: np.ndarray,
+    perturbed: np.ndarray,
+    live: np.ndarray,
+    *,
+    iterations: int = 4,
+) -> np.ndarray:
+    """Perturbed roster shares whose draw-average matches the baseline allocation.
+
+    The role models add Gaussian innovation to a log-odds vector and then take a
+    softmax, which is how season-to-season role churn enters the projection. The
+    softmax is not linear, so that noise does not merely spread the shares out —
+    it moves their mean. Renormalization takes the surplus from whoever holds the
+    most probability mass and hands it to everyone else, so the more concentrated
+    the room, the more the leader loses. A quarterback room where the starter
+    holds 0.90 gives up 0.0267 of share at the default innovation scale, about
+    nine tenths of an attempt per game, and it does so with no model term
+    claiming that is true.
+
+    Fix it by solving for a per-player offset, constant across draws, that puts
+    the draw-average back where the noiseless allocation had it. The update is
+    the usual proportional-fitting step in log space: add the log ratio of the
+    target share to the realized one, then recenter within the group, which the
+    softmax is invariant to. Four passes bring the residual well inside Monte
+    Carlo error for rooms of the size this pipeline allocates over.
+
+    The baseline is the noiseless allocation *including* every other per-draw
+    effect — availability, the carry hurdle, the quarterback gate. Those are
+    estimated components and are supposed to move the mean; the innovation is a
+    dispersion device and is not.
+    """
+    target = simplex_shares(baseline, live).mean(axis=2)
+    offset = np.zeros(baseline.shape[:2], dtype=float)
+    tiny = np.finfo(float).tiny
+    for _ in range(iterations):
+        realized = simplex_shares(perturbed + offset[..., None], live).mean(axis=2)
+        step = np.log(np.maximum(target, tiny)) - np.log(np.maximum(realized, tiny))
+        offset = offset + np.where((target > 0) & (realized > 0), step, 0.0)
+        offset = np.clip(offset - offset.mean(axis=1, keepdims=True), -10.0, 10.0)
+    return simplex_shares(perturbed + offset[..., None], live)
+
+
+def default_sampling_cores(chains: int) -> int:
+    """Worker processes to use for ``chains``, from the environment.
+
+    ``FFMODEL_SAMPLING_CORES`` pins this explicitly; ``1`` restores fully serial
+    sampling, which is what this package did unconditionally before and is worth
+    keeping reachable for debugging and for machines where forking the sampler is
+    unreliable. Otherwise chains run in parallel up to the number of CPUs.
+
+    Chains are independent given their seeds, so this changes wall-clock only —
+    ``pm.sample`` derives a per-chain seed from ``random_seed`` the same way at
+    any core count.
+    """
+    requested = os.environ.get("FFMODEL_SAMPLING_CORES")
+    if requested:
+        try:
+            pinned = int(requested)
+        except ValueError as exc:
+            raise ValueError(
+                f"FFMODEL_SAMPLING_CORES must be an integer, got {requested!r}"
+            ) from exc
+        if pinned < 1:
+            raise ValueError("FFMODEL_SAMPLING_CORES must be at least 1")
+        return min(pinned, chains)
+    return max(1, min(chains, os.cpu_count() or 1))
+
+
 def sample_model(model, draws: int = 1000, tune: int = 1000, chains: int = 4,
-                 seed: int = 42, **kwargs):
+                 seed: int = 42, cores: int | None = None, **kwargs):
     """Sample a PyMC model with project defaults; returns an InferenceData."""
     import pymc as pm
 
     with model:
         return pm.sample(
-            draws=draws, tune=tune, chains=chains, cores=1,
+            draws=draws, tune=tune, chains=chains,
+            cores=default_sampling_cores(chains) if cores is None else cores,
             random_seed=seed, progressbar=False,
             target_accept=kwargs.pop("target_accept", 0.9), **kwargs,
         )
-
-
-def convergence_summary(idata, var_names=None):
-    """Return an arviz summary and a boolean 'converged' (all R-hat < 1.01)."""
-    import arviz as az
-
-    summ = az.summary(idata, var_names=var_names)
-    converged = bool((summ["r_hat"] < 1.01).all())
-    return summ, converged
 
 
 def sampling_quality(

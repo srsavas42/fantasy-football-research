@@ -297,6 +297,23 @@ def apply_efficiency_copulas(
     )
 
 
+def _event_yards(
+    exposure: np.ndarray, rate: np.ndarray, realized_events: np.ndarray
+) -> np.ndarray:
+    """Season yards from a per-opportunity rate and the exposure it was fit on.
+
+    ``realized_events`` gates the physical constraint that yardage requires a
+    completed event: a draw with no completions cannot produce passing yards,
+    and one with no receptions cannot produce receiving yards. It does not scale
+    the total, because the rate is already defined per *opportunity* — scaling
+    by the event count as well would double-count randomness the rate's own
+    exposure term already carries.
+    """
+    yards = np.asarray(exposure, dtype=float) * np.asarray(rate, dtype=float)
+    yards = np.where(np.asarray(realized_events) > 0, yards, 0.0)
+    return np.rint(np.clip(yards, 0.0, None)).astype(int)
+
+
 def _conditional_probability(probability: np.ndarray, used: np.ndarray) -> np.ndarray:
     remaining = np.clip(1.0 - used, 0.0, 1.0)
     return np.divide(
@@ -440,11 +457,18 @@ def simulate_season_scoring(
         rng=rng,
     )
     pass_cmp = pass_td + non_td_completions
-    pass_yards_per_completion = np.divide(
-        rate("pass_yards_per_attempt"),
-        np.clip(completion_probability, 0.05, None),
-    ).clip(0.0, 40.0)
-    pass_yds = np.rint(pass_cmp * pass_yards_per_completion).astype(int)
+    # Yards follow the exposure their rate was fitted against. "Yards per
+    # attempt" times attempts is what the response means, and the rate draw
+    # already carries per-opportunity noise through its
+    # sqrt(season_sigma^2 + opportunity_sigma^2 / exposure) scale, so the season
+    # variance is already right. Rescaling by a clipped completion probability
+    # and multiplying by the completion count instead left the mean intact but
+    # added a second, unmodelled noise source worth about 120 yards of standard
+    # deviation per draw — and it did so only here and in receiving, while
+    # rushing used the matched form, so the three pathways disagreed. The clips
+    # it needed (0.05 on the denominator, 40.0 on the ratio) also bit precisely
+    # on the low-completion draws that make up the lower tail.
+    pass_yds = _event_yards(pass_attempts, rate("pass_yards_per_attempt"), pass_cmp)
 
     catch_probability = np.clip(rate("rec_catch_rate"), 0.0, 1.0)
     rec_td_probability = np.minimum(
@@ -459,15 +483,11 @@ def simulate_season_scoring(
         rng=rng,
     )
     receptions = rec_td + non_td_receptions
-    rec_yards_per_reception = np.divide(
-        rate("rec_yards_per_target"),
-        np.clip(catch_probability, 0.03, None),
-    ).clip(0.0, 40.0)
-    rec_yds = np.rint(receptions * rec_yards_per_reception).astype(int)
+    rec_yds = _event_yards(targets, rate("rec_yards_per_target"), receptions)
 
     rush_td_probability = np.clip(rate("rush_td_rate"), 0.0, 1.0)
     rush_td = rng.binomial(carries, rush_td_probability)
-    rush_yds = np.rint(carries * rate("rush_yards_per_carry")).astype(int)
+    rush_yds = _event_yards(carries, rate("rush_yards_per_carry"), carries)
 
     fumble_opportunities = pass_attempts + targets + carries
     fumbles_lost = rng.binomial(

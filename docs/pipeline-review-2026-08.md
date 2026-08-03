@@ -11,14 +11,31 @@ roster_mode="inferred")` build on this checkout; the fast test suite passes
 
 | Finding | State |
 |---|---|
-| S1 cold-start role prior | **fixed**; severity corrected downward on nflverse (see below) |
-| S2 QB workload hurdle | **fixed**; improves QB CRPS, enables the coupling below |
 | S0 team-level snap flag read per player | **fixed**; provable no-op on nflverse, unblocks legacy |
-| S6 leaky/non-running validation default | **fixed**; `--source` now defaults to `auto`, inputs checked up front |
-| QB gate / availability incoherence | **candidate implemented**, off by default; misses one fold-win at full budget — decision pending |
-| team-model R-hat 1.0177 | **new open item**, pre-existing and unwatched by the current gate |
-| postseason in the late-season role signal | **assessed**, recommended shape written up |
-| everything else | open |
+| S1 cold-start role prior | **fixed**; severity corrected downward on nflverse (see below) |
+| S2 QB workload hurdle | **fixed**; improves QB CRPS, enabled the coupling |
+| S3 ridge log-share floor | **fixed**; Laplace smoothing replaces the hard floor |
+| S4 efficiency train/serve covariate gap | **implemented**, measured, declined on cost — the matched estimator improves nothing materially at ~40x the fit time |
+| S5 exposure-selected efficiency sample | **selection moved to an inner fold** (`scripts/select_exposure_floor.py`); floor 5 chosen on 2/3 folds so far |
+| S6 leaky/non-running validation default | **fixed**; `--source` defaults to `auto`, inputs checked up front |
+| S7 vacated opportunity counts injured returnees | **fixed**; roster membership consulted directly |
+| S8 yardage rescaled by a clipped event probability | **fixed**; all three streams share `_event_yards` |
+| S9 dispersion knobs swept on the holdout | **fixed for the exposure floor**; the general rule is now enforced by the gate |
+| QB gate / availability incoherence | **promoted** 2026-08-02 |
+| team-model R-hat 1.0177 | **resolved**; 1.0107 residual proved to be R-hat's own MC noise, and it is now a standing `watch` in the gate |
+| postseason in the late-season role signal | **promoted** for the skill positions |
+| **role innovation reallocates the room** *(new)* | **corrected, rejected by the gate, flag off** — see [role-innovation](role-innovation-2026-08.md) |
+| **role innovation scale applied on the wrong side of the softmax** *(new)* | **open**; the pipeline realizes 70-93% of the churn it measured. Cause of the quarterback undercoverage |
+| **saved pipeline did not reproduce its own numbers** *(new)* | **fixed**; per-response seeds keyed to insertion order |
+| C1-C5 | **fixed** |
+| C6 `_estimate_role_innovation` support mismatch | **open**; belongs with the innovation-scale fix, same function |
+| C7 suite fails on a clean checkout | **fixed** |
+| C8 dead helpers | **fixed** (`squeeze_unit` was not dead) |
+| C9 projection-parity gap | **open**, still pinned by a strict xfail |
+| E1 serial sampling | **fixed**; `FFMODEL_SAMPLING_CORES` |
+| E2 row-wise `apply` in hot paths | **fixed** |
+| E3 `_normalize_teams` per row | **fixed**; ~2x, identical output |
+| E4, E5 loop vectorization | **open**; both shift RNG realizations, so they want their own revalidation |
 
 All of the above are now measured end to end against unmodified main on the
 volume-v3 walk-forward: see

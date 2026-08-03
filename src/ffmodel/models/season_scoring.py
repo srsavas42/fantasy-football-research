@@ -40,6 +40,8 @@ class SeasonAverageScoringPipeline:
     # ``add_walk_forward_volume_features``.
     volume_feature_estimator: str = "ridge"
     volume_feature_sample_kwargs: dict[str, object] | None = None
+    # Passed through to the efficiency pipeline; see its ``exposure_floor``.
+    efficiency_exposure_floor: int | None = None
 
     def fit_efficiency(
         self,
@@ -54,6 +56,8 @@ class SeasonAverageScoringPipeline:
             estimator=self.volume_feature_estimator,
             sample_kwargs=self.volume_feature_sample_kwargs,
         )
+        if self.efficiency_exposure_floor is not None:
+            self.efficiency_model.exposure_floor = self.efficiency_exposure_floor
         self.efficiency_model.fit(rows, **sample_kwargs)
         missing = set(REQUIRED_EFFICIENCY_TARGETS) - set(self.efficiency_model.models)
         if missing:
@@ -100,6 +104,10 @@ class SeasonAverageScoringPipeline:
                     "volume_feature_alpha": self.volume_feature_alpha,
                     "draw_conditioned_efficiency": self.draw_conditioned_efficiency,
                     "volume_feature_estimator": self.volume_feature_estimator,
+                    # Without this a reloaded pipeline silently reverts to each
+                    # response's own floor, which changes what the efficiency
+                    # layer was fitted on and raises nothing.
+                    "efficiency_exposure_floor": self.efficiency_exposure_floor,
                 },
                 indent=2,
                 sort_keys=True,
@@ -123,5 +131,10 @@ class SeasonAverageScoringPipeline:
             ),
             volume_feature_estimator=str(
                 metadata.get("volume_feature_estimator", "ridge")
+            ),
+            efficiency_exposure_floor=(
+                None
+                if metadata.get("efficiency_exposure_floor") is None
+                else int(metadata["efficiency_exposure_floor"])
             ),
         )

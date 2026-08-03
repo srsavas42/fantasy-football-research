@@ -1,0 +1,130 @@
+{
+  "configuration": {
+    "couple_gate_to_availability": true,
+    "efficiency_exposure_floor": 5,
+    "efficiency_exposure_floor_override": null,
+    "mean_preserving_innovation": false,
+    "postseason_role_features": true,
+    "volume_feature_estimator": "ridge"
+  },
+  "diagnostics": {
+    "availability": {
+      "divergences": 0,
+      "max_rhat": 1.0019981316683386,
+      "min_bulk_ess": 4880.820517788682
+    },
+    "carry": {
+      "divergences": 0,
+      "max_rhat": 1.0015086663755273,
+      "min_bulk_ess": 5398.07571171814
+    },
+    "carry_eligibility": {
+      "divergences": 0,
+      "max_rhat": 1.0016436603497483,
+      "min_bulk_ess": 3642.9555027360434
+    },
+    "efficiency::fumble_lost_rate": {
+      "divergences": 0,
+      "max_rhat": 1.0003545267806964,
+      "min_bulk_ess": 2682.952376764846
+    },
+    "efficiency::pass_completion_rate": {
+      "divergences": 0,
+      "max_rhat": 1.000238598170849,
+      "min_bulk_ess": 2776.5356242381617
+    },
+    "efficiency::pass_int_rate": {
+      "divergences": 0,
+      "max_rhat": 1.0015511576373295,
+      "min_bulk_ess": 2835.4524169375923
+    },
+    "efficiency::pass_td_rate": {
+      "divergences": 0,
+      "max_rhat": 1.000597305395585,
+      "min_bulk_ess": 2952.6532713258703
+    },
+    "efficiency::pass_yards_per_attempt": {
+      "divergences": 0,
+      "max_rhat": 1.0011515126750987,
+      "min_bulk_ess": 2354.777392963077
+    },
+    "efficiency::rec_catch_rate": {
+      "divergences": 0,
+      "max_rhat": 1.000526109294259,
+      "min_bulk_ess": 2900.030400487128
+    },
+    "efficiency::rec_td_rate": {
+      "divergences": 0,
+      "max_rhat": 1.0013636411511524,
+      "min_bulk_ess": 2680.173099371359
+    },
+    "efficiency::rec_yards_per_target": {
+      "divergences": 0,
+      "max_rhat": 1.0016603473559067,
+      "min_bulk_ess": 1604.8444564386587
+    },
+    "efficiency::rush_td_rate": {
+      "divergences": 0,
+      "max_rhat": 1.0006754830179845,
+      "min_bulk_ess": 2824.748843782927
+    },
+    "efficiency::rush_yards_per_carry": {
+      "divergences": 0,
+      "max_rhat": 1.0028643674579982,
+      "min_bulk_ess": 1597.736424734668
+    },
+    "qb_propensity": {
+      "divergences": 0,
+      "max_rhat": 1.001789397146254,
+      "min_bulk_ess": 13361.144785002816
+    },
+    "snap": {
+      "divergences": 0,
+      "max_rhat": 1.0013930791003043,
+      "min_bulk_ess": 3699.204099998335
+    },
+    "target": {
+      "divergences": 0,
+      "max_rhat": 1.0014887457700266,
+      "min_bulk_ess": 6065.650601116966
+    },
+    "team": {
+      "divergences": 0,
+      "max_rhat": 1.0050621312814616,
+      "min_bulk_ess": 2341.53935495876
+    },
+    "workload": {
+      "divergences": 0,
+      "max_rhat": 1.0009867246332054,
+      "min_bulk_ess": 4272.195810296953
+    }
+  },
+  "fit_seconds": 1928.6528639300013,
+  "rejected": false,
+  "round_trip": {
+    "identical": true,
+    "max_abs_ppr_difference": 0.0,
+    "rows": 697,
+    "season": 2024
+  },
+  "sample_kwargs": {
+    "chains": 4,
+    "draws": 2000,
+    "seed": 42,
+    "tune": 2000
+  },
+  "seasons": [
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "servable": true,
+  "unhealthy": []
+}

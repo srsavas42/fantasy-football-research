@@ -219,25 +219,75 @@ def _raw_yearly_age(seasons) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def vacated_opportunity(usage: pd.DataFrame, from_season: int) -> pd.DataFrame:
+def vacated_opportunity(
+    usage: pd.DataFrame, from_season: int, roster: pd.DataFrame | None = None
+) -> pd.DataFrame:
     """Share vacated on each team entering `from_season + 1`.
 
     For each team, sums the season-`from_season` target/carry shares of players
     who are NOT on that team in `from_season + 1` (departed). Keyed by team with
     `next_season = from_season + 1`.
+
+    ``usage`` is built from player-week *stat* rows, so a player who is still
+    under contract but records nothing the following season — hurt all year,
+    inactive, buried — looks identical to one who left. Counting them as vacated
+    inflates the signal with exactly the injury events the model is trying to
+    predict. Pass ``roster`` (season, team, key) to distinguish the two: presence
+    on next season's roster keeps a player's share off the vacated total even
+    when they never touched the ball. Without it the old behaviour stands,
+    because a stat-only source genuinely cannot tell the difference.
     """
     y, yp1 = from_season, from_season + 1
     cur = usage[usage["season"] == y]
+    columns = ["team", "vacated_target_share", "vacated_carry_share", "next_season"]
+    if cur.empty:
+        return pd.DataFrame(columns=columns)
     nxt = usage[usage["season"] == yp1]
-    present_next = set(zip(nxt["key"], nxt["team"]))
+    retained = set(zip(nxt["key"], nxt["team"]))
+    if roster is not None and not roster.empty:
+        rostered = roster[pd.to_numeric(roster["season"], errors="coerce") == yp1]
+        retained |= set(zip(rostered["key"], rostered["team"]))
 
-    departed = cur[~cur.apply(lambda r: (r["key"], r["team"]) in present_next, axis=1)]
+    # Vectorised membership: the row-wise apply this replaced also raised
+    # KeyError on an empty current season, because apply over no rows returns a
+    # frame rather than a boolean Series.
+    present = pd.MultiIndex.from_arrays([cur["key"], cur["team"]]).isin(retained)
+    departed = cur[~present]
+    if departed.empty:
+        return pd.DataFrame(columns=columns)
     vac = departed.groupby("team").agg(
         vacated_target_share=("target_share", "sum"),
         vacated_carry_share=("carry_share", "sum"),
     ).reset_index()
     vac["next_season"] = yp1
     return vac
+
+
+def _safe_roster_membership(seasons, source) -> pd.DataFrame | None:
+    """(season, team, key) rows for who was actually under contract.
+
+    Degrades to None whenever the source cannot answer, which is the honest
+    outcome for a stat-only run: without roster membership there is no way to
+    separate "left the team" from "stayed and never played", and pretending
+    otherwise would be worse than the known overcount.
+    """
+    if source == "legacy":
+        return None
+    try:
+        from ffmodel.data import ingest
+
+        rosters = ingest.load_weekly_rosters(sorted(set(map(int, seasons))))
+        if rosters is None or rosters.empty:
+            return None
+        out = rosters.rename(
+            columns={"gsis_id": "player_id", "full_name": "player_name"}
+        ).copy()
+        if "position" not in out:
+            return None
+        out["key"] = player_key(out)
+        return out[["season", "team", "key"]].drop_duplicates()
+    except Exception:
+        return None
 
 
 def _safe_draft_capital(seasons, source):
@@ -309,16 +359,27 @@ def incoming_competition(
     return comp
 
 
-def build_transitions(seasons: Iterable[int], source: str = "auto") -> pd.DataFrame:
+def build_transitions(
+    seasons: Iterable[int],
+    source: str = "auto",
+    roster: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """One row per returning player transition (Y -> Y+1) with predictors + labels.
 
     Predictors are from season Y; labels (`next_*`) from Y+1. Only players who
     appear in both seasons (returning) are kept. Restricted to skill positions.
+
+    ``roster`` is optional (season, team, key) membership used to keep players
+    who stayed but recorded nothing off the vacated-opportunity total; see
+    :func:`vacated_opportunity`. It is loaded automatically when the source can
+    supply it.
     """
     seasons = sorted(set(seasons))
     usage = season_usage(seasons, source=source)
     usage = usage[usage["position"].isin(SKILL_POSITIONS)]
     draft_capital = _safe_draft_capital(seasons, source)
+    if roster is None:
+        roster = _safe_roster_membership(seasons, source)
 
     out = []
     for y in seasons[:-1]:
@@ -327,7 +388,7 @@ def build_transitions(seasons: Iterable[int], source: str = "auto") -> pd.DataFr
             continue
         cur = usage[usage["season"] == y].copy()
         nxt = usage[usage["season"] == yp1].copy()
-        vac = vacated_opportunity(usage, y)
+        vac = vacated_opportunity(usage, y, roster)
         comp = incoming_competition(usage, y, draft_capital)
 
         merged = cur.merge(

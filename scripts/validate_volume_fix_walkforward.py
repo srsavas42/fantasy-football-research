@@ -67,7 +67,11 @@ def main(argv=None) -> None:
             team_rows[team_rows.season == holdout].copy(),
             player_rows[player_rows.season == holdout].copy(),
         )
-        pipeline = SeasonAverageVolumePipeline()
+        pipeline = SeasonAverageVolumePipeline(
+            postseason_role_features=args.postseason,
+            mean_preserving_innovation=args.mean_preserving_innovation,
+        )
+        pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.workload_model.couple_gate_to_availability = coupling
         pipeline.fit(train, **sample_kwargs)

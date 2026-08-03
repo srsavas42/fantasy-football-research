@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -357,15 +358,29 @@ def load_injuries(seasons: Iterable[int], refresh: bool = False, cache_dir=None)
     whole batch, which would discard every season that *is* available — so a
     single unpublished year costs the caller all of its injury history. Seasons
     that cannot be served are dropped individually instead.
+
+    Dropping them quietly is the part worth guarding. The availability model
+    reads injury history as a covariate, so a season silently missing here is a
+    season fitted on a differently-informed feature with nothing in the output
+    to say so. Report what was skipped and why, once per call.
     """
     frames = []
+    skipped: dict[int, str] = {}
     for season in map(int, seasons):
         try:
             frames.append(
                 _by_season("injuries", [season], refresh=refresh, cache_dir=cache_dir)
             )
-        except (DataUnavailableError, OSError, ValueError):
-            continue
+        except (DataUnavailableError, OSError, ValueError) as exc:
+            skipped[season] = f"{type(exc).__name__}: {exc}"
+    if skipped:
+        detail = "; ".join(f"{season} ({why})" for season, why in sorted(skipped.items()))
+        warnings.warn(
+            f"injury reports unavailable for {len(skipped)} season(s): {detail}. "
+            "Availability features for those seasons fall back to their defaults.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 

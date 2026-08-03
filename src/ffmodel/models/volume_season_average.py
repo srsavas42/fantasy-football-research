@@ -31,9 +31,11 @@ from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
     load_idata,
     logit,
+    mean_preserving_shares,
     sample_model,
     sampling_quality,
     save_idata,
+    simplex_shares,
 )
 from ffmodel.models.season_availability import (
     AvailabilityPrediction,
@@ -206,7 +208,29 @@ class TeamSeasonAverageModel:
     sack_prior_center: float = -2.67
     target_prior_center: float = 2.6
     models_sacks: bool = False
+    # plays_obs is NegativeBinomial, a Poisson-Gamma mixture that already carries
+    # overdispersion. A per-row log-normal term on the same mean is a second
+    # dispersion source on one likelihood, and the two are not separately
+    # identified: the variance posterior collapses to 0.008 with r-hat 1.02 and
+    # drags the intercept's effective sample size down with it. The pass and
+    # target likelihoods are Binomial, which has no free dispersion parameter, so
+    # their transition terms are doing real work and are unconditional.
+    models_play_transition: bool = False
+    # Each stream's intercept and its 32 team effects are additively confounded:
+    # a shift shared across all teams is indistinguishable from a shift in the
+    # intercept, and ``Normal(0, small)`` identifies that only softly, through
+    # the prior. The pair mixes slowly as a result. Constraining the effects to
+    # sum to zero removes the direction entirely, which is what
+    # ``_position_effect`` already does for position effects elsewhere.
+    sum_to_zero_team_effects: bool = True
     idata: object = None
+
+    def _team_effect(self, pm, name: str, scale: float):
+        size = len(self.teams)
+        if not self.sum_to_zero_team_effects or size < 2:
+            return pm.Normal(name, 0.0, scale, shape=size)
+        raw = pm.Normal(f"{name}_raw", 0.0, scale, shape=size - 1)
+        return pm.Deterministic(name, pm.math.dot(_sum_to_zero_basis(size), raw))
 
     def _design(self, rows: pd.DataFrame, *, fit: bool = False):
         required = {
@@ -332,18 +356,20 @@ class TeamSeasonAverageModel:
             play_intercept = pm.Normal("play_intercept", play_center, 0.20)
             play_persistence = pm.Normal("play_persistence", 0.75, 0.25)
             play_era = pm.Normal("play_era", 0.0, 0.12)
-            play_team = pm.Normal("play_team", 0.0, 0.06, shape=len(self.teams))
-            play_transition_sd = pm.HalfNormal("play_transition_sd", 0.12)
-            play_transition_z = pm.Normal(
-                "play_transition_z", 0.0, 1.0, shape=len(d)
-            )
-            play_mu_pg = pm.math.exp(
+            play_team = self._team_effect(pm, "play_team", 0.06)
+            play_eta = (
                 play_intercept
                 + play_persistence * play_prior
                 + play_era * era
                 + play_team[team_idx]
-                + play_transition_z * play_transition_sd
             )
+            if self.models_play_transition:
+                play_transition_sd = pm.HalfNormal("play_transition_sd", 0.12)
+                play_transition_z = pm.Normal(
+                    "play_transition_z", 0.0, 1.0, shape=len(d)
+                )
+                play_eta = play_eta + play_transition_z * play_transition_sd
+            play_mu_pg = pm.math.exp(play_eta)
             play_alpha_pg = pm.Gamma("play_alpha_pg", alpha=3.0, beta=0.15)
             pm.NegativeBinomial(
                 "plays_obs",
@@ -355,7 +381,7 @@ class TeamSeasonAverageModel:
             pass_intercept = pm.Normal("pass_intercept", pass_center, 0.30)
             pass_persistence = pm.Normal("pass_persistence", 0.75, 0.25)
             pass_era = pm.Normal("pass_era", 0.0, 0.15)
-            pass_team = pm.Normal("pass_team", 0.0, 0.12, shape=len(self.teams))
+            pass_team = self._team_effect(pm, "pass_team", 0.12)
             pass_transition_sd = pm.HalfNormal("pass_transition_sd", 0.25)
             pass_transition_z = pm.Normal(
                 "pass_transition_z", 0.0, 1.0, shape=len(d)
@@ -380,9 +406,7 @@ class TeamSeasonAverageModel:
                 )
                 sack_persistence = pm.Normal("sack_persistence", 0.50, 0.30)
                 sack_era = pm.Normal("sack_era", 0.0, 0.15)
-                sack_team = pm.Normal(
-                    "sack_team", 0.0, 0.10, shape=len(self.teams)
-                )
+                sack_team = self._team_effect(pm, "sack_team", 0.10)
                 sack_eta = (
                     sack_intercept
                     + sack_persistence * sack_prior
@@ -399,7 +423,7 @@ class TeamSeasonAverageModel:
             target_intercept = pm.Normal("target_intercept", target_center, 0.30)
             target_persistence = pm.Normal("target_persistence", 0.65, 0.30)
             target_era = pm.Normal("target_era", 0.0, 0.15)
-            target_team = pm.Normal("target_team", 0.0, 0.10, shape=len(self.teams))
+            target_team = self._team_effect(pm, "target_team", 0.10)
             target_transition_sd = pm.HalfNormal("target_transition_sd", 0.25)
             target_transition_z = pm.Normal(
                 "target_transition_z", 0.0, 1.0, shape=len(d)
@@ -461,9 +485,10 @@ class TeamSeasonAverageModel:
         )
         play_eta = play_eta + era[:, None] * _stack(post, "play_era")[None, :]
         play_eta = play_eta + self._known_effect(post, "play_team", team_idx)
-        play_eta = play_eta + rng.normal(size=play_eta.shape) * _stack(
-            post, "play_transition_sd"
-        )[None, :]
+        if "play_transition_sd" in post:
+            play_eta = play_eta + rng.normal(size=play_eta.shape) * _stack(
+                post, "play_transition_sd"
+            )[None, :]
         pass_eta = _stack(post, "pass_intercept")[None, :]
         pass_eta = pass_eta + (
             pass_prior[:, None] * _stack(post, "pass_persistence")[None, :]
@@ -555,6 +580,9 @@ class SeasonRosterShareModel:
     cold_role_prior: dict[str, float] = field(default_factory=dict)
     availability_prior: dict[str, float] = field(default_factory=dict)
     role_innovation_scale: float = 0.75
+    # See ``mean_preserving_shares``: the softmax renormalization turns role
+    # churn into a systematic transfer away from whoever leads the room.
+    mean_preserving_innovation: bool = False
     per_snap_weight: float | None = None
     innovation_cap: float | None = None
     idata: object = None
@@ -918,7 +946,7 @@ class SeasonRosterShareModel:
         else:
             eta = eta + design["starter_offset"][..., None]
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
-        eta = np.where(design["mask"][..., None] > 0, eta, -20.0)
+        live = np.broadcast_to(design["mask"][..., None] > 0, eta.shape)
         if eligibility_samples is not None:
             eligibility_samples = np.asarray(eligibility_samples, dtype=float)
             if eligibility_samples.shape != (len(design["rows"]), draws):
@@ -932,12 +960,13 @@ class SeasonRosterShareModel:
             # supported player so the team total can still be allocated.
             none_eligible = eligibility.sum(axis=1) <= 0
             if none_eligible.any():
-                fallback = np.argmax(eta, axis=1)
+                fallback = np.argmax(np.where(live, eta, -np.inf), axis=1)
                 group_draw = np.argwhere(none_eligible)
                 eligibility[
                     group_draw[:, 0], fallback[none_eligible], group_draw[:, 1]
                 ] = 1.0
-            eta = np.where(eligibility > 0, eta, -20.0)
+            live = live & (eligibility > 0)
+        live = np.ascontiguousarray(live)
 
         rng = np.random.default_rng(seed)
         innovation_z = rng.normal(
@@ -947,13 +976,14 @@ class SeasonRosterShareModel:
                 draws,
             )
         )
-        innovation = np.einsum(
-            "gkj,gjs->gks", design["innovation_basis"], innovation_z
+        innovation = (
+            np.einsum("gkj,gjs->gks", design["innovation_basis"], innovation_z)
+            * self.role_innovation_scale
         )
-        eta = eta + innovation * self.role_innovation_scale
-        eta -= eta.max(axis=1, keepdims=True)
-        probability = np.exp(eta) * design["mask"][..., None]
-        probability /= probability.sum(axis=1, keepdims=True)
+        if self.mean_preserving_innovation:
+            probability = mean_preserving_shares(eta, eta + innovation, live)
+        else:
+            probability = simplex_shares(eta + innovation, live)
         shares = np.zeros((len(design["rows"]), draws), dtype=float)
         for group_i in range(len(design["group_keys"])):
             active = design["mask"][group_i].astype(bool)
@@ -1066,9 +1096,17 @@ class SeasonAverageVolumePipeline:
     # Upstream likelihood challenger: out-of-fold regime probabilities enter
     # role and availability regressions instead of tilting fitted shares.
     regime_likelihood_features: bool = False
-    # Lagged postseason role signal. Off until it clears the acceptance gate;
-    # see docs/postseason-history-assessment.md for the feature-level screen.
-    postseason_role_features: bool = False
+    # Lagged postseason role signal, restricted to the skill-position role
+    # models. Promoted 2026-08-02: carry MAE -2.77% and CRPS -1.47%, snap MAE
+    # -0.82% and CRPS -0.63%, all winning three holdouts of three, with the
+    # protected pass stream unchanged to five decimal places. One documented
+    # exception: target MAE moves +0.07% at 1/3, against target CRPS -0.29% at
+    # 2/3. See docs/pipeline-followups-2026-08.md and
+    # docs/postseason-history-assessment.md.
+    postseason_role_features: bool = True
+    # Correct the softmax renormalization bias the role innovation introduces,
+    # in every allocation layer at once. See ``mean_preserving_shares``.
+    mean_preserving_innovation: bool = False
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1078,6 +1116,8 @@ class SeasonAverageVolumePipeline:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.mean_preserving_innovation:
+            self._enable_mean_preserving_innovation()
         problems = volume_input_problems(data)
         if problems:
             raise ValueError(
@@ -1125,20 +1165,42 @@ class SeasonAverageVolumePipeline:
             self.fit_seconds["regime"] = perf_counter() - started
         return self
 
+    def _enable_mean_preserving_innovation(self) -> None:
+        """Turn the correction on for every layer that allocates over a simplex.
+
+        There are three: the quarterback workload room, and the target and carry
+        rooms. The snap and eligibility layers are per-player and never
+        renormalize, so they have nothing to correct.
+        """
+        self.workload_model.mean_preserving_innovation = True
+        self.target_model.mean_preserving_innovation = True
+        self.carry_model.mean_preserving_innovation = True
+
     def _enable_postseason_role_features(self) -> None:
         """Offer the lagged postseason signal to the role-shaped submodels.
 
-        Only the models that decide *who holds a role* see it. Availability and
-        the team layer are deliberately excluded: postseason participation is a
-        property of the team's quality, and letting it into an availability
+        Only the models that decide *who holds a role among the skill positions*
+        see it. Three layers are deliberately excluded.
+
+        Availability and the team layer: qualifying for the postseason is a
+        property of the team's quality, so letting it into an availability
         regression would let "my team was good" stand in for "I stayed healthy".
+
+        The quarterback layers: measured, not assumed. Handing them the feature
+        cost 3.39% pass-attempt MAE and 3.27% workload-share MAE, losing all
+        three holdouts on both, against a gate that allows no pass-stream
+        regression beyond 0.5%. That room is close to winner-take-all and is
+        already well determined by depth chart and prior snap share, so a signal
+        present on 18% of rows and correlated with team strength rather than
+        with who takes the snaps is noise there. The same features are worth
+        2.80% carry MAE and 0.82% snap MAE, 3/3 each, in the rooms where the
+        allocation is genuinely contested.
         """
 
         def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
             return tuple(dict.fromkeys((*existing, *POSTSEASON_FEATURES)))
 
         self.snap_model.extra_features = merged(self.snap_model.extra_features)
-        self.workload_model.extra_features = merged(self.workload_model.extra_features)
         self.target_role_model.extra_features = merged(
             self.target_role_model.extra_features
         )
@@ -1399,7 +1461,11 @@ class SeasonAverageVolumePipeline:
                     "play_intercept",
                     "play_persistence",
                     "play_alpha_pg",
-                    "play_transition_sd",
+                    *(
+                        ["play_transition_sd"]
+                        if self.team_model.models_play_transition
+                        else []
+                    ),
                     "pass_intercept",
                     "pass_persistence",
                     "pass_transition_sd",
@@ -1509,6 +1575,8 @@ class SeasonAverageVolumePipeline:
                 "sack_prior_center": self.team_model.sack_prior_center,
                 "target_prior_center": self.team_model.target_prior_center,
                 "models_sacks": self.team_model.models_sacks,
+                "models_play_transition": self.team_model.models_play_transition,
+                "sum_to_zero_team_effects": self.team_model.sum_to_zero_team_effects,
             },
             "target": self._share_metadata(self.target_model),
             "carry": self._share_metadata(self.carry_model),
@@ -1526,6 +1594,9 @@ class SeasonAverageVolumePipeline:
                 ),
                 "hurdle_availability_mean": self.workload_model.hurdle_availability_mean,
                 "hurdle_availability_scale": self.workload_model.hurdle_availability_scale,
+                "mean_preserving_innovation": bool(
+                    self.workload_model.mean_preserving_innovation
+                ),
             },
             "role_regime": {
                 "enabled": self.role_regime_coupling,
@@ -1571,6 +1642,7 @@ class SeasonAverageVolumePipeline:
             "role_innovation_scale": model.role_innovation_scale,
             "per_snap_weight": model.per_snap_weight,
             "innovation_cap": model.innovation_cap,
+            "mean_preserving_innovation": bool(model.mean_preserving_innovation),
             "extra_features": list(model.extra_features),
         }
 
@@ -1624,6 +1696,9 @@ class SeasonAverageVolumePipeline:
             hurdle_availability_scale=float(
                 workload_state.get("hurdle_availability_scale", 1.0)
             ),
+            mean_preserving_innovation=bool(
+                workload_state.get("mean_preserving_innovation", False)
+            ),
         )
         cls._restore_feature_metadata(workload, workload_state)
         workload.idata = load_idata(directory / "workload.nc")
@@ -1648,6 +1723,9 @@ class SeasonAverageVolumePipeline:
                         "innovation_cap",
                         0.50 if state["stream"] in {"target", "carry"} else 2.0,
                     )
+                ),
+                mean_preserving_innovation=bool(
+                    state.get("mean_preserving_innovation", False)
                 ),
             )
             model.players = list(state["players"])
@@ -1712,6 +1790,9 @@ class SeasonAverageVolumePipeline:
             carry_eligibility_model=optional["carry_eligibility"],
             role_regime_coupling=role_regime_coupling,
             regime_likelihood_features=regime_likelihood_features,
+            # Each allocation layer carries its own flag, so the pipeline-level
+            # one only has to agree with what was actually restored.
+            mean_preserving_innovation=workload.mean_preserving_innovation,
             regime_model=(likelihood_regime_model or regime_model),
             regime_coupler=regime_coupler,
         )

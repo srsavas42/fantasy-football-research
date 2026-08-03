@@ -15,7 +15,12 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.features.volume import MODEL_POSITIONS
-from ffmodel.models.base import logit, sample_model
+from ffmodel.models.base import (
+    logit,
+    mean_preserving_shares,
+    sample_model,
+    simplex_shares,
+)
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
@@ -399,6 +404,19 @@ class QBWorkloadShareModel:
     feature_scale: dict[str, float] = field(default_factory=dict)
     extra_features: tuple[str, ...] = ()
     role_innovation_scale: float = 0.60
+    # The innovation is meant to widen the room, not to reallocate it. Softmax
+    # renormalization makes it do both unless corrected: see
+    # ``mean_preserving_shares``. Quarterback rooms are the most concentrated
+    # simplex in the pipeline, so this is where the leakage is largest.
+    #
+    # Rejected by the walk-forward 2026-08-02 and left off: pass-attempt CRPS
+    # +4.30% and workload-share CRPS +5.42%, against a 0.5% allowance on both.
+    # The reason is a second defect in the same three lines —
+    # ``role_innovation_scale`` is measured as *realized* log-share dispersion
+    # and then applied on the input side of the softmax, which compresses it by
+    # 0.70-0.93x depending on room shape. Correcting the mean while the scale is
+    # wrong makes the distribution worse. See docs/role-innovation-2026-08.md.
+    mean_preserving_innovation: bool = False
     hurdle_min_attempts: int = 25
     # Availability reaches this layer twice — as the softmax's exposure offset
     # and again through the gate. Drawing the two independently lets one draw
@@ -755,14 +773,16 @@ class QBWorkloadShareModel:
             eta = eta + log_availability
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         rng = np.random.default_rng(seed)
-        eta = eta + rng.normal(size=eta.shape) * self.role_innovation_scale
+        innovation = rng.normal(size=eta.shape) * self.role_innovation_scale
         gate = self._hurdle_gate(design, rng, log_availability)
+        live = np.broadcast_to(design["mask"][..., None] > 0, eta.shape)
         if gate is not None:
-            eta = np.where(gate, eta, -20.0)
-        eta = np.where(design["mask"][..., None] > 0, eta, -20.0)
-        eta -= eta.max(axis=1, keepdims=True)
-        probability = np.exp(eta) * design["mask"][..., None]
-        probability /= probability.sum(axis=1, keepdims=True)
+            live = live & gate
+        live = np.ascontiguousarray(live)
+        if self.mean_preserving_innovation:
+            probability = mean_preserving_shares(eta, eta + innovation, live)
+        else:
+            probability = simplex_shares(eta + innovation, live)
         shares = np.zeros((len(design["rows"]), draws), dtype=float)
         for group_i in range(len(design["group_keys"])):
             active = design["mask"][group_i].astype(bool)

@@ -599,7 +599,15 @@ class SeasonRosterShareModel:
         if self.per_snap_weight is None:
             self.per_snap_weight = 0.75 if self.stream == "target" else 1.0
         if self.innovation_cap is None:
-            self.innovation_cap = 0.50 if self.stream in {"target", "carry"} else 2.0
+            # Promoted 2026-08-03 at 0.25, chosen on an inner fold. The previous
+            # 0.50 was never validated and it binds on every fit -- measured
+            # dispersion is 1.43 for targets and 2.00 for carries -- so it was
+            # the operative parameter rather than a safety rail. Inner folds pick
+            # 0.15, 0.25 and 0.25, with the penalty rising on both sides of that
+            # range and uncapped worst on every fold, so the minimum is interior.
+            # On the holdouts: target CRPS -1.57%, carry CRPS -1.21%, carry MAE
+            # -0.48%, target cov80 -1.81pp toward nominal, all three folds each.
+            self.innovation_cap = 0.25 if self.stream in {"target", "carry"} else 2.0
 
     @property
     def count_col(self) -> str:

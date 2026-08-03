@@ -286,8 +286,12 @@ def test_pipeline_save_load_preserves_prediction_metadata(tmp_path):
     assert restored.carry_model.cold_role_prior == carry.cold_role_prior
     assert restored.target_model.availability_prior == target.availability_prior
     assert np.isclose(restored.target_model.per_snap_weight, 0.75)
-    assert np.isclose(restored.target_model.innovation_cap, 0.50)
-    assert np.isclose(restored.carry_model.innovation_cap, 0.50)
+    # Against the fitted model rather than a literal. What matters here is that
+    # the cap survives the round trip; pinning the promoted value in a
+    # serialization test makes it fail whenever that value is revalidated, which
+    # is a false alarm about the wrong thing.
+    assert np.isclose(restored.target_model.innovation_cap, target.innovation_cap)
+    assert np.isclose(restored.carry_model.innovation_cap, carry.innovation_cap)
     assert restored.role_regime_coupling is True
     assert restored.regime_model is not None
     assert restored.regime_coupler is not None

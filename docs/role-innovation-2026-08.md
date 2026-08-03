@@ -260,3 +260,53 @@ counts differ by two.
 This is left open. It is a modelling question about the response distributions
 themselves rather than a parameter to invert, and it is now the largest known
 calibration defect in the pipeline.
+
+---
+
+# The innovation cap, validated (2026-08-03)
+
+`innovation_cap` bounds how much role churn the target and carry allocators
+represent. It sat at 0.50 and **bound on every fit** — measured dispersion is
+1.43 for targets and 2.00 for carries — so it was never a safety rail catching
+the occasional outlier, it was the operative parameter, and its value had never
+been validated. The carry figure of exactly 2.00 is the estimator's own internal
+clip, so the true measurement is unknown and only known to be larger: two
+stacked ceilings, neither checked.
+
+The sweep is cheap because of where the parameter lives. `role_innovation_scale`
+is consumed at prediction time and enters no likelihood, so one posterior serves
+every candidate — one pipeline fit per fold rather than one per candidate.
+Selection is nested, and the criterion is distance from nominal coverage rather
+than point accuracy, because the cap governs width.
+
+| inner fold | None | 0.15 | 0.25 | 0.35 | 0.50 | 0.75 | picks |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 2021 | 0.0424 | **0.0292** | 0.0292 | 0.0322 | 0.0331 | 0.0360 | 0.15 |
+| 2022 | 0.0312 | 0.0296 | **0.0292** | 0.0317 | 0.0342 | 0.0350 | 0.25 |
+| 2023 | 0.0451 | 0.0363 | **0.0346** | 0.0363 | 0.0372 | 0.0410 | 0.25 |
+
+The penalty rises on both sides and uncapped is worst on every fold, so the
+minimum is interior rather than an artifact of where the candidates stop.
+**Promoted at 0.25**: the modal pick, optimal or within 0.0017 on all three.
+
+The gate accepts it, against the promoted calibration: target CRPS −1.57%,
+carry CRPS −1.21%, carry MAE −0.48%, target cov80 −1.81pp toward nominal, each
+on all three folds, with the quarterback streams untouched.
+
+## What the sweep separated
+
+Tightening the cap moves target `cov80` from 0.868 to 0.819 against a 0.80
+nominal — close to repaired. It moves carry from 0.880 to 0.869, and carry
+remains about seven points over-covered **even uncapped**. So the innovation is
+not carry's width source and no cap value will fix it; that excess comes from
+elsewhere in the stack — the any-carry hurdle, the team total, or the
+multinomial allocation. That is a separate defect from the one this sweep
+addressed.
+
+It also trades one part of the target stream's calibration for another. Pooled
+over 1,754 rows the 80% level improves, z −4.70 → −2.91, while the 95% level
+worsens, z +3.43 → +5.29. The change itself is not material at that level —
++0.44pp against a per-fold binomial standard error of 0.90pp — but the level was
+already bad and remains so. Target is miscalibrated in both directions at once,
+which is a distributional shape problem rather than a width one, and narrowing
+the body cannot fix a thin tail.

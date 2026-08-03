@@ -360,3 +360,61 @@ def test_coverage_prints_in_percentage_points_not_raw_proportions():
     assert cov.pooled == pytest.approx(0.005)
     assert "+0.50pp" in text
     assert "+0.005pp" not in text
+
+
+def _sized(cov_by_fold, n, metric="cov95"):
+    return {
+        fold: {"snap": {metric: value, "mae": 1.0, "n": n}}
+        for fold, value in cov_by_fold.items()
+    }
+
+
+def test_the_coverage_floor_scales_with_the_sample():
+    """One coverage point is 2.5 rows on one stream and 17 on another.
+
+    A fixed floor calibrated for the 253-row quarterback stream is far too
+    coarse for the 1,754-row target stream, and far too fine the other way.
+    """
+    small = compare_runs(
+        _sized({"2022": 0.95, "2023": 0.95, "2024": 0.95}, n=84),
+        _sized({"2022": 0.96, "2023": 0.96, "2024": 0.96}, n=84),
+        protected=(),
+    )
+    large = compare_runs(
+        _sized({"2022": 0.95, "2023": 0.95, "2024": 0.95}, n=1754),
+        _sized({"2022": 0.96, "2023": 0.96, "2024": 0.96}, n=1754),
+        protected=(),
+    )
+
+    tiny = next(m for m in small.metrics if m.is_coverage)
+    big = next(m for m in large.metrics if m.is_coverage)
+
+    assert tiny.material > big.material
+    # The same one-point move is noise on 84 rows and a verdict on 1,754.
+    assert tiny.verdict == "negligible"
+    assert big.verdict == "regressed"
+
+
+def test_a_run_without_row_counts_falls_back_to_the_fixed_floor():
+    base = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=_coverage(0.95))
+    cand = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=_coverage(0.96))
+
+    report = compare_runs(base, cand)
+    cov = next(m for m in report.metrics if m.metric == "cov95")
+
+    # Conservative, not sensitive: without the sample there is no basis for
+    # scaling, so the gate declines to rule aggressively on a number it cannot
+    # size.
+    assert cov.sample_size == 0
+    assert cov.material == pytest.approx(0.01)
+
+
+def test_the_floor_never_collapses_to_zero_on_a_huge_fold():
+    huge = compare_runs(
+        _sized({"2022": 0.95}, n=10_000_000),
+        _sized({"2022": 0.9501}, n=10_000_000),
+        protected=(),
+    )
+    cov = next(m for m in huge.metrics if m.is_coverage)
+
+    assert cov.material >= 0.002

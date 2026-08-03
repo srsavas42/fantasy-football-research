@@ -263,7 +263,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 0 | Package scaffolding, config, scoring, tests | ✅ |
 | 1 | Hybrid data layer (nflverse + legacy CSVs, parquet cache) | ✅ |
 | 2 | Features: usage shares, empirical role tiers, trailing efficiency, game script, active-set/injury logic | ✅ |
-| 3A | **Season-average volume** (coherent team rates + availability, snaps, per-snap roles, replacement demand) | volume v3 promoted; availability-coupled QB gate and postseason role features promoted 2026-08 ([followups](docs/pipeline-followups-2026-08.md)); final all-data fit pending |
+| 3A | **Season-average volume** (coherent team rates + availability, snaps, per-snap roles, replacement demand) | volume v3 promoted; availability-coupled QB gate, postseason role features and efficiency exposure floor 5 promoted 2026-08 ([followups](docs/pipeline-followups-2026-08.md)); all-data production fit built via `scripts/fit_production.py` (2015-2024, max R-hat 1.005, 0 divergences) |
 | 3B | Within-season **volume models** (team plays/pass rate + Dirichlet-Multinomial share) | core models complete |
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |

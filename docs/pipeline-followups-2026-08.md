@@ -421,3 +421,43 @@ scoring gate against the floor-as-specified baseline:
 Step 6 declined this change because the two-of-three fold rule failed on PPR
 CRPS. Under a gate that reports pooled effect against fold spread, MAE improves
 consistently on all three scoring systems and nothing regresses.
+
+## The all-data production fit
+
+`scripts/fit_production.py` builds the artifact that is allowed to serve.
+Holdout posteriors are validation evidence — fitted on a truncated history on
+purpose — and publishing from one would serve a model that has never seen the
+most recent season, the season a lagged-feature contract depends on most.
+
+| | |
+|---|---|
+| seasons | 2015–2024 |
+| sampler | 2000 draws, 2000 tune, 4 chains |
+| components | 18 |
+| max R-hat | 1.00506 (`team`) |
+| min bulk ESS | 1598 |
+| divergences | 0 |
+| round-trip | identical, 0.0 PPR difference |
+
+The team model's R-hat lands at 1.005 here, which independently confirms what
+the reseed experiment showed: the 1.0107 that survived the identifiability fix
+was R-hat's own Monte Carlo error at a 1000-draw validation budget, not an
+unconverged parameter. At the production budget it is not there.
+
+The script earned its checks. Its first run lost half an hour of sampling to a
+bug in its own diagnostics — `sampling_quality` called without `var_names`,
+which made ArviZ try to summarize every entry of the team model's per-team-season
+terms and overflow. Its second run OOMed the machine in the round-trip, because
+a season-scoring prediction over ten seasons at this budget holds several
+gigabytes and it was holding two. Both are fixed, and an unhealthy fit is now
+quarantined at `<output>.rejected` rather than discarded, so the next failure
+can be inspected instead of merely repeated.
+
+The round-trip then caught a third: the manifest reported
+`efficiency_exposure_floor: null` for a fit that used 5, because the scoring
+pipeline's field is an override that stays `None` while the promoted default is
+in use — and the efficiency pipeline never persisted the value at all. That one
+is invisible by construction. The floor decides which rows are fitted and
+nothing at prediction time, so a reloaded pipeline carrying the wrong value
+predicts correctly in every test; only a refit from it would quietly train on a
+different sample.

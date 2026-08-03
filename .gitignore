@@ -10,6 +10,10 @@ build/
 dist/
 .pytest_cache/
 
-# Fitted posteriors. Large binary build outputs — the manifest and metadata
-# JSON beside them are small and are the provenance worth keeping in git.
-artifacts/**/*.nc
+# Fitted posteriors and the per-model feature metadata beside them: build
+# outputs, and the metadata is not usable without the .nc files it describes.
+# Only the manifest is kept — seasons, configuration, diagnostics and the
+# round-trip result are what tie a published projection to the fit that made it.
+artifacts/**
+!artifacts/**/
+!artifacts/*/manifest.json

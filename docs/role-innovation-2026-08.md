@@ -162,6 +162,19 @@ removes exactly that — workload MAE goes +1.02% → −0.65%, pass MAE +0.91% 
 
 ## Status
 
+**`calibrated_innovation` is promoted, 2026-08-03**, over the protected-stream
+allowance and with that override recorded in
+[acceptance-gate.md](acceptance-gate.md). It fails the gate on one thing only —
+pass MAE +0.91% and workload MAE +1.02% against 0.5% — and buys nine coverage
+points on the layer with the pipeline's worst calibration, with CRPS flat. The
+owner accepted that trade explicitly.
+
+`mean_preserving_innovation` stays off. It is the only way to recover the MAE
+that calibration costs, and it charges 5 to 7% of CRPS to do it, which is a
+worse deal than the one being made here.
+
+What follows was written before that call.
+
 Neither promotes under the current gate. `calibrated_innovation` fails only on
 the protected-stream allowance: pass-attempt MAE +0.91% and workload MAE +1.02%
 against 0.5%, with workload CRPS +0.60% just over. Everything else it touches is

@@ -1175,8 +1175,9 @@ class SeasonAverageVolumePipeline:
     mean_preserving_innovation: bool = False
     # Solve for the input noise scale that realizes the churn the estimator
     # measured, rather than handing the measurement straight to the sampler.
-    # See ``calibrate_innovation_scale``.
-    calibrated_innovation: bool = False
+    # Promoted 2026-08-03; see ``calibrate_innovation_scale`` and
+    # docs/role-innovation-2026-08.md for the accepted gate exception.
+    calibrated_innovation: bool = True
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1681,6 +1682,9 @@ class SeasonAverageVolumePipeline:
                 "mean_preserving_innovation": bool(
                     self.workload_model.mean_preserving_innovation
                 ),
+                "calibrated_innovation": bool(
+                    self.workload_model.calibrated_innovation
+                ),
             },
             "role_regime": {
                 "enabled": self.role_regime_coupling,
@@ -1727,6 +1731,7 @@ class SeasonAverageVolumePipeline:
             "per_snap_weight": model.per_snap_weight,
             "innovation_cap": model.innovation_cap,
             "mean_preserving_innovation": bool(model.mean_preserving_innovation),
+            "calibrated_innovation": bool(model.calibrated_innovation),
             "extra_features": list(model.extra_features),
         }
 
@@ -1783,6 +1788,9 @@ class SeasonAverageVolumePipeline:
             mean_preserving_innovation=bool(
                 workload_state.get("mean_preserving_innovation", False)
             ),
+            calibrated_innovation=bool(
+                workload_state.get("calibrated_innovation", False)
+            ),
         )
         cls._restore_feature_metadata(workload, workload_state)
         workload.idata = load_idata(directory / "workload.nc")
@@ -1810,6 +1818,9 @@ class SeasonAverageVolumePipeline:
                 ),
                 mean_preserving_innovation=bool(
                     state.get("mean_preserving_innovation", False)
+                ),
+                calibrated_innovation=bool(
+                    state.get("calibrated_innovation", False)
                 ),
             )
             model.players = list(state["players"])
@@ -1877,6 +1888,7 @@ class SeasonAverageVolumePipeline:
             # Each allocation layer carries its own flag, so the pipeline-level
             # one only has to agree with what was actually restored.
             mean_preserving_innovation=workload.mean_preserving_innovation,
+            calibrated_innovation=workload.calibrated_innovation,
             regime_model=(likelihood_regime_model or regime_model),
             regime_coupler=regime_coupler,
         )

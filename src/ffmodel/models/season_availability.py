@@ -421,7 +421,17 @@ class QBWorkloadShareModel:
     # ``role_innovation_scale`` is measured as *realized* log-share dispersion
     # and then applied on the input side of the softmax, which compresses it by
     # about 18% for a three-deep room. See ``calibrate_innovation_scale``.
-    calibrated_innovation: bool = False
+    #
+    # Promoted 2026-08-03 with a documented exception to the acceptance gate.
+    # Quarterback rooms average 2.37 gated-in passers, so this layer realized
+    # only 76% of the churn it measured, and its 80% intervals covered 0.647,
+    # 0.619 and 0.726 of outcomes. Calibration moves those to 0.824, 0.774 and
+    # 0.881, improving on every fold, with CRPS flat (+0.60% workload, +0.27%
+    # pass). It costs 1.02% workload MAE and 0.91% pass MAE, over the 0.5%
+    # protected allowance, and the owner accepted that trade explicitly: this
+    # package exists to publish distributions, and nine points of coverage on
+    # its worst-calibrated layer is worth a percent of point accuracy.
+    calibrated_innovation: bool = True
     innovation_calibration_seed: int = 0
     hurdle_min_attempts: int = 25
     # Availability reaches this layer twice — as the softmax's exposure offset

@@ -105,7 +105,22 @@ three:
 
 `--protected` names streams that may not be damaged in exchange for gains
 elsewhere, defaulting to `pass_qb` and `qb_workload`, with
-`--protected-tolerance` at 0.5% relative. This is the one place the gate is
+`--protected-tolerance` at 0.5% relative.
+
+**One accepted exception, 2026-08-03.** `calibrated_innovation` was promoted
+over this rule: pass-attempt MAE +0.91% and workload MAE +1.02%. The allowance
+exists to stop a change buying accuracy elsewhere by spending it at
+quarterback, and that is not what this is — the quarterback layer is what the
+change repairs. Its 80% intervals covered 0.647, 0.619 and 0.726 of outcomes
+against a 0.80 nominal, six to eighteen points under in the same direction every
+year; calibration moves them to 0.824, 0.774 and 0.881 with CRPS flat. The owner
+weighed a percent of point accuracy against nine points of coverage on the
+package's flagship claim and took the coverage. See
+[role-innovation](role-innovation-2026-08.md).
+
+The gate was not loosened. A rule that quietly widens after one hard call stops
+being a rule; this is recorded as an override of it, and the next change still
+has to clear 0.5%. This is the one place the gate is
 deliberately asymmetric: those two streams drive the highest-scoring position in
 every scoring system the pipeline supports, so a change that buys carry accuracy
 by spending quarterback accuracy is not a trade the gate will make silently.

@@ -120,7 +120,20 @@ package's flagship claim and took the coverage. See
 
 The gate was not loosened. A rule that quietly widens after one hard call stops
 being a rule; this is recorded as an override of it, and the next change still
-has to clear 0.5%. This is the one place the gate is
+has to clear 0.5%.
+
+**Postscript.** The scoring gate was then run on the promoted configuration, and
+total fantasy points improve on every metric and every fold — MAE −0.33% to
+−0.54%, CRPS −0.67% to −0.68%, RMSE −0.55% to −0.68% — with coverage negligible.
+It is accepted there with no exception at all. The quarterback-stream cost does
+not reach the product.
+
+That is worth reading as a limitation of the allowance rather than a lucky
+escape. Protecting an intermediate stream is a proxy for protecting the output,
+and here the proxy and the output disagreed. A change that repairs the protected
+layer itself is exactly the case the proxy handles badly, because the allowance
+cannot tell "spent quarterback accuracy elsewhere" from "fixed the quarterback
+layer and paid a point estimate for it". This is the one place the gate is
 deliberately asymmetric: those two streams drive the highest-scoring position in
 every scoring system the pipeline supports, so a change that buys carry accuracy
 by spending quarterback accuracy is not a trade the gate will make silently.

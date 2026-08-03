@@ -169,6 +169,25 @@ pass MAE +0.91% and workload MAE +1.02% against 0.5% — and buys nine coverage
 points on the layer with the pipeline's worst calibration, with CRPS flat. The
 owner accepted that trade explicitly.
 
+### The accepted cost did not reach the product
+
+Measured after the fact, on total fantasy points against the promoted baseline:
+
+| metric | standard | half-PPR | PPR |
+|---|---:|---:|---:|
+| CRPS | −0.67% | −0.68% | −0.68% |
+| RMSE | −0.68% | −0.61% | −0.55% |
+| MAE | −0.54% | −0.47% | −0.33% |
+
+Every one improves on all three folds, coverage moves are negligible, and the
+scoring gate accepts with no exception required.
+
+So the quarterback-stream MAE regression is real at the layer the gate measures
+and does not survive to the layer that matters. Shares are multiplied by team
+totals and integrated against efficiency downstream, and a better-calibrated
+allocation pays back more than the percent it costs. The override was needed to
+promote the change and was not needed to justify it.
+
 `mean_preserving_innovation` stays off. It is the only way to recover the MAE
 that calibration costs, and it charges 5 to 7% of CRPS to do it, which is a
 worse deal than the one being made here.

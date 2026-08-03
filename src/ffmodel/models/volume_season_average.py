@@ -1989,16 +1989,37 @@ def _allocate_season_counts(
     if totals.shape != (len(prediction.group_keys), draws):
         raise ValueError("team totals must align to roster groups and posterior draws")
     rng = np.random.default_rng(seed)
-    counts = np.zeros_like(prediction.shares, dtype=int)
     group_idx = prediction.rows["_group_idx"].to_numpy(dtype=int)
-    for group in range(len(prediction.group_keys)):
-        indices = np.flatnonzero(group_idx == group)
-        for draw in range(draws):
-            probability = prediction.shares[indices, draw]
-            probability = probability / probability.sum()
-            counts[indices, draw] = rng.multinomial(
-                int(totals[group, draw]), probability
-            )
+    n_groups = len(prediction.group_keys)
+
+    # One multinomial call for every (group, draw) at once. ``rng.multinomial``
+    # broadcasts an array of trial counts against a matrix of probability rows,
+    # so the groups x draws Python loop — around 57,600 calls per prediction at
+    # 32 team-seasons, 600 draws and three streams — collapses into a single
+    # vectorized draw. Rooms are ragged, so they are padded to the widest and
+    # the unused slots carry probability zero, which contributes no counts.
+    members = [np.flatnonzero(group_idx == group) for group in range(n_groups)]
+    width = max((len(indices) for indices in members), default=0)
+    if width == 0:
+        return np.zeros_like(prediction.shares, dtype=int)
+
+    probability = np.zeros((n_groups, width, draws), dtype=float)
+    for group, indices in enumerate(members):
+        probability[group, : len(indices)] = prediction.shares[indices]
+    total = probability.sum(axis=1, keepdims=True)
+    probability = np.divide(
+        probability, total, out=np.zeros_like(probability), where=total > 0
+    )
+
+    # (group, slot, draw) -> (group * draw, slot), the layout multinomial wants.
+    flat_p = np.moveaxis(probability, 1, 2).reshape(n_groups * draws, width)
+    flat_n = np.asarray(totals, dtype=np.int64).reshape(n_groups * draws)
+    drawn = rng.multinomial(flat_n, flat_p)
+    drawn = np.moveaxis(drawn.reshape(n_groups, draws, width), 2, 1)
+
+    counts = np.zeros_like(prediction.shares, dtype=int)
+    for group, indices in enumerate(members):
+        counts[indices] = drawn[group, : len(indices)]
     return counts
 
 

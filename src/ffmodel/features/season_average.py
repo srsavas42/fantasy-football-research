@@ -1025,7 +1025,24 @@ def build_season_average_data(
     )
     return SeasonAverageData(
         team_rows=team_transition_rows(teams, projection_seasons=projection),
-        player_rows=add_player_pathway_features(player_rows),
+        # A projection frame's row universe comes from ``roster_snapshot``,
+        # which covers the projection season alone, so no player has a prior
+        # row and every ``*_trend`` is NaN. ``SeasonTargetRoleModel`` consumes
+        # ``prior_snap_share_trend``: it varies while fitting on a backtest
+        # frame, and is filled with a training median on every projection.
+        #
+        # That is a live train/serve gap, not a hypothetical one — it was
+        # recorded as "the production path builds history and projection
+        # together so the trend does resolve", and that is wrong for
+        # ``build_projection_data``. Closing it means giving the projection
+        # frame history rows to difference against and filtering afterwards,
+        # which changes how the row universe is built and wants its own change.
+        # Until then the guard is suppressed here rather than in the feature
+        # layer, so exactly one caller is exempt and it says why.
+        # Pinned by tests/test_projection_feature_parity.py.
+        player_rows=add_player_pathway_features(
+            player_rows, require_trends=not projection
+        ),
     )
 
 

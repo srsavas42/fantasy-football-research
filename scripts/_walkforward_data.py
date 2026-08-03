@@ -49,6 +49,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="enable the lagged postseason role features",
     )
     parser.add_argument(
+        "--innovation-cap",
+        type=float,
+        default=None,
+        help="override the target and carry allocators' role-innovation cap",
+    )
+    parser.add_argument(
         "--calibrated-innovation",
         action="store_true",
         help="solve for the input noise scale that realizes the churn the "

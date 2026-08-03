@@ -71,6 +71,7 @@ def main(argv=None) -> None:
             postseason_role_features=args.postseason,
             mean_preserving_innovation=args.mean_preserving_innovation,
             calibrated_innovation=args.calibrated_innovation,
+            innovation_cap=args.innovation_cap,
         )
         pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:

@@ -1178,6 +1178,9 @@ class SeasonAverageVolumePipeline:
     # Promoted 2026-08-03; see ``calibrate_innovation_scale`` and
     # docs/role-innovation-2026-08.md for the accepted gate exception.
     calibrated_innovation: bool = True
+    # Overrides the target and carry allocators' ``innovation_cap``. ``None``
+    # keeps each stream's own default. See scripts/select_innovation_cap.py.
+    innovation_cap: float | None = None
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1191,6 +1194,9 @@ class SeasonAverageVolumePipeline:
             self._enable_mean_preserving_innovation()
         if self.calibrated_innovation:
             self._enable_calibrated_innovation()
+        if self.innovation_cap is not None:
+            self.target_model.innovation_cap = float(self.innovation_cap)
+            self.carry_model.innovation_cap = float(self.innovation_cap)
         problems = volume_input_problems(data)
         if problems:
             raise ValueError(

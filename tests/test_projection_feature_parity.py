@@ -90,23 +90,14 @@ def test_the_ewma_history_column_still_survives_a_single_season():
     assert single["prior_snap_share_3yr"].notna().all()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Live train/serve gap, now measured rather than assumed. "
-        "build_projection_data's row universe comes from roster_snapshot, which "
-        "covers the projection season alone, so add_player_pathway_features "
-        "receives a single-season frame and every *_trend is NaN. "
-        "SeasonTargetRoleModel consumes prior_snap_share_trend, so it varies "
-        "while fitting on a backtest frame and is a training-median constant on "
-        "every projection. The previous xfail claimed the production path was "
-        "unaffected because history and projection are featurized together; "
-        "that is true of build_season_average_data over a season range and "
-        "false of build_projection_data. Closing it means giving the projection "
-        "frame history rows to difference against and filtering afterwards."
-    ),
-    strict=True,
-)
-def test_a_projection_build_resolves_the_trend_it_was_fitted_on():
+def test_the_legacy_fixture_cannot_exercise_the_projection_trend():
+    """Worth stating, because it is why this was not caught by a cheap test.
+
+    The fixture's players are synthetic and have no usage in the legacy source,
+    so ``prior_snap_share`` is NaN on every row and there is nothing for a trend
+    to difference. A frame can look like a projection and still be unable to
+    demonstrate the bug. The real check is below, on nflverse data.
+    """
     import sys
     from pathlib import Path
 
@@ -122,4 +113,46 @@ def test_a_projection_build_resolves_the_trend_it_was_fitted_on():
         source="legacy",
     )
 
-    assert data.player_rows["prior_snap_share_trend"].notna().any()
+    assert data.player_rows["prior_snap_share"].isna().all()
+
+
+@pytest.mark.slow
+def test_a_projection_build_resolves_the_trend_it_was_fitted_on():
+    """The gap C9's guard uncovered, now closed.
+
+    ``build_projection_data``'s row universe comes from ``roster_snapshot``,
+    which covers the projection season alone, so every ``*_trend`` came out NaN.
+    ``SeasonTargetRoleModel`` consumes ``prior_snap_share_trend``, so it varied
+    across training rows and was a training-median constant on every projection
+    — a fitted coefficient applied to data that never looked like what it was
+    estimated from. The walk-forward could not see it, because a backtest frame
+    spans every season and never has the problem.
+
+    Measured on the 2024 projection: 0 of 697 rows carried a trend before,
+    312 of 697 after, which is 76% of the 409 rows that have a prior snap share
+    at all. The remainder are rookies and players with no prior-season row,
+    where NaN is the honest answer.
+    """
+    from ffmodel.data import ingest
+    from ffmodel.features.season_average import (
+        build_projection_data,
+        load_preseason_roster_snapshot,
+    )
+
+    try:
+        snapshot = load_preseason_roster_snapshot([2024])
+    except (ingest.DataUnavailableError, OSError):
+        pytest.skip("nflverse rosters are not cached")
+
+    rows = build_projection_data(
+        2024,
+        roster_snapshot=snapshot,
+        history_seasons=list(range(2018, 2024)),
+        source="nflverse",
+    ).player_rows
+
+    assert sorted(rows["season"].unique()) == [2024]
+    resolved = rows["prior_snap_share_trend"].notna()
+    assert resolved.sum() > 0.4 * len(rows)
+    # Every trend belongs to a row that has the level it differences.
+    assert rows.loc[resolved, "prior_snap_share"].notna().all()

@@ -14,7 +14,11 @@ from pathlib import Path
 import pandas as pd
 
 DEFAULT_CACHE = Path(".cache/ffmodel-walkforward")
-DEFAULT_SEASONS = range(2014, 2025)
+# 2025 is complete as of this writing and is deliberately *not* in the default
+# holdouts. Every promotion decision in this package was made on 2022-2024, so
+# 2025 is the one season no choice here has seen — the closest thing to a real
+# out-of-sample test. Keep it that way: score it, do not select on it.
+DEFAULT_SEASONS = range(2014, 2026)
 HOLDOUTS = (2022, 2023, 2024)
 
 

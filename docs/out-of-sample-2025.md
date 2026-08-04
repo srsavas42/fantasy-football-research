@@ -173,3 +173,77 @@ too thin" — and the mixture reading predicts the latter. Splitting the deficit
 row is the next measurement, not another global knob.
 
 Raw numbers in `scripts/validation_runs/tail_attribution_2025.json`.
+
+---
+
+# Whose rows they are (2026-08-04)
+
+The deficit is one-sided and concentrated. Of 46 misses at the 95% level on
+2025, **37 are above the interval and 9 below**; the PIT's top decile holds 78
+against 50.8 expected (z=+4.02) while the bottom decile sits exactly on
+expectation. The model under-predicts upside and its downside is calibrated.
+
+Split by row, on 2025:
+
+| split | n | miss rate | z | above / below |
+|---|---:|---:|---:|---|
+| **no prior snap share** | 117 | **28.2%** | **+11.52** | 32 / 1 |
+| **rookies** | 85 | **25.9%** | **+8.83** | 21 / 1 |
+| **prior role continuity <0.33** | 202 | **18.8%** | **+9.01** | 33 / 5 |
+| prior snap share 0.25–0.60 | 156 | 2.6% | −1.40 | — |
+| prior role continuity ≥0.67 | 306 | 2.6% | −1.91 | — |
+| prior snap share >0.60 | 112 | 1.8% | −1.56 | — |
+
+Players with an established role are at or past nominal. The entire deficit
+sits on players the model has never seen play, and half the misses land more
+than a full half-width outside the interval, the worst at 17.7. That is a
+mixture signature rather than a width one.
+
+This also rules the innovation cap out as the *cause*. The cap is global, so
+raising it widens the rows that are already covered.
+
+## The fix, and what it was worth
+
+`cold_role_innovation` gives rows whose role prior is a population fallback
+their own, wider innovation scale, sized from the training data's own
+cold-versus-warm log-share dispersion ratio: 1.38 for carries, 1.64 for targets
+on 2014–2024.
+
+Against a matched baseline on 2022/2023/2024, same cache, promoted
+configuration otherwise:
+
+| | baseline | cold-role |
+|---|---:|---:|
+| PPR cov95, misses / expected | 133 / 76.6 | **125 / 76.6** |
+| PPR cov95, z | +6.62 | **+5.68** |
+| PPR cov80, z | +4.33 | **+3.76** |
+| PPR MAE | — | −0.20% |
+| PPR CRPS | — | −0.17% |
+
+Per fold, PPR cov95: 0.901 → 0.904, 0.895 → 0.903, 0.944 → 0.948.
+
+Every metric improves and every one improves on all three folds — fifteen
+metrics moving the same way three times each is not noise. But it recovers
+**eight of the fifty-six excess misses, about a seventh of the deficit**, and
+every move is below the gate's materiality floor. The gate says *accepted, but
+nothing improved materially*.
+
+## Why it is throttled
+
+The cap. Measured cold-row dispersion is 2.68 for carries; the base scale is
+capped at 0.25, so a 1.38× multiplier reaches 0.35 — still about seven times
+narrower than the population it is meant to represent. The widening is
+directionally right and quantitatively strangled by a parameter upstream of it.
+
+That parameter's selection is separately suspect. `innovation_cap` was promoted
+at 0.25 on mean distance from nominal coverage over the carry and target
+streams — the statistic later shown to be uninterpretable there, because half of
+carry rows are zero and every interval containing zero covers them. A criterion
+that reads guaranteed coverage as over-wide intervals rewards narrowing.
+
+The next measurement is therefore the cap, swept against total fantasy points
+rather than against an intermediate stream's coverage. Stated before the numbers
+arrive: if that sweep does not move the deficit either, this is reported as an
+insufficient fix rather than iterated on. Three plausible variants selected in
+sequence against the same three folds spends the window just as surely as
+tuning on it.

@@ -126,6 +126,31 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
     return parser
 
 
+def frames_fingerprint(
+    player_rows: pd.DataFrame, team_rows: pd.DataFrame, cache_dir: Path
+) -> dict[str, object]:
+    """Identify the build a run read, so cross-cache comparisons are catchable.
+
+    Two caches covering the same seasons are not the same data. nflverse revises
+    history, so a rebuild changes values under an unchanged row count -- between
+    the two caches in this repo, 69 of 289 columns differ over the pre-2022
+    seasons that both builds cover, with identical row counts. Absolute levels
+    from runs on different builds are not comparable, and nothing about the
+    output says so. Recording a content hash lets the gate say so instead.
+    """
+    digest = 0
+    for frame in (player_rows, team_rows):
+        ordered = frame.sort_index(axis=1)
+        digest ^= int(pd.util.hash_pandas_object(ordered, index=False).sum())
+    return {
+        "cache_dir": str(cache_dir),
+        "player_rows": int(len(player_rows)),
+        "team_rows": int(len(team_rows)),
+        "seasons": [int(player_rows.season.min()), int(player_rows.season.max())],
+        "digest": f"{digest & 0xFFFFFFFFFFFFFFFF:016x}",
+    }
+
+
 def load_frames(cache_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Cached player/team season rows, building them on first use."""
     cache_dir = Path(cache_dir)

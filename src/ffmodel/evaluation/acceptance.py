@@ -56,6 +56,9 @@ COVERAGE_NOMINAL = {
 }
 NOT_A_METRIC = ("n", "seconds", "scoring")
 NOT_A_STREAM = ("seconds", "n", "diagnostics")
+# Keys a run records about itself rather than about a fold. Underscore-prefixed
+# so a future one needs no change here.
+RESERVED_PREFIX = "_"
 
 # How large a move has to be before it is worth a verdict. Coverage is measured
 # in coverage points because its distance from nominal is often near zero, and a
@@ -264,7 +267,7 @@ def _flatten(run: Mapping[str, object]) -> dict[tuple[str, str], dict[str, float
     counts: dict[tuple[str, str], list[float]] = {}
     out: dict[tuple[str, str], dict[str, float]] = {}
     for fold, payload in run.items():
-        if not isinstance(payload, Mapping):
+        if fold.startswith(RESERVED_PREFIX) or not isinstance(payload, Mapping):
             continue
         for stream, value in payload.items():
             if stream in NOT_A_STREAM:
@@ -282,10 +285,41 @@ def _flatten(run: Mapping[str, object]) -> dict[tuple[str, str], dict[str, float
     return out, counts
 
 
+def frames_mismatch(
+    baseline: Mapping[str, object], candidate: Mapping[str, object]
+) -> str | None:
+    """Why these two runs are not comparable, or None if they are.
+
+    A gate that silently scores a candidate against a baseline built from a
+    different data pull reports differences the change did not cause. Both runs
+    in this repo's history that were read across a rebuild looked plausible; one
+    of them produced a promotion argument that had to be withdrawn.
+    """
+    left = baseline.get("_frames")
+    right = candidate.get("_frames")
+    if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+        return (
+            "one or both runs predate frame fingerprinting, so whether they read "
+            "the same build cannot be checked"
+        )
+    if left.get("digest") == right.get("digest"):
+        return None
+    return (
+        "the runs read different frames: "
+        f"{left.get('cache_dir')} digest {left.get('digest')} "
+        f"({left.get('player_rows')} player rows) against "
+        f"{right.get('cache_dir')} digest {right.get('digest')} "
+        f"({right.get('player_rows')} player rows). Equal row counts do not mean "
+        "equal data -- nflverse revises history under a stable row count"
+    )
+
+
 def _diagnostic_problems(run: Mapping[str, object], label: str) -> list[dict[str, object]]:
     """Sampler health for every component, not only the ones someone tabulated."""
     found: list[dict[str, object]] = []
     for fold, payload in run.items():
+        if fold.startswith(RESERVED_PREFIX):
+            continue
         diagnostics = payload.get("diagnostics") if isinstance(payload, Mapping) else None
         if not isinstance(diagnostics, Mapping):
             continue

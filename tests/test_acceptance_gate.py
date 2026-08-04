@@ -418,3 +418,59 @@ def test_the_floor_never_collapses_to_zero_on_a_huge_fold():
     cov = next(m for m in huge.metrics if m.is_coverage)
 
     assert cov.material >= 0.002
+
+
+def test_the_gate_refuses_runs_from_different_data_pulls():
+    """Two runs on the same seasons are not automatically comparable.
+
+    nflverse revises history, so a rebuilt cache changes values under an
+    unchanged row count. Comparing across one attributes the rebuild's
+    differences to the change under test, which this repo did twice before the
+    fingerprint existed.
+    """
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    left = {"_frames": {"digest": "aaaa", "cache_dir": "a", "player_rows": 7234}}
+    right = {"_frames": {"digest": "bbbb", "cache_dir": "b", "player_rows": 7234}}
+
+    problem = frames_mismatch(left, right)
+
+    assert problem is not None
+    assert "different frames" in problem
+    # The row counts matching is the trap, so the message has to say so.
+    assert "Equal row counts do not mean" in problem
+
+
+def test_matching_fingerprints_are_comparable():
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    frames = {"digest": "aaaa", "cache_dir": "a", "player_rows": 7234}
+
+    assert frames_mismatch({"_frames": frames}, {"_frames": dict(frames)}) is None
+
+
+def test_an_unfingerprinted_run_is_reported_rather_than_assumed_fine():
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    frames = {"digest": "aaaa", "cache_dir": "a", "player_rows": 7234}
+
+    assert "predate" in frames_mismatch({}, {"_frames": frames})
+    assert "predate" in frames_mismatch({"_frames": frames}, {})
+
+
+def test_the_fingerprint_is_not_scored_as_a_fold():
+    """It sits at the same level as the folds, so the parser has to skip it."""
+    from ffmodel.evaluation.acceptance import compare_runs
+
+    run = {
+        "_frames": {"digest": "aaaa", "player_rows": 10},
+        "2023": {"carry": {"n": 100, "mae": 1.0}},
+    }
+    other = {
+        "_frames": {"digest": "aaaa", "player_rows": 10},
+        "2023": {"carry": {"n": 100, "mae": 0.9}},
+    }
+
+    report = compare_runs(run, other)
+
+    assert {c.stream for c in report.metrics} == {"carry"}

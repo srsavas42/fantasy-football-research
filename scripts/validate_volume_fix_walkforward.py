@@ -26,7 +26,12 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _walkforward_data import add_common_arguments, gate_override, load_frames
+from _walkforward_data import (
+    add_common_arguments,
+    frames_fingerprint,
+    gate_override,
+    load_frames,
+)
 
 from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
 from ffmodel.features.season_average import SeasonAverageData
@@ -56,7 +61,9 @@ def main(argv=None) -> None:
     coupling = gate_override(args)
     sample_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
 
-    report: dict[str, object] = {}
+    report: dict[str, object] = {
+        "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
+    }
     for holdout in args.holdouts:
         started = time.perf_counter()
         train = SeasonAverageData(

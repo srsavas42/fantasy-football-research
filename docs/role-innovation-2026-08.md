@@ -372,3 +372,77 @@ removed.
 That is three of three closed as measurement artifacts rather than defects,
 which is worth stating plainly given how confidently the opposite was written
 here a few hours earlier.
+
+---
+
+# The mean-preserving correction does not fix the carry bias (2026-08-04)
+
+The carry allocator over-projects quarterbacks and under-projects running backs
+in every fold: QB +31.1% / +25.7% / +36.4% and RB −6.9% / −6.4% / −5.2% on the
+2023, 2024 and 2025 holdouts. Aggregate carry MAE never flagged it because the
+two errors partly cancel against the conserved room total.
+
+I attributed that to softmax renormalization — mass leaving the room's leader
+and spreading to its minor members, which in a carry room means running backs
+down and quarterbacks up. The per-layer `mean_preserving_innovation` flag exists
+to remove exactly that. This measures whether it does.
+
+## The test
+
+The flag is read only in `_role_share_prediction` and never during fit, so one
+posterior serves both arms. Predicting twice with the same seed makes this
+exactly paired: the innovation draws are identical and the sole difference is
+the renormalization correction. The target stream is bit-identical across arms,
+confirming the isolation, and carry draws move by 0.114 per team game on
+average, confirming the correction is not a no-op.
+
+| pos | n | obs/gm | baseline | mp | change |
+|---|---:|---:|---:|---:|---:|
+| QB | 85 | 1.523 | **+36.5%** | **+35.4%** | −1.0pp |
+| RB | 149 | 4.430 | −5.2% | −4.9% | +0.3pp |
+| WR | 216 | 0.092 | +7.2% | +5.1% | −2.1pp |
+| TE | 125 | 0.036 | −78.2% | −78.8% | −0.6pp |
+
+**One point of thirty-six.** The correction is mean-preserving by construction
+and removes the renormalization bias exactly, so this is a measurement of how
+much of the carry bias renormalization was ever responsible for: about a
+thirtieth of it. The mechanism I named is real, present, and almost entirely
+beside the point.
+
+Per-position error moves the same negligible amount — QB MAE −0.49%, RB −0.14%,
+WR −0.81%, TE −0.12% — and the room total is unchanged to three decimals
+(27.158 both arms), as a mass-neutral correction must be.
+
+## Where the bias actually is
+
+The residual is upstream of the softmax, in the role prior's relative scaling.
+Measured on the 2025 rows, carries per snap:
+
+| pos | model role prior | × exposure | observed carries/snap |
+|---|---:|---:|---:|
+| QB | 0.03710 | 0.00474 | 0.06453 |
+| RB | 0.25564 | 0.01856 | 0.30858 |
+
+The allocator's RB-to-QB ratio is 3.92 against an observed 4.78. Both priors sit
+below the realized rate, but the quarterback one sits proportionally closer, so
+the room's relative allocation hands passers more than they earn before any
+noise is added. Neither the exposure asymmetry I first expected (median 0.110
+for QBs against 0.111 for RBs — there is none) nor renormalization accounts for
+it.
+
+## Status
+
+`mean_preserving_innovation` stays off, now for a second and better reason. The
+first was cost: on all three layers it charges 4–7% CRPS on the passing streams.
+The per-layer split removes that objection for carry specifically — the matched
+four-fold comparison shows every other stream identical to the last digit — but
+what carry buys is −0.21% MAE pooled, under the gate's 0.25% materiality floor,
+and none of the bias it was built to remove.
+
+The flag and the per-layer machinery stay. The correction is mathematically
+right and cheap to carry, and it is the only clean instrument for asking "how
+much of this is renormalization?" of any allocation layer. The answer for carry
+happens to be "almost none".
+
+The QB/RB split remains open, and is now a role-prior question rather than an
+allocation-noise one.

@@ -21,6 +21,7 @@ This splits the misses three ways.
 
 from __future__ import annotations
 
+import argparse
 import json
 import warnings
 from pathlib import Path
@@ -35,8 +36,14 @@ from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 from ffmodel.simulation.scoring import fantasy_points
 
-HOLDOUT = 2025
-SCORING = "ppr"
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument("--holdout", type=int, default=2025)
+_parser.add_argument("--scoring", default="ppr")
+_parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
+_args = _parser.parse_args()
+
+HOLDOUT = _args.holdout
+SCORING = _args.scoring
 OUTPUT = Path(f"scripts/validation_runs/tail_miss_split_{HOLDOUT}.json")
 
 
@@ -45,8 +52,8 @@ def binomial_z(misses: int, n: int, nominal: float) -> float:
     return (misses - expected) / np.sqrt(n * nominal * (1.0 - nominal))
 
 
-pr = pd.read_pickle(".cache/ffmodel-wf-2025/player_rows.pkl")
-tr = pd.read_pickle(".cache/ffmodel-wf-2025/team_rows.pkl")
+pr = pd.read_pickle(_args.cache_dir / "player_rows.pkl")
+tr = pd.read_pickle(_args.cache_dir / "team_rows.pkl")
 train = SeasonAverageData(
     tr[tr.season < HOLDOUT].copy(), pr[pr.season < HOLDOUT].copy()
 )

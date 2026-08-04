@@ -39,6 +39,24 @@ from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 SCORING_FORMATS = ("standard", "half_ppr", "ppr")
 
 
+def _diagnostics(pipeline) -> dict[str, dict[str, object]]:
+    """Sampler health for the volume components and every efficiency response."""
+    out: dict[str, dict[str, object]] = {}
+    for name, result in pipeline.volume_model.diagnostics().items():
+        out[f"volume/{name}"] = {
+            "max_rhat": float(result["max_rhat"]),
+            "min_ess": float(result["min_bulk_ess"]),
+            "divergences": int(result["divergences"]),
+        }
+    for name, result in pipeline.efficiency_model.diagnostics().items():
+        out[f"efficiency/{name}"] = {
+            "max_rhat": float(result["max_rhat"]),
+            "min_ess": float(result["min_bulk_ess"]),
+            "divergences": int(result["divergences"]),
+        }
+    return out
+
+
 def main(argv=None) -> None:
     parser = add_common_arguments(argparse.ArgumentParser(description=__doc__))
     parser.add_argument(
@@ -102,6 +120,12 @@ def main(argv=None) -> None:
             for scoring in SCORING_FORMATS
         }
         fold["seconds"] = round(time.perf_counter() - started, 1)
+        # Both layers, because a scoring run that samples badly reports a CRPS
+        # like any other and nothing in the output says otherwise. The volume
+        # walk-forward has recorded this since it was written; this one never
+        # did, and a cap selection built on it hid 304 divergences in an
+        # efficiency response behind a clean-looking table.
+        fold["diagnostics"] = _diagnostics(pipeline)
         report[str(holdout)] = fold
         print(
             f"[{args.label}] holdout {holdout} done in {fold['seconds']}s "

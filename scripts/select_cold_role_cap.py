@@ -141,6 +141,37 @@ def coverage_gap(scores: dict[str, dict[str, float]]) -> float:
     return float(np.mean(gaps))
 
 
+def diagnostics(pipeline) -> dict[str, dict[str, float]]:
+    """Sampler health for both layers, recorded per fit rather than per
+    candidate: within a fold one posterior serves every candidate, so a bad
+    sample is a property of the fold and biases every row of its table
+    together."""
+    out: dict[str, dict[str, float]] = {}
+    for layer, model in (
+        ("volume", pipeline.volume_model),
+        ("efficiency", pipeline.efficiency_model),
+    ):
+        for name, result in model.diagnostics().items():
+            out[f"{layer}/{name}"] = {
+                "max_rhat": float(result["max_rhat"]),
+                "min_ess": float(result["min_bulk_ess"]),
+                "divergences": int(result["divergences"]),
+            }
+    return out
+
+
+def unhealthy(diags: dict[str, dict[str, float]]) -> list[str]:
+    """Components a reader should not take a CRPS from without looking."""
+    bad = []
+    for name, values in diags.items():
+        if values["divergences"] > 0 or values["max_rhat"] > 1.02:
+            bad.append(
+                f"{name}: rhat {values['max_rhat']:.4f}, "
+                f"{int(values['divergences'])} divergences"
+            )
+    return bad
+
+
 def fit_pipeline(player_rows, team_rows, seasons, sample_kwargs):
     data = SeasonAverageData(
         team_rows[team_rows.season.isin(seasons)].copy(),
@@ -216,6 +247,9 @@ def main(argv=None) -> int:
             team_rows[team_rows.season == inner_season].copy(),
             player_rows[player_rows.season == inner_season].copy(),
         )
+        inner_diagnostics = diagnostics(inner_pipeline)
+        for problem in unhealthy(inner_diagnostics):
+            print(f"[{holdout}] inner sampler warning -- {problem}", flush=True)
         inner_ratios = uncapped_ratios(inner_pipeline.volume_model, inner_train.player_rows)
         print(
             f"[{holdout}] inner uncapped ratios: "
@@ -251,6 +285,9 @@ def main(argv=None) -> int:
             team_rows[team_rows.season == holdout].copy(),
             player_rows[player_rows.season == holdout].copy(),
         )
+        outer_diagnostics = diagnostics(outer_pipeline)
+        for problem in unhealthy(outer_diagnostics):
+            print(f"[{holdout}] outer sampler warning -- {problem}", flush=True)
         outer_ratios = uncapped_ratios(outer_pipeline.volume_model, outer_train.player_rows)
 
         incumbent_multipliers = apply_cap(
@@ -272,6 +309,8 @@ def main(argv=None) -> int:
             "outer_incumbent_multipliers": incumbent_multipliers,
             "outer_selected": selected_scores,
             "outer_selected_multipliers": selected_multipliers,
+            "inner_diagnostics": inner_diagnostics,
+            "outer_diagnostics": outer_diagnostics,
             "seconds": round(time.perf_counter() - started, 1),
         }
         print(

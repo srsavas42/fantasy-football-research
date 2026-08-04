@@ -1,0 +1,104 @@
+{
+  "2022": {
+    "half_ppr": {
+      "coverage_80": 0.7533460803059273,
+      "coverage_95": 0.904397705544933,
+      "crps": 26.848244508924473,
+      "mae": 37.05155250478012,
+      "n": 523,
+      "rmse": 50.66497727817162,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.7571701720841301,
+      "coverage_95": 0.9005736137667304,
+      "crps": 30.68379123755736,
+      "mae": 42.26629992351816,
+      "n": 523,
+      "rmse": 57.25389505697808,
+      "scoring": "ppr"
+    },
+    "seconds": 802.9,
+    "standard": {
+      "coverage_80": 0.7533460803059273,
+      "coverage_95": 0.9063097514340345,
+      "crps": 23.131537146543977,
+      "mae": 32.02033281070746,
+      "n": 523,
+      "rmse": 44.733835376838194,
+      "scoring": "standard"
+    }
+  },
+  "2023": {
+    "half_ppr": {
+      "coverage_80": 0.73767258382643,
+      "coverage_95": 0.8994082840236687,
+      "crps": 29.043205733868344,
+      "mae": 39.79054594674556,
+      "n": 507,
+      "rmse": 56.2203613608705,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.73767258382643,
+      "coverage_95": 0.8954635108481263,
+      "crps": 33.214013252803255,
+      "mae": 45.516577110453646,
+      "n": 507,
+      "rmse": 63.16010120935363,
+      "scoring": "ppr"
+    },
+    "seconds": 536.9,
+    "standard": {
+      "coverage_80": 0.7357001972386588,
+      "coverage_95": 0.893491124260355,
+      "crps": 24.989028507610946,
+      "mae": 34.311725433925055,
+      "n": 507,
+      "rmse": 50.008094071113874,
+      "scoring": "standard"
+    }
+  },
+  "2024": {
+    "half_ppr": {
+      "coverage_80": 0.7704590818363274,
+      "coverage_95": 0.9441117764471058,
+      "crps": 26.47278300147206,
+      "mae": 36.77904754491017,
+      "n": 501,
+      "rmse": 51.408870112279,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.7724550898203593,
+      "coverage_95": 0.9441117764471058,
+      "crps": 29.990070696506987,
+      "mae": 41.58287499001997,
+      "n": 501,
+      "rmse": 57.17439231739384,
+      "scoring": "ppr"
+    },
+    "seconds": 644.0,
+    "standard": {
+      "coverage_80": 0.7784431137724551,
+      "coverage_95": 0.9421157684630739,
+      "crps": 23.057963010329342,
+      "mae": 32.04693776447106,
+      "n": 501,
+      "rmse": 46.28124588034166,
+      "scoring": "standard"
+    }
+  },
+  "_frames": {
+    "backfill_justification": "cache mtime 2026-08-04T00:36:44Z predates both the run (15:55Z) and the fingerprint code (15:47Z), so the frames hashed here are the frames read",
+    "backfilled": true,
+    "cache_dir": ".cache/ffmodel-wf-2025",
+    "digest": "75a2c821669fe43a",
+    "player_rows": 7937,
+    "seasons": [
+      2015,
+      2025
+    ],
+    "team_rows": 352
+  }
+}

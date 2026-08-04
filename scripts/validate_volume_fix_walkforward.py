@@ -69,7 +69,11 @@ def main(argv=None) -> None:
         )
         pipeline = SeasonAverageVolumePipeline(
             postseason_role_features=args.postseason,
-            mean_preserving_innovation=args.mean_preserving_innovation,
+            mean_preserving_innovation=(
+                tuple(args.mean_preserving_layers)
+                if args.mean_preserving_layers
+                else args.mean_preserving_innovation
+            ),
             calibrated_innovation=args.calibrated_innovation,
             innovation_cap=args.innovation_cap,
         )

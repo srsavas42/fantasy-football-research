@@ -67,8 +67,17 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
     parser.add_argument(
         "--mean-preserving-innovation",
         action="store_true",
-        help="correct the softmax renormalization bias the role innovation "
-             "introduces in the workload, target and carry allocations",
+        help="correct the softmax renormalization bias in every allocation "
+             "layer (workload, target and carry)",
+    )
+    parser.add_argument(
+        "--mean-preserving-layers",
+        nargs="+",
+        default=None,
+        choices=("workload", "target", "carry"),
+        help="apply the correction to only these layers. The layers disagree: "
+             "the workload one costs 4-7%% CRPS on the passing streams while "
+             "the carry one improves carry MAE on every fold",
     )
     parser.add_argument(
         "--efficiency-exposure-floor",

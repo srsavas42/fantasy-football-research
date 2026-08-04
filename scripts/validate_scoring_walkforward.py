@@ -70,7 +70,9 @@ def main(argv=None) -> None:
             }
         pipeline.volume_model.postseason_role_features = args.postseason
         pipeline.volume_model.mean_preserving_innovation = (
-            args.mean_preserving_innovation
+            tuple(args.mean_preserving_layers)
+            if args.mean_preserving_layers
+            else args.mean_preserving_innovation
         )
         pipeline.volume_model.calibrated_innovation = args.calibrated_innovation
         pipeline.volume_model.innovation_cap = args.innovation_cap

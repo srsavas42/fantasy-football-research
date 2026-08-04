@@ -1178,9 +1178,11 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
-    # Correct the softmax renormalization bias the role innovation introduces,
-    # in every allocation layer at once. See ``mean_preserving_shares``.
-    mean_preserving_innovation: bool = False
+    # Correct the softmax renormalization bias the role innovation introduces.
+    # ``True`` enables every allocation layer; a tuple names a subset, because
+    # the layers were measured to disagree — see
+    # ``_enable_mean_preserving_innovation``. See ``mean_preserving_shares``.
+    mean_preserving_innovation: bool | tuple[str, ...] = False
     # Solve for the input noise scale that realizes the churn the estimator
     # measured, rather than handing the measurement straight to the sampler.
     # Promoted 2026-08-03; see ``calibrate_innovation_scale`` and
@@ -1252,16 +1254,40 @@ class SeasonAverageVolumePipeline:
             self.fit_seconds["regime"] = perf_counter() - started
         return self
 
-    def _enable_mean_preserving_innovation(self) -> None:
-        """Turn the correction on for every layer that allocates over a simplex.
+    MEAN_PRESERVING_LAYERS = ("workload", "target", "carry")
 
-        There are three: the quarterback workload room, and the target and carry
-        rooms. The snap and eligibility layers are per-player and never
-        renormalize, so they have nothing to correct.
+    def _enable_mean_preserving_innovation(self) -> None:
+        """Turn the correction on for the allocation layers named by the flag.
+
+        Three layers renormalize: the quarterback workload room, and the target
+        and carry rooms. The snap and eligibility layers are per-player and
+        never renormalize, so they have nothing to correct.
+
+        Enabling all three at once was measured and rejected: it costs 4-7% CRPS
+        on the quarterback passing streams. But that cost is the *workload*
+        layer's, and the carry layer's contribution was a 0.58% MAE improvement
+        on all three folds. Applying it per layer separates the two.
+
+        The carry room is where the correction has the most to fix. Running
+        backs lead it and quarterbacks are minor members, and renormalization
+        moves mass from the leader outward — which is exactly the observed
+        allocation error, a flat +0.5 carries per game onto every quarterback
+        against -0.30 off every running back, in every fold.
         """
-        self.workload_model.mean_preserving_innovation = True
-        self.target_model.mean_preserving_innovation = True
-        self.carry_model.mean_preserving_innovation = True
+        selected = self.mean_preserving_innovation
+        layers = (
+            self.MEAN_PRESERVING_LAYERS
+            if selected is True
+            else tuple(selected or ())
+        )
+        unknown = set(layers) - set(self.MEAN_PRESERVING_LAYERS)
+        if unknown:
+            raise ValueError(
+                f"unknown mean-preserving layers: {sorted(unknown)}; "
+                f"choose from {list(self.MEAN_PRESERVING_LAYERS)}"
+            )
+        for name in layers:
+            getattr(self, f"{name}_model").mean_preserving_innovation = True
 
     def _enable_calibrated_innovation(self) -> None:
         """Turn calibration on for the three layers that allocate over a simplex.

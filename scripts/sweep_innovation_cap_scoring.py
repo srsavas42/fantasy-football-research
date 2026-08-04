@@ -77,7 +77,10 @@ def binomial_z(coverage: float, n: int, nominal: float) -> float:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--holdout", type=int, default=2025)
+    # In-window by default. This sweep is a diagnostic and its output must not
+    # be used to pick a value: 2025 is the one season no choice in this package
+    # has seen, and a sweep is exactly the shape of thing that spends it.
+    parser.add_argument("--holdout", type=int, default=2024)
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
     parser.add_argument("--draws", type=int, default=1000)
     parser.add_argument(

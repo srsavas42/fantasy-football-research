@@ -47,10 +47,25 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="restore the per-row play-rate random effect (redundant with the "
              "NegativeBinomial's own dispersion; off by default)",
     )
+    # Tri-state on purpose. ``store_true`` here silently overrode a *promoted*
+    # model default with the flag's own default of False, so every run that
+    # forgot the flag validated a configuration nobody ships. Leaving this None
+    # keeps whatever the model itself says.
     parser.add_argument(
         "--postseason",
-        action="store_true",
-        help="enable the lagged postseason role features",
+        dest="postseason",
+        action="store_const",
+        const=True,
+        default=None,
+        help="force the lagged postseason role features on (promoted, so this "
+             "is already the model default)",
+    )
+    parser.add_argument(
+        "--no-postseason",
+        dest="postseason",
+        action="store_const",
+        const=False,
+        help="force the lagged postseason role features off, for ablations",
     )
     parser.add_argument(
         "--innovation-cap",

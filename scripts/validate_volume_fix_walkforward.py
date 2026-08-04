@@ -68,7 +68,6 @@ def main(argv=None) -> None:
             player_rows[player_rows.season == holdout].copy(),
         )
         pipeline = SeasonAverageVolumePipeline(
-            postseason_role_features=args.postseason,
             mean_preserving_innovation=(
                 tuple(args.mean_preserving_layers)
                 if args.mean_preserving_layers
@@ -78,6 +77,8 @@ def main(argv=None) -> None:
             cold_role_innovation=args.cold_role_innovation,
             innovation_cap=args.innovation_cap,
         )
+        if args.postseason is not None:
+            pipeline.postseason_role_features = args.postseason
         pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.workload_model.couple_gate_to_availability = coupling

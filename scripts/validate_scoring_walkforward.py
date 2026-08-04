@@ -68,7 +68,8 @@ def main(argv=None) -> None:
                 "tune": args.volume_feature_draws,
                 "chains": 2,
             }
-        pipeline.volume_model.postseason_role_features = args.postseason
+        if args.postseason is not None:
+            pipeline.volume_model.postseason_role_features = args.postseason
         pipeline.volume_model.mean_preserving_innovation = (
             tuple(args.mean_preserving_layers)
             if args.mean_preserving_layers

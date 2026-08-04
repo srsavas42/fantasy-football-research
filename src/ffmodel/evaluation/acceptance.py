@@ -32,6 +32,7 @@ flagged for a reseed rather than failed.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Iterable, Mapping
 
 import numpy as np
@@ -55,6 +56,9 @@ COVERAGE_NOMINAL = {
 }
 NOT_A_METRIC = ("n", "seconds", "scoring")
 NOT_A_STREAM = ("seconds", "n", "diagnostics")
+# Keys a run records about itself rather than about a fold. Underscore-prefixed
+# so a future one needs no change here.
+RESERVED_PREFIX = "_"
 
 # How large a move has to be before it is worth a verdict. Coverage is measured
 # in coverage points because its distance from nominal is often near zero, and a
@@ -63,7 +67,15 @@ NOT_A_STREAM = ("seconds", "n", "diagnostics")
 # "+62%" would have the gate blocking promotions over nothing. Everything else
 # is relative, where a floor of a quarter of a percent keeps the gate from
 # ruling on differences smaller than the thing being measured.
-COVERAGE_MATERIAL = 0.01
+#
+# Two different jobs. The floor is normally one binomial standard error at the
+# nominal rate, so it tracks the sample. ``FLOOR`` is a lower bound on that, so a
+# very large fold cannot drive it to zero and turn rounding into a verdict.
+# ``UNKNOWN_N`` is the fallback when a run does not record row counts: without
+# the sample there is no basis for scaling, so the gate stays conservative
+# rather than ruling aggressively on a number it cannot size.
+COVERAGE_MATERIAL_FLOOR = 0.002
+COVERAGE_MATERIAL_UNKNOWN_N = 0.01
 RELATIVE_MATERIAL = 0.0025
 
 # R-hat below this is accepted; above it fails. The band between the classic
@@ -84,6 +96,7 @@ class MetricComparison:
     baseline: dict[str, float]
     candidate: dict[str, float]
     protected: bool = False
+    counts: tuple[float, ...] = ()
 
     @property
     def folds(self) -> list[str]:
@@ -94,9 +107,34 @@ class MetricComparison:
         return self.metric in COVERAGE_NOMINAL
 
     @property
+    def sample_size(self) -> float:
+        """Rows per fold, if the run recorded them."""
+        return float(np.mean(self.counts)) if self.counts else 0.0
+
+    @property
     def material(self) -> float:
-        """Smallest move in this metric's own units worth calling a change."""
-        return COVERAGE_MATERIAL if self.is_coverage else RELATIVE_MATERIAL
+        """Smallest move in this metric's own units worth calling a change.
+
+        For coverage this scales with the sample. Coverage is a proportion of a
+        rare event, so what counts as a detectable move depends entirely on how
+        many rows there are: one coverage point is about 2.5 observations on the
+        253-row quarterback stream and about 17 on the 1,754-row target stream.
+        A fixed floor calibrated for the first is far too coarse for the second,
+        and it scored a target 95% move that took the stream from z=+3.43 to
+        z=+5.29 as negligible.
+
+        The floor is one binomial standard error at the nominal rate, with the
+        fixed value as a lower bound so a very large fold cannot drive it to
+        zero.
+        """
+        if not self.is_coverage:
+            return RELATIVE_MATERIAL
+        n = self.sample_size
+        if n <= 0:
+            return COVERAGE_MATERIAL_UNKNOWN_N
+        nominal = COVERAGE_NOMINAL[self.metric]
+        standard_error = math.sqrt(nominal * (1.0 - nominal) / n)
+        return max(standard_error, COVERAGE_MATERIAL_FLOOR)
 
     @property
     def units(self) -> str:
@@ -220,28 +258,75 @@ class AcceptanceReport:
 
 
 def _flatten(run: Mapping[str, object]) -> dict[tuple[str, str], dict[str, float]]:
-    """Pull every (stream, metric) series out of a walk-forward run JSON."""
+    """Pull every (stream, metric) series out of a walk-forward run JSON.
+
+    Row counts travel with the metrics because coverage cannot be judged
+    without them: the same move in coverage points means different things on a
+    253-row stream and a 1,754-row one.
+    """
+    counts: dict[tuple[str, str], list[float]] = {}
     out: dict[tuple[str, str], dict[str, float]] = {}
     for fold, payload in run.items():
-        if not isinstance(payload, Mapping):
+        if fold.startswith(RESERVED_PREFIX) or not isinstance(payload, Mapping):
             continue
         for stream, value in payload.items():
             if stream in NOT_A_STREAM:
                 continue
             if isinstance(value, Mapping):
+                rows = value.get("n")
                 for metric, number in value.items():
                     if metric in NOT_A_METRIC or not isinstance(number, (int, float)):
                         continue
                     out.setdefault((stream, metric), {})[fold] = float(number)
+                    if isinstance(rows, (int, float)):
+                        counts.setdefault((stream, metric), []).append(float(rows))
             elif isinstance(value, (int, float)) and not isinstance(value, bool):
                 out.setdefault((stream, "value"), {})[fold] = float(value)
-    return out
+    return out, counts
+
+
+def frames_mismatch(
+    baseline: Mapping[str, object], candidate: Mapping[str, object]
+) -> str | None:
+    """Why these two runs are not comparable, or None if they are.
+
+    A gate that silently scores a candidate against a baseline built from a
+    different data pull reports differences the change did not cause. Both runs
+    in this repo's history that were read across a rebuild looked plausible; one
+    of them produced a promotion argument that had to be withdrawn.
+    """
+    left = baseline.get("_frames")
+    right = candidate.get("_frames")
+    if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+        return (
+            "one or both runs predate frame fingerprinting, so whether they read "
+            "the same build cannot be checked"
+        )
+    if left.get("version") != right.get("version"):
+        return (
+            "the runs were fingerprinted by different versions of the hash "
+            f"({left.get('version')} against {right.get('version')}), so their "
+            "digests cannot be compared. Re-fingerprint the older run rather "
+            "than reading this as a data difference"
+        )
+    if left.get("digest") == right.get("digest"):
+        return None
+    return (
+        "the runs read different frames: "
+        f"{left.get('cache_dir')} digest {left.get('digest')} "
+        f"({left.get('player_rows')} player rows) against "
+        f"{right.get('cache_dir')} digest {right.get('digest')} "
+        f"({right.get('player_rows')} player rows). Equal row counts do not mean "
+        "equal data -- nflverse revises history under a stable row count"
+    )
 
 
 def _diagnostic_problems(run: Mapping[str, object], label: str) -> list[dict[str, object]]:
     """Sampler health for every component, not only the ones someone tabulated."""
     found: list[dict[str, object]] = []
     for fold, payload in run.items():
+        if fold.startswith(RESERVED_PREFIX):
+            continue
         diagnostics = payload.get("diagnostics") if isinstance(payload, Mapping) else None
         if not isinstance(diagnostics, Mapping):
             continue
@@ -291,7 +376,8 @@ def compare_runs(
     exchange for gains elsewhere, and ``protected_tolerance`` is how much
     relative regression they may absorb before that becomes a blocker.
     """
-    base_metrics, cand_metrics = _flatten(baseline), _flatten(candidate)
+    base_metrics, counts = _flatten(baseline)
+    cand_metrics, _ = _flatten(candidate)
     protected = set(protected)
 
     metrics = [
@@ -301,6 +387,7 @@ def compare_runs(
             baseline=base_metrics[(stream, metric)],
             candidate=cand_metrics[(stream, metric)],
             protected=stream in protected,
+            counts=tuple(counts.get((stream, metric), ())),
         )
         for (stream, metric) in sorted(base_metrics.keys() & cand_metrics.keys())
     ]

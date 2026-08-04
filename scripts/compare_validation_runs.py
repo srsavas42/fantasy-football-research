@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ffmodel.evaluation.acceptance import compare_runs, format_report
+from ffmodel.evaluation.acceptance import compare_runs, format_report, frames_mismatch
 
 
 def main(argv=None) -> int:
@@ -32,11 +32,25 @@ def main(argv=None) -> int:
         help="streams a change may not damage in exchange for gains elsewhere",
     )
     parser.add_argument("--protected-tolerance", type=float, default=0.005)
+    parser.add_argument(
+        "--allow-frame-mismatch",
+        action="store_true",
+        help="compare runs built from different data pulls anyway. The result "
+             "attributes the rebuild's differences to the change under test",
+    )
     args = parser.parse_args(argv)
 
+    baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
+    candidate = json.loads(args.candidate.read_text(encoding="utf-8"))
+    mismatch = frames_mismatch(baseline, candidate)
+    if mismatch and not args.allow_frame_mismatch:
+        print(f"not a controlled comparison: {mismatch}", file=sys.stderr)
+        print("pass --allow-frame-mismatch to override", file=sys.stderr)
+        return 2
+
     report = compare_runs(
-        json.loads(args.baseline.read_text(encoding="utf-8")),
-        json.loads(args.candidate.read_text(encoding="utf-8")),
+        baseline,
+        candidate,
         protected=args.protected,
         protected_tolerance=args.protected_tolerance,
     )

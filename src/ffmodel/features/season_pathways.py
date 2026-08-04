@@ -94,11 +94,29 @@ def _room_advantage(
     return (quality - other_quality).where(valid & other_support.gt(0))
 
 
-def add_player_pathway_features(rows: pd.DataFrame) -> pd.DataFrame:
+# Trend features a model actually regresses on. A trend is a difference against
+# the player's previous season, so it only exists where that row is in the same
+# frame. If one of these comes out wholly missing the caller has featurized a
+# projection season on its own, and the consuming model will quietly fill every
+# row with a training median — fitting on a varying feature and serving a
+# constant.
+CONSUMED_TREND_FEATURES = ("prior_snap_share_trend",)
+
+
+def add_player_pathway_features(
+    rows: pd.DataFrame, *, require_trends: bool = True
+) -> pd.DataFrame:
     """Add multi-year production and relative-efficiency states.
 
     Input columns are already lagged to the response season, so every derived
     value for season ``Y`` uses information observed no later than ``Y-1``.
+
+    Raises if a trend a model consumes is missing for every row, which is what
+    happens when a projection season is featurized alone. ``build_season_average_data``
+    builds history and the projection together and then filters, so the
+    production path is unaffected; the guard exists for any other caller, where
+    the failure is otherwise silent and looks like a well-behaved model.
+    ``require_trends=False`` opts out for callers that do not consume them.
     """
     out = rows.copy().reset_index(drop=True)
     out = _add_history_columns(
@@ -133,4 +151,19 @@ def add_player_pathway_features(rows: pd.DataFrame) -> pd.DataFrame:
         out[f"prior_{stream}_room_quality_advantage"] = _room_advantage(
             out, signal, weight
         )
+    if require_trends and len(out):
+        absent = [
+            name
+            for name in CONSUMED_TREND_FEATURES
+            if name in out and out[name].isna().all()
+        ]
+        if absent:
+            seasons = out["season"].nunique() if "season" in out else 0
+            raise ValueError(
+                f"{', '.join(absent)} is missing for every row. A trend needs the "
+                f"player's previous season in the same frame, and this frame holds "
+                f"{seasons} season(s). Featurize history together with the "
+                "projection season and filter afterwards, or pass "
+                "require_trends=False if no consumer reads these."
+            )
     return out

@@ -1,0 +1,53 @@
+{
+  "holdout": 2025,
+  "positions": {
+    "QB": {
+      "baseline_crps": 0.7323679914792388,
+      "baseline_mae": 1.1382254325259515,
+      "baseline_pred": 2.0786188581314877,
+      "baseline_rel_bias": 0.3646543616537936,
+      "carry_mp_crps": 0.7306351285467128,
+      "carry_mp_mae": 1.1326294117647058,
+      "carry_mp_pred": 2.0627802768166092,
+      "carry_mp_rel_bias": 0.3542560199909134,
+      "n": 85,
+      "observed": 1.5231833910034602
+    },
+    "RB": {
+      "baseline_crps": 1.751746421757797,
+      "baseline_mae": 2.42271644295302,
+      "baseline_pred": 4.199205981050138,
+      "baseline_rel_bias": -0.05216639190875058,
+      "carry_mp_crps": 1.7517769972118042,
+      "carry_mp_mae": 2.419273095144098,
+      "carry_mp_pred": 4.212123272799053,
+      "carry_mp_rel_bias": -0.04925073516307237,
+      "n": 149,
+      "observed": 4.430319778918278
+    },
+    "TE": {
+      "baseline_crps": 0.03250189647058824,
+      "baseline_mae": 0.03647623529411764,
+      "baseline_pred": 0.007890823529411766,
+      "baseline_rel_bias": -0.7822337662337662,
+      "carry_mp_crps": 0.03257159991176471,
+      "carry_mp_mae": 0.03643070588235295,
+      "carry_mp_pred": 0.0076838823529411775,
+      "carry_mp_rel_bias": -0.7879448051948051,
+      "n": 125,
+      "observed": 0.03623529411764706
+    },
+    "WR": {
+      "baseline_crps": 0.06716318065767973,
+      "baseline_mae": 0.10532393790849673,
+      "baseline_pred": 0.09809967320261438,
+      "baseline_rel_bias": 0.07208928571428565,
+      "carry_mp_crps": 0.0670720263650599,
+      "carry_mp_mae": 0.1044713371459695,
+      "carry_mp_pred": 0.09615502450980393,
+      "carry_mp_rel_bias": 0.05083705357142854,
+      "n": 216,
+      "observed": 0.09150326797385622
+    }
+  }
+}

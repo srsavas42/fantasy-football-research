@@ -14,7 +14,12 @@ from pathlib import Path
 import pandas as pd
 
 DEFAULT_CACHE = Path(".cache/ffmodel-walkforward")
-DEFAULT_SEASONS = range(2014, 2025)
+# 2025 is complete as of this writing and is deliberately *not* in the default
+# holdouts. Every promotion decision in this package was made on 2022-2024, so
+# 2025 is the one season no choice here has seen — the closest thing to a real
+# out-of-sample test. Keep it that way: score it, do not select on it.
+DEFAULT_SEASONS = range(2014, 2026)
+FINGERPRINT_VERSION = 2
 HOLDOUTS = (2022, 2023, 2024)
 
 
@@ -43,16 +48,77 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="restore the per-row play-rate random effect (redundant with the "
              "NegativeBinomial's own dispersion; off by default)",
     )
+    # Tri-state on purpose. ``store_true`` here silently overrode a *promoted*
+    # model default with the flag's own default of False, so every run that
+    # forgot the flag validated a configuration nobody ships. Leaving this None
+    # keeps whatever the model itself says.
     parser.add_argument(
         "--postseason",
+        dest="postseason",
+        action="store_const",
+        const=True,
+        default=None,
+        help="force the lagged postseason role features on (promoted, so this "
+             "is already the model default)",
+    )
+    parser.add_argument(
+        "--no-postseason",
+        dest="postseason",
+        action="store_const",
+        const=False,
+        help="force the lagged postseason role features off, for ablations",
+    )
+    parser.add_argument(
+        "--innovation-cap",
+        type=float,
+        default=None,
+        help="override the target and carry allocators' role-innovation cap",
+    )
+    parser.add_argument(
+        "--calibrated-innovation",
         action="store_true",
-        help="enable the lagged postseason role features",
+        help="solve for the input noise scale that realizes the churn the "
+             "estimator measured, instead of using the measurement directly",
+    )
+    parser.add_argument(
+        "--cold-role-innovation",
+        dest="cold_role_innovation",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give players with no prior role of their own a wider role "
+             "innovation, sized from the training data's own cold-vs-warm "
+             "log-share dispersion ratio (promoted, so already the default)",
+    )
+    parser.add_argument(
+        "--no-cold-role-innovation",
+        dest="cold_role_innovation",
+        action="store_const",
+        const=False,
+        help="force the cold-role widening off, for ablations",
+    )
+    parser.add_argument(
+        "--cold-role-scale-mode",
+        choices=("relative", "measured"),
+        default="relative",
+        help="how the cold rows' scale is derived: 'relative' keeps the cold-"
+             "to-warm dispersion ratio and inherits the cap's compression, "
+             "'measured' targets the cold population's own dispersion",
     )
     parser.add_argument(
         "--mean-preserving-innovation",
         action="store_true",
-        help="correct the softmax renormalization bias the role innovation "
-             "introduces in the workload, target and carry allocations",
+        help="correct the softmax renormalization bias in every allocation "
+             "layer (workload, target and carry)",
+    )
+    parser.add_argument(
+        "--mean-preserving-layers",
+        nargs="+",
+        default=None,
+        choices=("workload", "target", "carry"),
+        help="apply the correction to only these layers. The layers disagree: "
+             "the workload one costs 4-7%% CRPS on the passing streams while "
+             "the carry one improves carry MAE on every fold",
     )
     parser.add_argument(
         "--efficiency-exposure-floor",
@@ -77,6 +143,42 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="how training-time oof_* volume covariates are built (scoring runs only)",
     )
     return parser
+
+
+def frames_fingerprint(
+    player_rows: pd.DataFrame, team_rows: pd.DataFrame, cache_dir: Path
+) -> dict[str, object]:
+    """Identify the build a run read, so cross-cache comparisons are catchable.
+
+    Two caches covering the same seasons are not the same data. nflverse revises
+    history, so a rebuild changes values under an unchanged row count -- between
+    the two caches in this repo, 69 of 289 columns differ over the pre-2022
+    seasons that both builds cover, with identical row counts. Absolute levels
+    from runs on different builds are not comparable, and nothing about the
+    output says so. Recording a content hash lets the gate say so instead.
+    """
+    # Salted per position so the combine is not commutative: a plain XOR gives
+    # the same digest if the two frames are passed the other way round, which
+    # would make an argument-order mistake invisible to the very check meant to
+    # catch invisible mistakes. Column order is normalised because it carries no
+    # information; row order is not, because these come from a stable build and
+    # a reordering is a real difference worth flagging.
+    digest = 0
+    for position, frame in enumerate((player_rows, team_rows)):
+        ordered = frame.sort_index(axis=1)
+        frame_hash = int(pd.util.hash_pandas_object(ordered, index=False).sum())
+        digest ^= (frame_hash * (2 * position + 1)) & 0xFFFFFFFFFFFFFFFF
+    return {
+        # Bumped whenever the hashing changes. Without it, a digest computed by
+        # an older version reads as "different data" rather than "different
+        # method", and the gate would block a comparison that is actually fine.
+        "version": FINGERPRINT_VERSION,
+        "cache_dir": str(cache_dir),
+        "player_rows": int(len(player_rows)),
+        "team_rows": int(len(team_rows)),
+        "seasons": [int(player_rows.season.min()), int(player_rows.season.max())],
+        "digest": f"{digest & 0xFFFFFFFFFFFFFFFF:016x}",
+    }
 
 
 def load_frames(cache_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:

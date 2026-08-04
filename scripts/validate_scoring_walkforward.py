@@ -25,7 +25,12 @@ warnings.filterwarnings("ignore")
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _walkforward_data import add_common_arguments, gate_override, load_frames
+from _walkforward_data import (
+    add_common_arguments,
+    frames_fingerprint,
+    gate_override,
+    load_frames,
+)
 
 from ffmodel.evaluation.efficiency_posterior import score_fantasy_points_posterior
 from ffmodel.features.season_average import SeasonAverageData
@@ -45,7 +50,9 @@ def main(argv=None) -> None:
     coupling = gate_override(args)
     sample_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
 
-    report: dict[str, object] = {}
+    report: dict[str, object] = {
+        "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
+    }
     for holdout in args.holdouts:
         started = time.perf_counter()
         train = SeasonAverageData(
@@ -68,10 +75,18 @@ def main(argv=None) -> None:
                 "tune": args.volume_feature_draws,
                 "chains": 2,
             }
-        pipeline.volume_model.postseason_role_features = args.postseason
+        if args.postseason is not None:
+            pipeline.volume_model.postseason_role_features = args.postseason
         pipeline.volume_model.mean_preserving_innovation = (
-            args.mean_preserving_innovation
+            tuple(args.mean_preserving_layers)
+            if args.mean_preserving_layers
+            else args.mean_preserving_innovation
         )
+        pipeline.volume_model.calibrated_innovation = args.calibrated_innovation
+        if args.cold_role_innovation is not None:
+            pipeline.volume_model.cold_role_innovation = args.cold_role_innovation
+        pipeline.volume_model.cold_role_scale_mode = args.cold_role_scale_mode
+        pipeline.volume_model.innovation_cap = args.innovation_cap
         pipeline.volume_model.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.volume_model.workload_model.couple_gate_to_availability = coupling

@@ -1,10 +1,16 @@
 {
   "configuration": {
+    "calibrated_innovation": true,
     "couple_gate_to_availability": true,
     "efficiency_exposure_floor": 5,
     "efficiency_exposure_floor_override": null,
     "mean_preserving_innovation": false,
     "postseason_role_features": true,
+    "role_innovation_scale": {
+      "carry": 0.511580765247345,
+      "target": 0.5136206746101379,
+      "workload": 1.6305522322654724
+    },
     "volume_feature_estimator": "ridge"
   },
   "diagnostics": {
@@ -99,7 +105,7 @@
       "min_bulk_ess": 4272.195810296953
     }
   },
-  "fit_seconds": 1928.6528639300013,
+  "fit_seconds": 945.228244331,
   "rejected": false,
   "round_trip": {
     "identical": true,

@@ -105,7 +105,35 @@ three:
 
 `--protected` names streams that may not be damaged in exchange for gains
 elsewhere, defaulting to `pass_qb` and `qb_workload`, with
-`--protected-tolerance` at 0.5% relative. This is the one place the gate is
+`--protected-tolerance` at 0.5% relative.
+
+**One accepted exception, 2026-08-03.** `calibrated_innovation` was promoted
+over this rule: pass-attempt MAE +0.91% and workload MAE +1.02%. The allowance
+exists to stop a change buying accuracy elsewhere by spending it at
+quarterback, and that is not what this is — the quarterback layer is what the
+change repairs. Its 80% intervals covered 0.647, 0.619 and 0.726 of outcomes
+against a 0.80 nominal, six to eighteen points under in the same direction every
+year; calibration moves them to 0.824, 0.774 and 0.881 with CRPS flat. The owner
+weighed a percent of point accuracy against nine points of coverage on the
+package's flagship claim and took the coverage. See
+[role-innovation](role-innovation-2026-08.md).
+
+The gate was not loosened. A rule that quietly widens after one hard call stops
+being a rule; this is recorded as an override of it, and the next change still
+has to clear 0.5%.
+
+**Postscript.** The scoring gate was then run on the promoted configuration, and
+total fantasy points improve on every metric and every fold — MAE −0.33% to
+−0.54%, CRPS −0.67% to −0.68%, RMSE −0.55% to −0.68% — with coverage negligible.
+It is accepted there with no exception at all. The quarterback-stream cost does
+not reach the product.
+
+That is worth reading as a limitation of the allowance rather than a lucky
+escape. Protecting an intermediate stream is a proxy for protecting the output,
+and here the proxy and the output disagreed. A change that repairs the protected
+layer itself is exactly the case the proxy handles badly, because the allowance
+cannot tell "spent quarterback accuracy elsewhere" from "fixed the quarterback
+layer and paid a point estimate for it". This is the one place the gate is
 deliberately asymmetric: those two streams drive the highest-scoring position in
 every scoring system the pipeline supports, so a change that buys carry accuracy
 by spending quarterback accuracy is not a trade the gate will make silently.

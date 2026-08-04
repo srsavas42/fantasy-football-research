@@ -87,6 +87,101 @@ def mean_preserving_shares(
     return simplex_shares(perturbed + offset[..., None], live)
 
 
+def realized_share_dispersion(
+    allocation: np.ndarray,
+    mask: np.ndarray,
+    scale: float,
+    *,
+    draws: int = 512,
+    seed: int = 0,
+) -> float:
+    """Log-share spread a given *input* noise scale actually produces.
+
+    ``allocation`` is (group, slot), each row a probability vector over the
+    slots ``mask`` marks live. The statistic returned is the one
+    ``_estimate_role_innovation`` measures in the data: the RMS of the
+    within-room-centred difference between realized and allocated log shares,
+    averaged over live slots so larger rooms weigh more, exactly as averaging
+    over player rows does.
+    """
+    live = np.asarray(mask, dtype=bool)
+    if not live.any() or scale <= 0:
+        return 0.0
+    base = np.log(np.clip(np.asarray(allocation, dtype=float), 1e-12, None))
+    rng = np.random.default_rng(seed)
+    eta = base[..., None] + rng.normal(size=(*base.shape, draws)) * float(scale)
+    shares = simplex_shares(eta, np.broadcast_to(live[..., None], eta.shape))
+    residual = np.log(np.clip(shares, 1e-12, None)) - base[..., None]
+    counts = live.sum(axis=1, keepdims=True)
+    centred = residual - np.where(
+        live[..., None],
+        residual * live[..., None],
+        0.0,
+    ).sum(axis=1, keepdims=True) / np.maximum(counts, 1)[..., None]
+    squared = np.where(live[..., None], centred**2, 0.0)
+    total = live.sum() * draws
+    return float(np.sqrt(squared.sum() / total)) if total else 0.0
+
+
+def calibrate_innovation_scale(
+    allocation: np.ndarray,
+    mask: np.ndarray,
+    target: float,
+    *,
+    draws: int = 512,
+    seed: int = 0,
+    iterations: int = 24,
+    upper: float = 6.0,
+) -> float:
+    """Input noise scale whose realized log-share spread equals ``target``.
+
+    The role models estimate their innovation from data as the *realized*
+    dispersion of shares around the deterministic allocation, then hand that
+    number to the sampler as the standard deviation of noise added to ``eta``,
+    on the **input** side of the softmax. Those are different quantities.
+    Renormalization compresses, so the realized spread comes out below what was
+    measured — by a factor that depends on how many players share the room:
+
+        two-man                0.70
+        quarterback, 3-deep    0.82
+        seven-deep target room 0.93
+
+    The pipeline therefore realizes 70-93% of the churn it observed, and is
+    most under-dispersed exactly where rooms are smallest, which is at
+    quarterback. That is what puts quarterback workload coverage at 0.647,
+    0.619 and 0.726 against an 80% nominal interval.
+
+    Inverting it needs no closed form. The map from input scale to realized
+    spread is monotone, so bisect on the rooms the model was actually fitted
+    over — which also makes the correction respect the real distribution of
+    room sizes rather than assuming one shape.
+
+    Note what ``target`` contains: genuine season-to-season role churn, but
+    also the multinomial noise in the realized counts it was measured from.
+    Matching it is what the existing code already intends to do; whether some
+    of that noise is then counted twice downstream is a separate question, and
+    a live one — see docs/role-innovation-2026-08.md.
+    """
+    target = float(target)
+    if target <= 0:
+        return 0.0
+    low, high = 0.0, float(upper)
+    # A scale above the bracket cannot be reached; report the bracket rather
+    # than silently returning something that misses the target.
+    if realized_share_dispersion(allocation, mask, high, draws=draws, seed=seed) < target:
+        return high
+    for _ in range(iterations):
+        middle = 0.5 * (low + high)
+        realized = realized_share_dispersion(
+            allocation, mask, middle, draws=draws, seed=seed
+        )
+        if realized < target:
+            low = middle
+        else:
+            high = middle
+    return 0.5 * (low + high)
+
+
 def default_sampling_cores(chains: int) -> int:
     """Worker processes to use for ``chains``, from the environment.
 

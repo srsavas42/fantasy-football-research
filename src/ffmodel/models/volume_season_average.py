@@ -29,6 +29,7 @@ from ffmodel.features.season_average import (
 )
 from ffmodel.features.volume import MODEL_POSITIONS
 from ffmodel.models.base import (
+    calibrate_innovation_scale,
     load_idata,
     logit,
     mean_preserving_shares,
@@ -186,6 +187,11 @@ BAYESIAN_FEATURES = (
 TARGET_BAYESIAN_FEATURES = ("prior_availability",)
 
 BACKUP_QB_EXPOSURE = 0.08
+
+# Below this many rows on either side of the split, the cold-start dispersion
+# ratio is estimated from too little data to act on, and the model falls back to
+# a single innovation scale.
+MIN_COLD_ROLE_ROWS = 200
 
 
 def _stack(posterior, name: str) -> np.ndarray:
@@ -583,8 +589,38 @@ class SeasonRosterShareModel:
     # See ``mean_preserving_shares``: the softmax renormalization turns role
     # churn into a systematic transfer away from whoever leads the room.
     mean_preserving_innovation: bool = False
+    # ``role_innovation_scale`` is estimated as *realized* log-share dispersion
+    # and then applied on the input side of the softmax, which compresses it.
+    # See ``calibrate_innovation_scale``.
+    calibrated_innovation: bool = False
+    innovation_calibration_seed: int = 0
     per_snap_weight: float | None = None
     innovation_cap: float | None = None
+    # A player with no prior role gets the position mean as a point estimate and
+    # the same innovation as an established starter. Measured on 2025, 28% of
+    # rows with no prior snap share fall outside a 95% interval on total points,
+    # 32 of 33 of them above it. ``cold_role_innovation`` gives those rows their
+    # own, wider, innovation scale.
+    #
+    # Promoted 2026-08-04 with mode "measured". In-window over 2022/2023/2024 it
+    # takes pooled PPR coverage to nominal at both levels -- 95% from z=+6.62 to
+    # +0.17, 80% from +4.33 to +0.56 -- while MAE falls 3.07% and CRPS 1.68%, on
+    # all three folds. Confirmed once on 2025: cov95 z +3.99 to -1.10, MAE
+    # -3.60%, CRPS -2.03%. See docs/out-of-sample-2025.md.
+    cold_role_innovation: bool = True
+    # How the cold scale is derived. "relative" keeps the ratio of cold to warm
+    # realized dispersion, which preserves the gap between the populations but
+    # inherits the cap's compression: the base is capped from 1.94 to 0.25, so a
+    # 1.38x ratio lands cold rows at 0.35 against a measured 2.68. "measured"
+    # targets the cold population's own dispersion instead, so the cap bounds
+    # the typical row without also bounding the row it was never about.
+    cold_role_scale_mode: str = "measured"
+    cold_role_multiplier: float = 1.0
+    # This binds in both modes on real data -- measured mode asks for 2.68 over a
+    # base of 0.25 -- so it, not the measurement, sets where cold rows land. It
+    # was chosen before any result and has never been selected against folds.
+    # Whatever it is worth, it is the least evidenced number in this feature.
+    cold_role_multiplier_cap: float = 6.0
     idata: object = None
 
     def __post_init__(self):
@@ -593,7 +629,15 @@ class SeasonRosterShareModel:
         if self.per_snap_weight is None:
             self.per_snap_weight = 0.75 if self.stream == "target" else 1.0
         if self.innovation_cap is None:
-            self.innovation_cap = 0.50 if self.stream in {"target", "carry"} else 2.0
+            # Promoted 2026-08-03 at 0.25, chosen on an inner fold. The previous
+            # 0.50 was never validated and it binds on every fit -- measured
+            # dispersion is 1.43 for targets and 2.00 for carries -- so it was
+            # the operative parameter rather than a safety rail. Inner folds pick
+            # 0.15, 0.25 and 0.25, with the penalty rising on both sides of that
+            # range and uncapped worst on every fold, so the minimum is interior.
+            # On the holdouts: target CRPS -1.57%, carry CRPS -1.21%, carry MAE
+            # -0.48%, target cov80 -1.81pp toward nominal, all three folds each.
+            self.innovation_cap = 0.25 if self.stream in {"target", "carry"} else 2.0
 
     @property
     def count_col(self) -> str:
@@ -686,13 +730,91 @@ class SeasonRosterShareModel:
                 if len(position_availability)
                 else 0.75
             )
-        self.role_innovation_scale = min(
-            self._estimate_role_innovation(d), float(self.innovation_cap)
+        # The cap bounds how much role churn this model is willing to represent,
+        # so it belongs on the measured quantity. Calibration then asks what
+        # input scale delivers that much churn through the softmax.
+        target = min(self._estimate_role_innovation(d), float(self.innovation_cap))
+        allocation = mask = None
+        if self.calibrated_innovation:
+            allocation, mask = self._innovation_rooms(d)
+            self.role_innovation_scale = calibrate_innovation_scale(
+                allocation, mask, target, seed=self.innovation_calibration_seed
+            )
+        else:
+            self.role_innovation_scale = target
+        self.cold_role_multiplier = self._fit_cold_role_multiplier(
+            d, allocation, mask
         )
 
-    def _estimate_role_innovation(self, d: pd.DataFrame) -> float:
-        """Training-only RMS log-share error after removing roster location."""
+    def _fit_cold_role_multiplier(self, d, allocation, mask) -> float:
+        """The factor cold rows' innovation is scaled by, in the chosen mode.
+
+        Both modes go through the same calibration as the base scale when it is
+        on, because a realized dispersion and an input scale are not the same
+        quantity on either side of the split.
+        """
+        if not self.cold_role_innovation:
+            return 1.0
+        if self.cold_role_scale_mode == "relative":
+            return self._estimate_cold_role_multiplier(d)
+        if self.cold_role_scale_mode != "measured":
+            raise ValueError(
+                f"unknown cold_role_scale_mode: {self.cold_role_scale_mode!r}; "
+                "choose 'relative' or 'measured'"
+            )
+        cold_rms, _ = self._cold_and_warm_dispersion(d)
+        if not np.isfinite(cold_rms) or self.role_innovation_scale <= 1e-8:
+            return 1.0
+        if allocation is not None and mask is not None:
+            cold_scale = calibrate_innovation_scale(
+                allocation, mask, cold_rms, seed=self.innovation_calibration_seed
+            )
+        else:
+            cold_scale = cold_rms
+        return float(
+            np.clip(
+                cold_scale / self.role_innovation_scale,
+                1.0,
+                self.cold_role_multiplier_cap,
+            )
+        )
+
+    def _innovation_support(self, d: pd.DataFrame) -> np.ndarray:
+        """Rows the softmax is actually fitted over.
+
+        For targets, ``_design`` masks quarterbacks out of the likelihood. The
+        innovation estimator used to group over every row regardless, so both
+        the softmax denominator and the observed-share normalization included
+        players the model never allocates to — the scale was estimated under a
+        support the model does not use.
+        """
+        if self.stream == "target":
+            return (~d["position"].eq("QB")).to_numpy()
+        return np.ones(len(d), dtype=bool)
+
+    def _innovation_rooms(self, d: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+        """Padded deterministic allocations per team-season, and their support."""
+        support = self._innovation_support(d)
+        groups = [
+            group.index.to_numpy(dtype=int)[support[group.index.to_numpy(dtype=int)]]
+            for _, group in d.groupby(GROUP_KEYS, sort=False, dropna=False)
+        ]
+        groups = [indices for indices in groups if len(indices) > 1]
+        if not groups:
+            return np.ones((1, 1), dtype=float), np.ones((1, 1), dtype=bool)
         role = self._role_prior(d)
+        exposure = self._innovation_exposure(d)
+        score = np.log(role) + np.log(np.clip(exposure, 0.001, 1.0))
+        width = max(len(indices) for indices in groups)
+        allocation = np.zeros((len(groups), width), dtype=float)
+        mask = np.zeros((len(groups), width), dtype=bool)
+        for row, indices in enumerate(groups):
+            weights = np.exp(score[indices] - score[indices].max())
+            allocation[row, : len(indices)] = weights / weights.sum()
+            mask[row, : len(indices)] = True
+        return allocation, mask
+
+    def _innovation_exposure(self, d: pd.DataFrame) -> np.ndarray:
         snap_share = pd.to_numeric(
             d.get("snap_share", pd.Series(np.nan, index=d.index)), errors="coerce"
         )
@@ -700,20 +822,119 @@ class SeasonRosterShareModel:
             d.get("observed_availability", pd.Series(1.0, index=d.index)),
             errors="coerce",
         ).fillna(1.0)
-        exposure = snap_share.where(snap_share.gt(0), availability).fillna(0.03)
-        score = np.log(role) + np.log(np.clip(exposure.to_numpy(dtype=float), 0.001, 1.0))
-        expected = np.zeros(len(d), dtype=float)
-        residual = np.zeros(len(d), dtype=float)
+        return snap_share.where(snap_share.gt(0), availability).fillna(0.03).to_numpy(
+            dtype=float
+        )
+
+    def _cold_role_rows(self, d: pd.DataFrame) -> np.ndarray:
+        """Rows whose role prior is a population fallback, not their own history.
+
+        ``_role_prior`` falls through four sources in order: the player's own
+        per-snap rate, last season's share, the draft prior, and the position
+        mean. The last two describe someone the model has never seen play. Their
+        season outcomes are the most dispersed population in the data — most do
+        nothing and a few take over a job — and a single innovation scale fitted
+        over everyone cannot represent both them and an established starter.
+
+        A missing role in *this* stream is not enough on its own. A receiver
+        with a full season of snaps and no carries also falls through to the
+        position mean in the carry room, and the model predicts his zero
+        perfectly well; widening him buys nothing. Requiring no prior snap
+        exposure either restricts this to the population the coverage split
+        actually found — on the carry stream that is 34% of rows rather than
+        62%.
+        """
+        per_snap = pd.to_numeric(
+            d.get(
+                STREAMS[self.stream].get("per_snap_role"),
+                pd.Series(np.nan, index=d.index),
+            ),
+            errors="coerce",
+        )
+        role = pd.to_numeric(d.get(STREAMS[self.stream]["role"]), errors="coerce")
+        if "prior_snap_share" not in d and self.cold_role_innovation:
+            # Without it the mask degrades to "no role in this stream", which is
+            # a different and deliberately rejected population: 62% of carry
+            # rows rather than 34%, including receivers whose zero carries the
+            # model already predicts well. That is a configuration nothing
+            # validated, and it would run silently.
+            raise ValueError(
+                "cold_role_innovation needs prior_snap_share to tell a player "
+                "the model has never seen from one it has seen play but never "
+                "carry; the column is missing from these rows"
+            )
+        snaps = pd.to_numeric(
+            d.get("prior_snap_share", pd.Series(np.nan, index=d.index)), errors="coerce"
+        )
+        return (~per_snap.gt(0) & ~role.gt(0) & ~snaps.gt(0)).to_numpy()
+
+    def _role_innovation_residuals(
+        self, d: pd.DataFrame
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Within-room-centred log-share residuals, and which rows are cold.
+
+        Restricted to the support the model allocates over. For targets that
+        excludes quarterbacks, who ``_design`` masks out of the likelihood; the
+        estimator used to leave them in both the softmax denominator and the
+        observed-share normalization, so it described a room the model never
+        fits.
+        """
+        role = self._role_prior(d)
+        exposure = self._innovation_exposure(d)
+        support = self._innovation_support(d)
+        cold = self._cold_role_rows(d)
+        score = np.log(role) + np.log(np.clip(exposure, 0.001, 1.0))
+        residuals: list[np.ndarray] = []
+        cold_flags: list[np.ndarray] = []
         for _, group in d.groupby(GROUP_KEYS, sort=False, dropna=False):
             indices = group.index.to_numpy(dtype=int)
-            centered = score[indices] - score[indices].max()
-            weights = np.exp(centered)
-            expected[indices] = weights / weights.sum()
+            indices = indices[support[indices]]
+            if len(indices) < 2:
+                continue
+            weights = np.exp(score[indices] - score[indices].max())
+            expected = weights / weights.sum()
             counts = d.loc[indices, self.count_col].to_numpy(dtype=float)
             observed = (counts + 0.5) / (counts.sum() + 0.5 * len(indices))
-            group_residual = np.log(observed) - np.log(expected[indices])
-            residual[indices] = group_residual - group_residual.mean()
-        return float(np.clip(np.sqrt(np.mean(residual ** 2)), 0.10, 2.0))
+            group_residual = np.log(observed) - np.log(expected)
+            residuals.append(group_residual - group_residual.mean())
+            cold_flags.append(cold[indices])
+        if not residuals:
+            return np.zeros(0), np.zeros(0, dtype=bool)
+        return np.concatenate(residuals), np.concatenate(cold_flags)
+
+    def _estimate_role_innovation(self, d: pd.DataFrame) -> float:
+        """Training-only RMS log-share error after removing roster location."""
+        residuals, _ = self._role_innovation_residuals(d)
+        if not len(residuals):
+            return 0.10
+        return float(np.clip(np.sqrt(np.mean(residuals**2)), 0.10, 2.0))
+
+    def _cold_and_warm_dispersion(self, d: pd.DataFrame) -> tuple[float, float]:
+        """Realized log-share spread either side of the cold split, or NaNs."""
+        residuals, cold = self._role_innovation_residuals(d)
+        if cold.sum() < MIN_COLD_ROLE_ROWS or (~cold).sum() < MIN_COLD_ROLE_ROWS:
+            return float("nan"), float("nan")
+        return (
+            float(np.sqrt(np.mean(residuals[cold] ** 2))),
+            float(np.sqrt(np.mean(residuals[~cold] ** 2))),
+        )
+
+    def _estimate_cold_role_multiplier(self, d: pd.DataFrame) -> float:
+        """How much wider the cold rows' realized log-share spread is.
+
+        Expressed as a ratio rather than a second absolute scale so that it
+        composes with whatever the base scale ends up being — the cap, and the
+        calibration that inverts the softmax compression, both act on the base
+        and the ratio rides on top of them.
+        """
+        residuals, cold = self._role_innovation_residuals(d)
+        if cold.sum() < MIN_COLD_ROLE_ROWS or (~cold).sum() < MIN_COLD_ROLE_ROWS:
+            return 1.0
+        warm_rms = float(np.sqrt(np.mean(residuals[~cold] ** 2)))
+        cold_rms = float(np.sqrt(np.mean(residuals[cold] ** 2)))
+        if warm_rms <= 1e-8:
+            return 1.0
+        return float(np.clip(cold_rms / warm_rms, 1.0, self.cold_role_multiplier_cap))
 
     def _role_prior(self, d: pd.DataFrame) -> np.ndarray:
         per_snap = pd.to_numeric(
@@ -769,6 +990,7 @@ class SeasonRosterShareModel:
             raise ValueError(f"no roster rows available for {self.stream} allocation")
 
         role_prior = self._role_prior(d)
+        cold_role = self._cold_role_rows(d)
         X = self._matrix(d)
         player_idx = _codes(d["player_key"], self.players)
         if use_observed_snap:
@@ -815,6 +1037,7 @@ class SeasonRosterShareModel:
         counts = np.zeros((n_groups, max_slots), dtype=int)
         mask = np.zeros((n_groups, max_slots), dtype=float)
         role = np.ones((n_groups, max_slots), dtype=float)
+        cold = np.zeros((n_groups, max_slots), dtype=bool)
         offset = np.zeros((n_groups, max_slots), dtype=float)
         starter_offset = np.zeros((n_groups, max_slots), dtype=float)
         matrix = np.zeros((n_groups, max_slots, X.shape[1]), dtype=float)
@@ -835,6 +1058,7 @@ class SeasonRosterShareModel:
             )
             mask[group_i, :size] = support
             role[group_i, :size] = role_prior[indices]
+            cold[group_i, :size] = cold_role[indices]
             offset[group_i, :size] = np.log(availability[indices])
             starter_offset[group_i, :size] = np.log(starter_exposure[indices])
             matrix[group_i, :size] = X[indices]
@@ -852,6 +1076,7 @@ class SeasonRosterShareModel:
             "totals": counts.sum(axis=1),
             "mask": mask,
             "role_prior": role,
+            "cold_role": cold,
             "availability_offset": offset,
             "starter_offset": starter_offset,
             "X": matrix,
@@ -976,9 +1201,19 @@ class SeasonRosterShareModel:
                 draws,
             )
         )
+        # The sum-to-zero basis keeps a room's innovation from moving its
+        # location. Scaling per row after the basis is applied gives up that
+        # property, but the softmax renormalizes regardless, and the alternative
+        # -- one scale for a room mixing rookies and established starters -- is
+        # what the widths are wrong about.
+        scale = np.full(design["mask"].shape, float(self.role_innovation_scale))
+        if self.cold_role_innovation and self.cold_role_multiplier != 1.0:
+            scale = np.where(
+                design["cold_role"], scale * float(self.cold_role_multiplier), scale
+            )
         innovation = (
             np.einsum("gkj,gjs->gks", design["innovation_basis"], innovation_z)
-            * self.role_innovation_scale
+            * scale[..., None]
         )
         if self.mean_preserving_innovation:
             probability = mean_preserving_shares(eta, eta + innovation, live)
@@ -1104,9 +1339,28 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
-    # Correct the softmax renormalization bias the role innovation introduces,
-    # in every allocation layer at once. See ``mean_preserving_shares``.
-    mean_preserving_innovation: bool = False
+    # Correct the softmax renormalization bias the role innovation introduces.
+    # ``True`` enables every allocation layer; a tuple names a subset, because
+    # the layers were measured to disagree — see
+    # ``_enable_mean_preserving_innovation``. See ``mean_preserving_shares``.
+    mean_preserving_innovation: bool | tuple[str, ...] = False
+    # Solve for the input noise scale that realizes the churn the estimator
+    # measured, rather than handing the measurement straight to the sampler.
+    # Promoted 2026-08-03; see ``calibrate_innovation_scale`` and
+    # docs/role-innovation-2026-08.md for the accepted gate exception.
+    calibrated_innovation: bool = True
+    # Widen the role innovation for players with no prior role of their own.
+    # The tail under-coverage on total fantasy points is almost entirely theirs:
+    # 28% of rows with no prior snap share fall outside a 95% interval against a
+    # 5% nominal, 32 of 33 above it, while rows with an established role sit at
+    # 2.6%. Off until validated in-window -- 2025 diagnosed it and must not size
+    # it. See docs/out-of-sample-2025.md.
+    cold_role_innovation: bool = True
+    # "relative" or "measured"; see ``SeasonRosterShareModel``.
+    cold_role_scale_mode: str = "measured"
+    # Overrides the target and carry allocators' ``innovation_cap``. ``None``
+    # keeps each stream's own default. See scripts/select_innovation_cap.py.
+    innovation_cap: float | None = None
     regime_model: SeasonRegimeModel | None = None
     regime_coupler: SeasonRegimeRoleCoupling | None = None
     fit_seconds: dict[str, float] = field(default_factory=dict)
@@ -1118,6 +1372,15 @@ class SeasonAverageVolumePipeline:
             self._enable_postseason_role_features()
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
+        if self.calibrated_innovation:
+            self._enable_calibrated_innovation()
+        if self.cold_role_innovation:
+            for model in (self.target_model, self.carry_model):
+                model.cold_role_innovation = True
+                model.cold_role_scale_mode = self.cold_role_scale_mode
+        if self.innovation_cap is not None:
+            self.target_model.innovation_cap = float(self.innovation_cap)
+            self.carry_model.innovation_cap = float(self.innovation_cap)
         problems = volume_input_problems(data)
         if problems:
             raise ValueError(
@@ -1165,16 +1428,52 @@ class SeasonAverageVolumePipeline:
             self.fit_seconds["regime"] = perf_counter() - started
         return self
 
-    def _enable_mean_preserving_innovation(self) -> None:
-        """Turn the correction on for every layer that allocates over a simplex.
+    MEAN_PRESERVING_LAYERS = ("workload", "target", "carry")
 
-        There are three: the quarterback workload room, and the target and carry
-        rooms. The snap and eligibility layers are per-player and never
-        renormalize, so they have nothing to correct.
+    def _enable_mean_preserving_innovation(self) -> None:
+        """Turn the correction on for the allocation layers named by the flag.
+
+        Three layers renormalize: the quarterback workload room, and the target
+        and carry rooms. The snap and eligibility layers are per-player and
+        never renormalize, so they have nothing to correct.
+
+        Enabling all three at once was measured and rejected: it costs 4-7% CRPS
+        on the quarterback passing streams. But that cost is the *workload*
+        layer's, and the carry layer's contribution was a 0.58% MAE improvement
+        on all three folds. Applying it per layer separates the two.
+
+        The carry room is where the correction has the most to fix. Running
+        backs lead it and quarterbacks are minor members, and renormalization
+        moves mass from the leader outward — which is exactly the observed
+        allocation error, a flat +0.5 carries per game onto every quarterback
+        against -0.30 off every running back, in every fold.
         """
-        self.workload_model.mean_preserving_innovation = True
-        self.target_model.mean_preserving_innovation = True
-        self.carry_model.mean_preserving_innovation = True
+        selected = self.mean_preserving_innovation
+        layers = (
+            self.MEAN_PRESERVING_LAYERS
+            if selected is True
+            else tuple(selected or ())
+        )
+        unknown = set(layers) - set(self.MEAN_PRESERVING_LAYERS)
+        if unknown:
+            raise ValueError(
+                f"unknown mean-preserving layers: {sorted(unknown)}; "
+                f"choose from {list(self.MEAN_PRESERVING_LAYERS)}"
+            )
+        for name in layers:
+            getattr(self, f"{name}_model").mean_preserving_innovation = True
+
+    def _enable_calibrated_innovation(self) -> None:
+        """Turn calibration on for the three layers that allocate over a simplex.
+
+        The same three as the mean-preserving correction: the quarterback
+        workload room, and the target and carry rooms. The snap and eligibility
+        layers are per-player and never renormalize, so no dispersion is lost
+        there and there is nothing to invert.
+        """
+        self.workload_model.calibrated_innovation = True
+        self.target_model.calibrated_innovation = True
+        self.carry_model.calibrated_innovation = True
 
     def _enable_postseason_role_features(self) -> None:
         """Offer the lagged postseason signal to the role-shaped submodels.
@@ -1597,6 +1896,9 @@ class SeasonAverageVolumePipeline:
                 "mean_preserving_innovation": bool(
                     self.workload_model.mean_preserving_innovation
                 ),
+                "calibrated_innovation": bool(
+                    self.workload_model.calibrated_innovation
+                ),
             },
             "role_regime": {
                 "enabled": self.role_regime_coupling,
@@ -1643,6 +1945,11 @@ class SeasonAverageVolumePipeline:
             "per_snap_weight": model.per_snap_weight,
             "innovation_cap": model.innovation_cap,
             "mean_preserving_innovation": bool(model.mean_preserving_innovation),
+            "calibrated_innovation": bool(model.calibrated_innovation),
+            "cold_role_innovation": bool(model.cold_role_innovation),
+            "cold_role_scale_mode": model.cold_role_scale_mode,
+            "cold_role_multiplier": float(model.cold_role_multiplier),
+            "cold_role_multiplier_cap": float(model.cold_role_multiplier_cap),
             "extra_features": list(model.extra_features),
         }
 
@@ -1699,6 +2006,9 @@ class SeasonAverageVolumePipeline:
             mean_preserving_innovation=bool(
                 workload_state.get("mean_preserving_innovation", False)
             ),
+            calibrated_innovation=bool(
+                workload_state.get("calibrated_innovation", False)
+            ),
         )
         cls._restore_feature_metadata(workload, workload_state)
         workload.idata = load_idata(directory / "workload.nc")
@@ -1727,6 +2037,18 @@ class SeasonAverageVolumePipeline:
                 mean_preserving_innovation=bool(
                     state.get("mean_preserving_innovation", False)
                 ),
+                calibrated_innovation=bool(
+                    state.get("calibrated_innovation", False)
+                ),
+                cold_role_innovation=bool(
+                    state.get("cold_role_innovation", False)
+                ),
+                cold_role_scale_mode=str(
+                    state.get("cold_role_scale_mode", "relative")
+                ),
+                cold_role_multiplier_cap=float(
+                    state.get("cold_role_multiplier_cap", 6.0)
+                ),
             )
             model.players = list(state["players"])
             model.feature_names = list(state["feature_names"])
@@ -1744,6 +2066,9 @@ class SeasonAverageVolumePipeline:
                 )
             model.role_innovation_scale = float(
                 state.get("role_innovation_scale", model.role_innovation_scale)
+            )
+            model.cold_role_multiplier = float(
+                state.get("cold_role_multiplier", model.cold_role_multiplier)
             )
             model.idata = load_idata(directory / f"{name}.nc")
             shares.append(model)
@@ -1793,6 +2118,10 @@ class SeasonAverageVolumePipeline:
             # Each allocation layer carries its own flag, so the pipeline-level
             # one only has to agree with what was actually restored.
             mean_preserving_innovation=workload.mean_preserving_innovation,
+            calibrated_innovation=workload.calibrated_innovation,
+            # The quarterback workload layer has no cold-role split, so the
+            # pipeline-level flag reads from an allocator that does.
+            cold_role_innovation=shares[0].cold_role_innovation,
             regime_model=(likelihood_regime_model or regime_model),
             regime_coupler=regime_coupler,
         )
@@ -1905,16 +2234,37 @@ def _allocate_season_counts(
     if totals.shape != (len(prediction.group_keys), draws):
         raise ValueError("team totals must align to roster groups and posterior draws")
     rng = np.random.default_rng(seed)
-    counts = np.zeros_like(prediction.shares, dtype=int)
     group_idx = prediction.rows["_group_idx"].to_numpy(dtype=int)
-    for group in range(len(prediction.group_keys)):
-        indices = np.flatnonzero(group_idx == group)
-        for draw in range(draws):
-            probability = prediction.shares[indices, draw]
-            probability = probability / probability.sum()
-            counts[indices, draw] = rng.multinomial(
-                int(totals[group, draw]), probability
-            )
+    n_groups = len(prediction.group_keys)
+
+    # One multinomial call for every (group, draw) at once. ``rng.multinomial``
+    # broadcasts an array of trial counts against a matrix of probability rows,
+    # so the groups x draws Python loop — around 57,600 calls per prediction at
+    # 32 team-seasons, 600 draws and three streams — collapses into a single
+    # vectorized draw. Rooms are ragged, so they are padded to the widest and
+    # the unused slots carry probability zero, which contributes no counts.
+    members = [np.flatnonzero(group_idx == group) for group in range(n_groups)]
+    width = max((len(indices) for indices in members), default=0)
+    if width == 0:
+        return np.zeros_like(prediction.shares, dtype=int)
+
+    probability = np.zeros((n_groups, width, draws), dtype=float)
+    for group, indices in enumerate(members):
+        probability[group, : len(indices)] = prediction.shares[indices]
+    total = probability.sum(axis=1, keepdims=True)
+    probability = np.divide(
+        probability, total, out=np.zeros_like(probability), where=total > 0
+    )
+
+    # (group, slot, draw) -> (group * draw, slot), the layout multinomial wants.
+    flat_p = np.moveaxis(probability, 1, 2).reshape(n_groups * draws, width)
+    flat_n = np.asarray(totals, dtype=np.int64).reshape(n_groups * draws)
+    drawn = rng.multinomial(flat_n, flat_p)
+    drawn = np.moveaxis(drawn.reshape(n_groups, draws, width), 2, 1)
+
+    counts = np.zeros_like(prediction.shares, dtype=int)
+    for group, indices in enumerate(members):
+        counts[indices] = drawn[group, : len(indices)]
     return counts
 
 

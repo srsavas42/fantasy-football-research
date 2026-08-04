@@ -26,7 +26,12 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _walkforward_data import add_common_arguments, gate_override, load_frames
+from _walkforward_data import (
+    add_common_arguments,
+    frames_fingerprint,
+    gate_override,
+    load_frames,
+)
 
 from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
 from ffmodel.features.season_average import SeasonAverageData
@@ -56,7 +61,9 @@ def main(argv=None) -> None:
     coupling = gate_override(args)
     sample_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
 
-    report: dict[str, object] = {}
+    report: dict[str, object] = {
+        "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
+    }
     for holdout in args.holdouts:
         started = time.perf_counter()
         train = SeasonAverageData(
@@ -68,9 +75,19 @@ def main(argv=None) -> None:
             player_rows[player_rows.season == holdout].copy(),
         )
         pipeline = SeasonAverageVolumePipeline(
-            postseason_role_features=args.postseason,
-            mean_preserving_innovation=args.mean_preserving_innovation,
+            mean_preserving_innovation=(
+                tuple(args.mean_preserving_layers)
+                if args.mean_preserving_layers
+                else args.mean_preserving_innovation
+            ),
+            calibrated_innovation=args.calibrated_innovation,
+            cold_role_scale_mode=args.cold_role_scale_mode,
+            innovation_cap=args.innovation_cap,
         )
+        if args.postseason is not None:
+            pipeline.postseason_role_features = args.postseason
+        if args.cold_role_innovation is not None:
+            pipeline.cold_role_innovation = args.cold_role_innovation
         pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.workload_model.couple_gate_to_availability = coupling

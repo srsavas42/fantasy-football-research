@@ -282,6 +282,13 @@ def apply_efficiency_copulas(
         supported = np.logical_and.reduce(
             [np.isfinite(rates[target]).all(axis=1) for target in targets]
         )
+        # Deliberately per row. Vectorizing this across rows was measured and
+        # is slower: the work is dominated by a sort and an argsort over draws,
+        # and a (rows, draws, targets) score array is tens of megabytes that
+        # thrashes cache, where one row's (draws, targets) block stays
+        # resident. At 1200 rows and 2000 draws the fully vectorized form ran
+        # 0.6x, and the best chunked variant 1.10x — inside noise, for a change
+        # that would move every realization.
         for row in np.flatnonzero(supported):
             scores = rng.normal(size=(draws, len(targets))) @ cholesky.T
             for column, target in enumerate(targets):

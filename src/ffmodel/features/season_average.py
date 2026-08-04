@@ -1023,10 +1023,78 @@ def build_season_average_data(
         postseason=postseason,
         projection_seasons=projection,
     )
+    player_rows = _pathway_features_with_history(
+        player_rows,
+        seasons=seasons,
+        observed=observed,
+        projection=projection,
+        source=source,
+        teams=teams,
+        player_weeks=player_weeks,
+        postseason=postseason,
+    )
     return SeasonAverageData(
         team_rows=team_transition_rows(teams, projection_seasons=projection),
-        player_rows=add_player_pathway_features(player_rows),
+        player_rows=player_rows,
     )
+
+
+def _pathway_features_with_history(
+    player_rows: pd.DataFrame,
+    *,
+    seasons: list[int],
+    observed: list[int],
+    projection: set[int],
+    source: str,
+    teams: pd.DataFrame,
+    player_weeks: pd.DataFrame,
+    postseason: pd.DataFrame | None,
+) -> pd.DataFrame:
+    """Add pathway features, giving a projection frame history to difference against.
+
+    ``*_trend`` features are a groupby-shift against the player's previous
+    season, so they only resolve when that season is a row in the same frame. A
+    backtest frame spans every season and resolves them; a projection frame's
+    row universe comes from ``roster_snapshot``, which covers the projection
+    season alone, and every trend comes out NaN.
+
+    That was a live train/serve gap rather than a hypothetical one.
+    ``SeasonTargetRoleModel`` consumes ``prior_snap_share_trend``, so it varied
+    across training rows and was filled with a training median on every
+    projection — a fitted coefficient applied to a constant. Nothing raised,
+    and the walk-forward could not see it, because a backtest frame never has
+    the problem.
+
+    So when the frame is missing its observed seasons, build them, featurize
+    the two together, and keep only what was asked for. The helper rows are
+    constructed by the same function on the same inputs, with the roster
+    universe inferred from usage rather than from a snapshot that does not
+    cover them.
+    """
+    present = set(pd.to_numeric(player_rows["season"], errors="coerce").dropna().astype(int))
+    missing = [season for season in observed if season not in present]
+    if not projection or not missing:
+        return add_player_pathway_features(player_rows)
+
+    helper = player_preseason_rows(
+        missing,
+        source=source,
+        team_volume=teams,
+        player_weeks=player_weeks,
+        # No snapshot: for seasons already played the roster universe can be
+        # inferred from usage, which is what the backtest path does when none
+        # is supplied. These rows exist only to be differenced against.
+        roster_snapshot=None,
+        postseason=postseason,
+    )
+    helper["_pathway_helper"] = 1
+    combined = pd.concat([helper, player_rows], ignore_index=True, sort=False)
+    combined["_pathway_helper"] = (
+        pd.to_numeric(combined["_pathway_helper"], errors="coerce").fillna(0)
+    )
+    featurized = add_player_pathway_features(combined)
+    kept = featurized[featurized["_pathway_helper"].eq(0)].copy()
+    return kept.drop(columns="_pathway_helper").reset_index(drop=True)
 
 
 def build_projection_data(

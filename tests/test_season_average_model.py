@@ -242,8 +242,9 @@ def test_pipeline_save_load_preserves_prediction_metadata(tmp_path):
     target = SeasonRosterShareModel("target")
     target._design(_player_rows(), fit=True, use_observed_availability=True)
     target.idata = az.from_dict(posterior={"x": np.zeros((1, 2))})
-    carry = SeasonRosterShareModel("carry")
+    carry = SeasonRosterShareModel("carry", cold_role_innovation=True)
     carry._design(_player_rows(), fit=True, use_observed_availability=True)
+    carry.cold_role_multiplier = 1.73
     carry.idata = az.from_dict(posterior={"x": np.zeros((1, 2))})
     availability = SeasonAvailabilityModel(
         extra_features=("prior_availability_3yr",),
@@ -286,8 +287,23 @@ def test_pipeline_save_load_preserves_prediction_metadata(tmp_path):
     assert restored.carry_model.cold_role_prior == carry.cold_role_prior
     assert restored.target_model.availability_prior == target.availability_prior
     assert np.isclose(restored.target_model.per_snap_weight, 0.75)
-    assert np.isclose(restored.target_model.innovation_cap, 0.50)
-    assert np.isclose(restored.carry_model.innovation_cap, 0.50)
+    # Against the fitted model rather than a literal. What matters here is that
+    # the cap survives the round trip; pinning the promoted value in a
+    # serialization test makes it fail whenever that value is revalidated, which
+    # is a false alarm about the wrong thing.
+    assert np.isclose(restored.target_model.innovation_cap, target.innovation_cap)
+    assert np.isclose(restored.carry_model.innovation_cap, carry.innovation_cap)
+    # The cold-role widening is a fitted quantity, not a setting: a served
+    # artifact that restored the flag but not the multiplier would silently
+    # revert to one scale for rookies and starters alike.
+    assert restored.carry_model.cold_role_innovation == carry.cold_role_innovation
+    assert np.isclose(
+        restored.carry_model.cold_role_multiplier, carry.cold_role_multiplier
+    )
+    assert np.isclose(
+        restored.target_model.cold_role_multiplier_cap,
+        target.cold_role_multiplier_cap,
+    )
     assert restored.role_regime_coupling is True
     assert restored.regime_model is not None
     assert restored.regime_coupler is not None

@@ -50,6 +50,10 @@ def _rows() -> pd.DataFrame:
     frame["observed_availability"] = 0.5
     frame["snap_share"] = frame["offense_snaps"] / 1000.0
     frame["prior_availability"] = 0.8
+    # The established rows played last season; the cold-start ones did not.
+    # The fixture already encodes that distinction through cold_start and
+    # offense_snaps, and prior_snap_share is how the allocator reads it.
+    frame["prior_snap_share"] = np.where(frame["cold_start"].eq(1), np.nan, 0.65)
     for column in ("prior_target_per_snap", "prior_carry_per_snap",
                    "prior_qb_attempts_per_snap", "prior_target_role",
                    "prior_carry_role", "prior_pass_role", "draft_target_prior",

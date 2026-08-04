@@ -360,3 +360,136 @@ def test_coverage_prints_in_percentage_points_not_raw_proportions():
     assert cov.pooled == pytest.approx(0.005)
     assert "+0.50pp" in text
     assert "+0.005pp" not in text
+
+
+def _sized(cov_by_fold, n, metric="cov95"):
+    return {
+        fold: {"snap": {metric: value, "mae": 1.0, "n": n}}
+        for fold, value in cov_by_fold.items()
+    }
+
+
+def test_the_coverage_floor_scales_with_the_sample():
+    """One coverage point is 2.5 rows on one stream and 17 on another.
+
+    A fixed floor calibrated for the 253-row quarterback stream is far too
+    coarse for the 1,754-row target stream, and far too fine the other way.
+    """
+    small = compare_runs(
+        _sized({"2022": 0.95, "2023": 0.95, "2024": 0.95}, n=84),
+        _sized({"2022": 0.96, "2023": 0.96, "2024": 0.96}, n=84),
+        protected=(),
+    )
+    large = compare_runs(
+        _sized({"2022": 0.95, "2023": 0.95, "2024": 0.95}, n=1754),
+        _sized({"2022": 0.96, "2023": 0.96, "2024": 0.96}, n=1754),
+        protected=(),
+    )
+
+    tiny = next(m for m in small.metrics if m.is_coverage)
+    big = next(m for m in large.metrics if m.is_coverage)
+
+    assert tiny.material > big.material
+    # The same one-point move is noise on 84 rows and a verdict on 1,754.
+    assert tiny.verdict == "negligible"
+    assert big.verdict == "regressed"
+
+
+def test_a_run_without_row_counts_falls_back_to_the_fixed_floor():
+    base = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=_coverage(0.95))
+    cand = _run({"2022": 1.0, "2023": 1.0, "2024": 1.0}, extra=_coverage(0.96))
+
+    report = compare_runs(base, cand)
+    cov = next(m for m in report.metrics if m.metric == "cov95")
+
+    # Conservative, not sensitive: without the sample there is no basis for
+    # scaling, so the gate declines to rule aggressively on a number it cannot
+    # size.
+    assert cov.sample_size == 0
+    assert cov.material == pytest.approx(0.01)
+
+
+def test_the_floor_never_collapses_to_zero_on_a_huge_fold():
+    huge = compare_runs(
+        _sized({"2022": 0.95}, n=10_000_000),
+        _sized({"2022": 0.9501}, n=10_000_000),
+        protected=(),
+    )
+    cov = next(m for m in huge.metrics if m.is_coverage)
+
+    assert cov.material >= 0.002
+
+
+def test_the_gate_refuses_runs_from_different_data_pulls():
+    """Two runs on the same seasons are not automatically comparable.
+
+    nflverse revises history, so a rebuilt cache changes values under an
+    unchanged row count. Comparing across one attributes the rebuild's
+    differences to the change under test, which this repo did twice before the
+    fingerprint existed.
+    """
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    left = {"_frames": {"digest": "aaaa", "cache_dir": "a", "player_rows": 7234}}
+    right = {"_frames": {"digest": "bbbb", "cache_dir": "b", "player_rows": 7234}}
+
+    problem = frames_mismatch(left, right)
+
+    assert problem is not None
+    assert "different frames" in problem
+    # The row counts matching is the trap, so the message has to say so.
+    assert "Equal row counts do not mean" in problem
+
+
+def test_matching_fingerprints_are_comparable():
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    frames = {"digest": "aaaa", "cache_dir": "a", "player_rows": 7234}
+
+    assert frames_mismatch({"_frames": frames}, {"_frames": dict(frames)}) is None
+
+
+def test_an_unfingerprinted_run_is_reported_rather_than_assumed_fine():
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    frames = {"digest": "aaaa", "cache_dir": "a", "player_rows": 7234}
+
+    assert "predate" in frames_mismatch({}, {"_frames": frames})
+    assert "predate" in frames_mismatch({"_frames": frames}, {})
+
+
+def test_the_fingerprint_is_not_scored_as_a_fold():
+    """It sits at the same level as the folds, so the parser has to skip it."""
+    from ffmodel.evaluation.acceptance import compare_runs
+
+    run = {
+        "_frames": {"digest": "aaaa", "player_rows": 10},
+        "2023": {"carry": {"n": 100, "mae": 1.0}},
+    }
+    other = {
+        "_frames": {"digest": "aaaa", "player_rows": 10},
+        "2023": {"carry": {"n": 100, "mae": 0.9}},
+    }
+
+    report = compare_runs(run, other)
+
+    assert {c.stream for c in report.metrics} == {"carry"}
+
+
+def test_a_version_change_is_reported_as_method_not_data():
+    """A rehash must not read as a data difference.
+
+    The digest changed when the combine was made non-commutative. Without a
+    version, every run fingerprinted before that would look like it came from
+    a different cache, and the gate would block comparisons that are fine.
+    """
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    old = {"_frames": {"version": 1, "digest": "aaaa", "cache_dir": "a"}}
+    new = {"_frames": {"version": 2, "digest": "bbbb", "cache_dir": "a"}}
+
+    problem = frames_mismatch(old, new)
+
+    assert problem is not None
+    assert "different versions of the hash" in problem
+    assert "Re-fingerprint" in problem

@@ -75,6 +75,7 @@ def main(argv=None) -> None:
             else args.mean_preserving_innovation
         )
         pipeline.volume_model.calibrated_innovation = args.calibrated_innovation
+        pipeline.volume_model.cold_role_innovation = args.cold_role_innovation
         pipeline.volume_model.innovation_cap = args.innovation_cap
         pipeline.volume_model.team_model.models_play_transition = args.play_transition
         if coupling is not None:

@@ -65,6 +65,13 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
              "estimator measured, instead of using the measurement directly",
     )
     parser.add_argument(
+        "--cold-role-innovation",
+        action="store_true",
+        help="give players with no prior role of their own a wider role "
+             "innovation, sized from the training data's own cold-vs-warm "
+             "log-share dispersion ratio",
+    )
+    parser.add_argument(
         "--mean-preserving-innovation",
         action="store_true",
         help="correct the softmax renormalization bias in every allocation "

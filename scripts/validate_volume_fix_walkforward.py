@@ -75,6 +75,7 @@ def main(argv=None) -> None:
                 else args.mean_preserving_innovation
             ),
             calibrated_innovation=args.calibrated_innovation,
+            cold_role_innovation=args.cold_role_innovation,
             innovation_cap=args.innovation_cap,
         )
         pipeline.team_model.models_play_transition = args.play_transition

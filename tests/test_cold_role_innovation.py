@@ -129,12 +129,20 @@ def test_a_cold_row_never_narrows_an_established_one():
     assert model._estimate_cold_role_multiplier(pd.DataFrame()) == 1.0
 
 
-def test_the_flag_is_off_by_default_and_reaches_both_allocators():
-    """2025 diagnosed this and must not size it, so the default stays off until
-    the in-window folds have had their say."""
-    assert not SeasonAverageVolumePipeline().cold_role_innovation
-    assert not SeasonRosterShareModel("carry").cold_role_innovation
+def test_the_promoted_default_is_measured_mode():
+    """Promoted 2026-08-04 on three in-window folds, confirmed once on 2025.
 
+    Pinned because the mode is what the evidence is about: the relative mode
+    was measured too and recovered a seventh of the deficit where this one
+    closes it.
+    """
+    pipeline = SeasonAverageVolumePipeline()
+
+    assert pipeline.cold_role_innovation
+    assert pipeline.cold_role_scale_mode == "measured"
+
+
+def test_the_flag_reaches_both_allocators():
     pipeline = SeasonAverageVolumePipeline(cold_role_innovation=True)
     pipeline.target_model.cold_role_innovation = pipeline.cold_role_innovation
     pipeline.carry_model.cold_role_innovation = pipeline.cold_role_innovation

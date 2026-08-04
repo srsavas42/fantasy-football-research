@@ -300,6 +300,40 @@ tenths under nominal to twelve hundredths over. That is the fold whose aggregate
 deficit was smallest to begin with, and it is why the 95% verdict reads
 "improved (sign varies)" rather than a clean sweep.
 
-2025 is being scored once against this, as confirmation rather than selection.
-If it disagrees, that is a finding to report, not a reason to look for a fourth
-variant.
+## 2025, scored once
+
+| | baseline | cold-role, measured |
+|---|---:|---:|
+| PPR cov80, misses / expected | 111 / 101.6 (z=+1.04) | **96 / 101.6 (z=−0.62)** |
+| PPR cov95 | 45 / 25.4 (z=**+3.99**) | **20 / 25.4 (z=−1.10)** |
+| half-PPR cov95 | 44 / 25.4 (z=+3.79) | 22 / 25.4 (z=−0.69) |
+| standard cov95 | 40 / 25.4 (z=+2.97) | 21 / 25.4 (z=−0.90) |
+| PPR MAE | 40.736 | **39.270** (−3.60%) |
+| PPR CRPS | 29.851 | **29.245** (−2.03%) |
+| PPR RMSE | 58.575 | **56.225** (−4.01%) |
+
+The defect this document opened with is closed on the season it was found on.
+Every scoring system moves from three to four standard errors of under-coverage
+to within about one of nominal, and point accuracy, CRPS and RMSE all improve
+alongside it. Both arms share fingerprint `75a2c821`.
+
+The gate calls each metric "inconclusive", which is correct and worth keeping:
+one fold has no spread, so it cannot separate an effect from a fold. The
+decision was made on the three in-window folds; this is the check, and it
+agrees.
+
+**Promoted 2026-08-04**, `cold_role_innovation` with `cold_role_scale_mode`
+`"measured"`.
+
+## What is least evidenced about it
+
+`cold_role_multiplier_cap` at 6. It binds in both modes on real data — measured
+mode asks for 2.68 over a base of 0.25 — so the cap, not the measurement, is
+what sets where cold rows land. It was chosen before any result and has never
+been selected against folds. The feature works; the specific width it settles on
+is the one number here that nothing validated.
+
+Coverage now sits slightly conservative at both levels (z between −0.6 and −1.1
+across scoring systems), which is the direction a slightly-too-large cap would
+push it. Selecting it properly, on an inner fold, is the obvious next
+refinement.

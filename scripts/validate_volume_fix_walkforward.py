@@ -81,12 +81,13 @@ def main(argv=None) -> None:
                 else args.mean_preserving_innovation
             ),
             calibrated_innovation=args.calibrated_innovation,
-            cold_role_innovation=args.cold_role_innovation,
             cold_role_scale_mode=args.cold_role_scale_mode,
             innovation_cap=args.innovation_cap,
         )
         if args.postseason is not None:
             pipeline.postseason_role_features = args.postseason
+        if args.cold_role_innovation is not None:
+            pipeline.cold_role_innovation = args.cold_role_innovation
         pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.workload_model.couple_gate_to_availability = coupling

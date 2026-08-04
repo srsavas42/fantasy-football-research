@@ -81,10 +81,20 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
     )
     parser.add_argument(
         "--cold-role-innovation",
-        action="store_true",
+        dest="cold_role_innovation",
+        action="store_const",
+        const=True,
+        default=None,
         help="give players with no prior role of their own a wider role "
              "innovation, sized from the training data's own cold-vs-warm "
-             "log-share dispersion ratio",
+             "log-share dispersion ratio (promoted, so already the default)",
+    )
+    parser.add_argument(
+        "--no-cold-role-innovation",
+        dest="cold_role_innovation",
+        action="store_const",
+        const=False,
+        help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
         "--cold-role-scale-mode",

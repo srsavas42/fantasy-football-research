@@ -600,16 +600,26 @@ class SeasonRosterShareModel:
     # the same innovation as an established starter. Measured on 2025, 28% of
     # rows with no prior snap share fall outside a 95% interval on total points,
     # 32 of 33 of them above it. ``cold_role_innovation`` gives those rows their
-    # own, wider, innovation scale. Off until validated in-window.
-    cold_role_innovation: bool = False
+    # own, wider, innovation scale.
+    #
+    # Promoted 2026-08-04 with mode "measured". In-window over 2022/2023/2024 it
+    # takes pooled PPR coverage to nominal at both levels -- 95% from z=+6.62 to
+    # +0.17, 80% from +4.33 to +0.56 -- while MAE falls 3.07% and CRPS 1.68%, on
+    # all three folds. Confirmed once on 2025: cov95 z +3.99 to -1.10, MAE
+    # -3.60%, CRPS -2.03%. See docs/out-of-sample-2025.md.
+    cold_role_innovation: bool = True
     # How the cold scale is derived. "relative" keeps the ratio of cold to warm
     # realized dispersion, which preserves the gap between the populations but
     # inherits the cap's compression: the base is capped from 1.94 to 0.25, so a
     # 1.38x ratio lands cold rows at 0.35 against a measured 2.68. "measured"
     # targets the cold population's own dispersion instead, so the cap bounds
     # the typical row without also bounding the row it was never about.
-    cold_role_scale_mode: str = "relative"
+    cold_role_scale_mode: str = "measured"
     cold_role_multiplier: float = 1.0
+    # This binds in both modes on real data -- measured mode asks for 2.68 over a
+    # base of 0.25 -- so it, not the measurement, sets where cold rows land. It
+    # was chosen before any result and has never been selected against folds.
+    # Whatever it is worth, it is the least evidenced number in this feature.
     cold_role_multiplier_cap: float = 6.0
     idata: object = None
 
@@ -1334,9 +1344,9 @@ class SeasonAverageVolumePipeline:
     # 5% nominal, 32 of 33 above it, while rows with an established role sit at
     # 2.6%. Off until validated in-window -- 2025 diagnosed it and must not size
     # it. See docs/out-of-sample-2025.md.
-    cold_role_innovation: bool = False
+    cold_role_innovation: bool = True
     # "relative" or "measured"; see ``SeasonRosterShareModel``.
-    cold_role_scale_mode: str = "relative"
+    cold_role_scale_mode: str = "measured"
     # Overrides the target and carry allocators' ``innovation_cap``. ``None``
     # keeps each stream's own default. See scripts/select_innovation_cap.py.
     innovation_cap: float | None = None

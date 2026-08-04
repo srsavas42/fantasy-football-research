@@ -325,6 +325,39 @@ agrees.
 **Promoted 2026-08-04**, `cold_role_innovation` with `cold_role_scale_mode`
 `"measured"`.
 
+## The targeting, demonstrated rather than inferred
+
+Aggregate coverage improving is consistent with two very different changes: one
+that fixes the rows that were wrong, and one that widens everything and happens
+to net out. Running the miss split under all three configurations on 2024
+separates them.
+
+| band | n | baseline | relative | **measured** | base z | meas z |
+|---|---:|---:|---:|---:|---:|---:|
+| **rookie** | 81 | 14.8% | 13.6% | **4.9%** | +4.05 | **−0.03** |
+| **no prior snap share** | 117 | 12.8% | 12.0% | **5.1%** | +3.88 | **+0.06** |
+| **role continuity <0.33** | 212 | 9.0% | 8.5% | **4.7%** | +2.65 | −0.19 |
+| prior snap share >0.60 | 106 | 0.9% | 0.9% | 0.9% | −1.92 | −1.92 |
+| prior snap share 0.25–0.60 | 155 | 3.9% | 3.9% | 3.9% | −0.64 | −0.64 |
+| prior snap share 0–0.25 | 123 | 4.9% | 4.9% | 4.9% | −0.06 | −0.06 |
+| role continuity ≥0.67 | 289 | 3.1% | 3.1% | 3.1% | −1.47 | −1.47 |
+| experience 3–5 | 153 | 3.3% | 3.3% | 3.3% | −0.98 | −0.98 |
+| second year | 82 | 4.9% | 4.9% | 4.9% | −0.05 | −0.05 |
+| veteran (6+) | 185 | 3.8% | 3.8% | 3.2% | −0.76 | −1.10 |
+
+The three bands the widening was built for land on nominal — 4.9%, 5.1% and
+4.7% against a 5% nominal, from z of +4.05, +3.88 and +2.65. Every band it was
+not built for is identical to the tenth of a percent.
+
+The one exception is veterans, 3.8% → 3.2%, and it is the mask working as
+specified rather than leaking: a player returning from a season out has no prior
+snap share whatever his experience, so some veterans are legitimately cold.
+
+That is the claim the aggregate numbers could only suggest. Overall on this fold
+the 95% level goes 28 misses → 19 against 25.1 expected and the 80% goes 110 →
+93 against 100.2, but the reason to believe it is the row-level table, not the
+totals.
+
 ## What is least evidenced about it
 
 `cold_role_multiplier_cap` at 6. It binds in both modes on real data — measured

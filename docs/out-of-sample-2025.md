@@ -377,3 +377,11 @@ Coverage now sits slightly conservative at both levels (z between −0.6 and −
 across scoring systems), which is the direction a slightly-too-large cap would
 push it. Selecting it properly, on an inner fold, is the obvious next
 refinement.
+
+**Selected 2026-08-04, and it stays at 6.0.** Every inner fold preferred a
+larger cap by margins that looked material, and none of it reproduced: the
+picks lose 0.18% of CRPS on average against the incumbent on the scored folds.
+The reading above — that conservative coverage suggested a slightly-too-large
+cap — was also wrong in direction and, as it turns out, in premise: a z of −1 at
+these sample sizes carries almost no information. See
+[cold-role-cap-2026-08.md](cold-role-cap-2026-08.md).

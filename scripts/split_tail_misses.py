@@ -40,11 +40,19 @@ _parser = argparse.ArgumentParser(description=__doc__)
 _parser.add_argument("--holdout", type=int, default=2025)
 _parser.add_argument("--scoring", default="ppr")
 _parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
+_parser.add_argument(
+    "--cold-role-innovation",
+    action="store_true",
+    help="widen the role innovation for players with no prior role. Run with "
+         "and without to check the fix lands on the rows it was built for "
+         "rather than merely moving the aggregate",
+)
 _args = _parser.parse_args()
 
 HOLDOUT = _args.holdout
 SCORING = _args.scoring
-OUTPUT = Path(f"scripts/validation_runs/tail_miss_split_{HOLDOUT}.json")
+SUFFIX = "_coldrole" if _args.cold_role_innovation else ""
+OUTPUT = Path(f"scripts/validation_runs/tail_miss_split_{HOLDOUT}{SUFFIX}.json")
 
 
 def binomial_z(misses: int, n: int, nominal: float) -> float:
@@ -62,6 +70,7 @@ test = SeasonAverageData(
 )
 
 pipeline = SeasonAverageScoringPipeline()
+pipeline.volume_model.cold_role_innovation = _args.cold_role_innovation
 sample_kwargs = {"draws": 1000, "tune": 1000, "chains": 4}
 pipeline.fit(
     train, volume_sample_kwargs=sample_kwargs, efficiency_sample_kwargs=sample_kwargs
@@ -99,6 +108,7 @@ miss80 = (observed < lower80) | (observed > upper80)
 report: dict[str, object] = {
     "holdout": HOLDOUT,
     "scoring": SCORING,
+    "cold_role_innovation": bool(_args.cold_role_innovation),
     "n": n,
     "misses_95": int(miss95.sum()),
     "z95": float(binomial_z(int(miss95.sum()), n, 0.95)),

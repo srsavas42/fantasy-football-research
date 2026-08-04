@@ -91,12 +91,13 @@
   },
   "_frames": {
     "cache_dir": ".cache/ffmodel-wf-2025",
-    "digest": "75a2c821669fe43a",
+    "digest": "e1e698b36fcbb06e",
     "player_rows": 7937,
     "seasons": [
       2015,
       2025
     ],
-    "team_rows": 352
+    "team_rows": 352,
+    "version": 2
   }
 }

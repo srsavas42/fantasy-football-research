@@ -302,6 +302,13 @@ def frames_mismatch(
             "one or both runs predate frame fingerprinting, so whether they read "
             "the same build cannot be checked"
         )
+    if left.get("version") != right.get("version"):
+        return (
+            "the runs were fingerprinted by different versions of the hash "
+            f"({left.get('version')} against {right.get('version')}), so their "
+            "digests cannot be compared. Re-fingerprint the older run rather "
+            "than reading this as a data difference"
+        )
     if left.get("digest") == right.get("digest"):
         return None
     return (

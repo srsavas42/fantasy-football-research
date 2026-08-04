@@ -474,3 +474,22 @@ def test_the_fingerprint_is_not_scored_as_a_fold():
     report = compare_runs(run, other)
 
     assert {c.stream for c in report.metrics} == {"carry"}
+
+
+def test_a_version_change_is_reported_as_method_not_data():
+    """A rehash must not read as a data difference.
+
+    The digest changed when the combine was made non-commutative. Without a
+    version, every run fingerprinted before that would look like it came from
+    a different cache, and the gate would block comparisons that are fine.
+    """
+    from ffmodel.evaluation.acceptance import frames_mismatch
+
+    old = {"_frames": {"version": 1, "digest": "aaaa", "cache_dir": "a"}}
+    new = {"_frames": {"version": 2, "digest": "bbbb", "cache_dir": "a"}}
+
+    problem = frames_mismatch(old, new)
+
+    assert problem is not None
+    assert "different versions of the hash" in problem
+    assert "Re-fingerprint" in problem

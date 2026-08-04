@@ -19,6 +19,7 @@ DEFAULT_CACHE = Path(".cache/ffmodel-walkforward")
 # 2025 is the one season no choice here has seen — the closest thing to a real
 # out-of-sample test. Keep it that way: score it, do not select on it.
 DEFAULT_SEASONS = range(2014, 2026)
+FINGERPRINT_VERSION = 2
 HOLDOUTS = (2022, 2023, 2024)
 
 
@@ -156,11 +157,22 @@ def frames_fingerprint(
     from runs on different builds are not comparable, and nothing about the
     output says so. Recording a content hash lets the gate say so instead.
     """
+    # Salted per position so the combine is not commutative: a plain XOR gives
+    # the same digest if the two frames are passed the other way round, which
+    # would make an argument-order mistake invisible to the very check meant to
+    # catch invisible mistakes. Column order is normalised because it carries no
+    # information; row order is not, because these come from a stable build and
+    # a reordering is a real difference worth flagging.
     digest = 0
-    for frame in (player_rows, team_rows):
+    for position, frame in enumerate((player_rows, team_rows)):
         ordered = frame.sort_index(axis=1)
-        digest ^= int(pd.util.hash_pandas_object(ordered, index=False).sum())
+        frame_hash = int(pd.util.hash_pandas_object(ordered, index=False).sum())
+        digest ^= (frame_hash * (2 * position + 1)) & 0xFFFFFFFFFFFFFFFF
     return {
+        # Bumped whenever the hashing changes. Without it, a digest computed by
+        # an older version reads as "different data" rather than "different
+        # method", and the gate would block a comparison that is actually fine.
+        "version": FINGERPRINT_VERSION,
         "cache_dir": str(cache_dir),
         "player_rows": int(len(player_rows)),
         "team_rows": int(len(team_rows)),

@@ -201,3 +201,28 @@ def test_the_mode_reaches_both_allocators_and_survives_a_round_trip():
 
     assert pipeline.carry_model.cold_role_scale_mode == "measured"
     assert pipeline.target_model.cold_role_scale_mode == "measured"
+
+
+def test_a_missing_prior_snap_share_is_refused_when_the_widening_is_on():
+    """The silent-degradation case.
+
+    Without the column the mask falls back to "no role in this stream", which
+    is a deliberately rejected population -- 62% of carry rows rather than 34%,
+    including receivers whose zero carries the model already predicts well.
+    Nothing validated that configuration and it would otherwise run without a
+    word.
+    """
+    rows = _room().drop(columns=["prior_snap_share"])
+    model = SeasonRosterShareModel("carry", cold_role_innovation=True)
+
+    with pytest.raises(ValueError, match="prior_snap_share"):
+        model._cold_role_rows(rows)
+
+
+def test_a_missing_prior_snap_share_is_tolerated_when_the_widening_is_off():
+    """``_design`` builds the mask on every prediction, so refusing it
+    unconditionally would break frames that never asked for this feature."""
+    rows = _room().drop(columns=["prior_snap_share"])
+    model = SeasonRosterShareModel("carry", cold_role_innovation=False)
+
+    assert model._cold_role_rows(rows).tolist() == [False, False, True, True, True]

@@ -852,6 +852,17 @@ class SeasonRosterShareModel:
             errors="coerce",
         )
         role = pd.to_numeric(d.get(STREAMS[self.stream]["role"]), errors="coerce")
+        if "prior_snap_share" not in d and self.cold_role_innovation:
+            # Without it the mask degrades to "no role in this stream", which is
+            # a different and deliberately rejected population: 62% of carry
+            # rows rather than 34%, including receivers whose zero carries the
+            # model already predicts well. That is a configuration nothing
+            # validated, and it would run silently.
+            raise ValueError(
+                "cold_role_innovation needs prior_snap_share to tell a player "
+                "the model has never seen from one it has seen play but never "
+                "carry; the column is missing from these rows"
+            )
         snaps = pd.to_numeric(
             d.get("prior_snap_share", pd.Series(np.nan, index=d.index)), errors="coerce"
         )

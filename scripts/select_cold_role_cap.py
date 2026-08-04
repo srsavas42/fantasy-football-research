@@ -71,7 +71,6 @@ from _walkforward_data import DEFAULT_CACHE, HOLDOUTS, frames_fingerprint, load_
 
 from ffmodel.evaluation.efficiency_posterior import score_fantasy_points_posterior
 from ffmodel.features.season_average import SeasonAverageData
-from ffmodel.models.base import calibrate_innovation_scale
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 
 SCORING_FORMATS = ("standard", "half_ppr", "ppr")
@@ -82,26 +81,29 @@ ALLOCATORS = ("target", "carry")
 def uncapped_ratios(volume_model, train_rows: pd.DataFrame) -> dict[str, float]:
     """The cold-to-base scale ratio each allocator would use with no cap.
 
-    Computed once per fold. Every candidate is then a clip of this, which is
-    exact rather than an approximation: the cap enters ``_fit_cold_role_multiplier``
-    only as the upper bound of a clip.
+    Computed once per fold by asking the model itself with the bound removed,
+    rather than by recomputing the calculation here. An earlier version did
+    reimplement it, and the two answers agreed at every capped candidate --
+    because the clip hid them -- while disagreeing by 2.7% uncapped, which is
+    the one candidate where the underlying number is what gets used. Calling
+    the model's own path makes the clip exact by construction instead of by
+    coincidence.
     """
     ratios: dict[str, float] = {}
     for name in ALLOCATORS:
         model = getattr(volume_model, f"{name}_model")
         prepared = model._prepare(train_rows)
-        cold_rms, _ = model._cold_and_warm_dispersion(prepared)
-        if not np.isfinite(cold_rms) or model.role_innovation_scale <= 1e-8:
-            ratios[name] = 1.0
-            continue
+        allocation = mask = None
         if model.calibrated_innovation:
             allocation, mask = model._innovation_rooms(prepared)
-            cold_scale = calibrate_innovation_scale(
-                allocation, mask, cold_rms, seed=model.innovation_calibration_seed
+        restore = model.cold_role_multiplier_cap
+        model.cold_role_multiplier_cap = float("inf")
+        try:
+            ratios[name] = float(
+                model._fit_cold_role_multiplier(prepared, allocation, mask)
             )
-        else:
-            cold_scale = cold_rms
-        ratios[name] = float(cold_scale / model.role_innovation_scale)
+        finally:
+            model.cold_role_multiplier_cap = restore
     return ratios
 
 

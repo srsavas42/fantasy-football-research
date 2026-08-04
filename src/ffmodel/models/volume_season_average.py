@@ -765,7 +765,16 @@ class SeasonRosterShareModel:
         cold_rms, _ = self._cold_and_warm_dispersion(d)
         if not np.isfinite(cold_rms) or self.role_innovation_scale <= 1e-8:
             return 1.0
-        if allocation is not None and mask is not None:
+        # Keyed on the model's own configuration, not on whether the caller
+        # happened to pass rooms in. Those come apart: ``_fit_metadata`` only
+        # supplies them when calibration is on, so in the pipeline the two
+        # agree, but a caller holding this model directly could calibrate the
+        # cold scale while the base scale it is divided by was not calibrated.
+        # The ratio between a calibrated numerator and an uncalibrated
+        # denominator is not a widening factor, and nothing would have said so.
+        if self.calibrated_innovation:
+            if allocation is None or mask is None:
+                allocation, mask = self._innovation_rooms(d)
             cold_scale = calibrate_innovation_scale(
                 allocation, mask, cold_rms, seed=self.innovation_calibration_seed
             )

@@ -226,3 +226,33 @@ def test_a_missing_prior_snap_share_is_tolerated_when_the_widening_is_off():
     model = SeasonRosterShareModel("carry", cold_role_innovation=False)
 
     assert model._cold_role_rows(rows).tolist() == [False, False, True, True, True]
+
+
+def test_the_cold_scale_is_calibrated_on_configuration_not_on_call_site():
+    """The numerator and denominator have to be the same kind of quantity.
+
+    ``_fit_cold_role_multiplier`` used to calibrate whenever rooms were passed
+    in, regardless of ``calibrated_innovation``. In the pipeline the two always
+    agreed, because ``_fit_metadata`` supplies rooms only when calibration is
+    on. A caller holding the model directly could get a calibrated cold scale
+    divided by an uncalibrated base scale, which is not a widening factor at
+    all — and the answers differ by enough to matter: 10.66 against 10.90 on
+    the carry allocator's real training rows.
+    """
+    model = SeasonRosterShareModel(
+        "carry", cold_role_innovation=True, cold_role_scale_mode="measured"
+    )
+    model.calibrated_innovation = False
+    model.role_innovation_scale = 0.25
+    model.cold_role_multiplier_cap = float("inf")
+    model._cold_and_warm_dispersion = lambda d: (2.5, 1.9)
+
+    def _fail(_):
+        raise AssertionError("rooms must not be consulted when calibration is off")
+
+    model._innovation_rooms = _fail
+
+    # Rooms passed anyway; an uncalibrated model must ignore them.
+    assert model._fit_cold_role_multiplier(
+        pd.DataFrame(), np.ones((2, 3)), np.ones((2, 3), dtype=bool)
+    ) == pytest.approx(10.0)

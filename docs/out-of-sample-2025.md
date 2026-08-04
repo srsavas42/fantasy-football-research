@@ -247,3 +247,59 @@ arrive: if that sweep does not move the deficit either, this is reported as an
 insufficient fix rather than iterated on. Three plausible variants selected in
 sequence against the same three folds spends the window just as surely as
 tuning on it.
+
+## The cap is a different point on the same bad trade
+
+| cap | cov80 | z80 | cov95 | z95 | MAE | CRPS |
+|---:|---:|---:|---:|---:|---:|---:|
+| **0.25** (promoted) | 0.785 | **+0.82** | 0.909 | +4.19 | 40.746 | **29.862** |
+| 0.50 | 0.807 | −0.40 | 0.923 | +2.77 | 40.676 | 30.147 |
+| 1.00 | 0.846 | −2.62 | 0.941 | **+0.94** | 40.594 | 31.964 |
+| 1.50 | 0.860 | −3.39 | 0.957 | −0.69 | 40.791 | 34.344 |
+| None | 0.864 | −3.62 | 0.963 | −1.30 | 41.032 | 34.626 |
+
+Relaxing it closes the 95% gap and breaks the 80% level doing it, with CRPS
+degrading 7% by cap 1.0 — the same trade the global width sweep found, because
+both are global knobs and the defect is not global.
+
+Which is the argument for the targeted one. Every global knob trades; the
+cold-role widening improved both levels, MAE, CRPS and RMSE together. It was
+just far too small, because a cold-to-warm *ratio* inherits the cap's
+compression: capped from 1.94 to 0.25, a 1.38× ratio lands cold rows at 0.35
+against a measured 2.68.
+
+## Targeting the measured dispersion instead
+
+`cold_role_scale_mode="measured"` targets the cold population's own dispersion,
+so the cap bounds the typical row without bounding the row it was never about.
+Cold rows land at 1.50 — the multiplier cap of six binds before the measured
+2.68 does.
+
+Pooled PPR over the same three folds, same cache, all three arms sharing
+fingerprint `75a2c821`:
+
+| | cov80 misses/exp | z80 | cov95 misses/exp | z95 | MAE | CRPS |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 374 / 306.2 | +4.33 | 133 / 76.5 | +6.62 | 43.119 | 31.295 |
+| cold-role, relative | 365 / 306.2 | +3.76 | 125 / 76.5 | +5.68 | 43.033 | 31.241 |
+| **cold-role, measured** | **315 / 306.2** | **+0.56** | **78 / 76.5** | **+0.17** | **41.787** | **30.761** |
+
+Both levels land on nominal — 78 misses against 76.5 expected at the 95% level,
+315 against 306.2 at the 80% — and point accuracy improves 3.07% and CRPS
+1.68% at the same time, each on all three folds. The gate accepts with no
+exception required.
+
+That combination is what distinguishes this from every earlier attempt. A width
+change that fixes the tails should cost the body, and a change that improves
+coverage should cost a proper scoring rule. This does neither, because the rows
+it widens are the rows that were wrong: the established rows it leaves alone
+were already at nominal, so there is nothing there to spend.
+
+The one blemish is 2024, where cov95 goes 0.944 → 0.962 and so moves from six
+tenths under nominal to twelve hundredths over. That is the fold whose aggregate
+deficit was smallest to begin with, and it is why the 95% verdict reads
+"improved (sign varies)" rather than a clean sweep.
+
+2025 is being scored once against this, as confirmation rather than selection.
+If it disagrees, that is a finding to report, not a reason to look for a fourth
+variant.

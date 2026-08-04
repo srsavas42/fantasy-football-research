@@ -22,6 +22,7 @@ much of the gap is closed by knowing this".
 
 from __future__ import annotations
 
+import argparse
 import json
 import warnings
 from pathlib import Path
@@ -38,12 +39,17 @@ from ffmodel.models.volume_season_average import (
     _allocate_season_counts,
 )
 
-HOLDOUT = 2025
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument("--holdout", type=int, default=2025)
+_parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
+_args = _parser.parse_args()
+
+HOLDOUT = _args.holdout
 OUTPUT = Path(f"scripts/validation_runs/carry_decomposition_{HOLDOUT}.json")
 POSITIONS = ("QB", "RB", "WR", "TE")
 
-pr = pd.read_pickle(".cache/ffmodel-wf-2025/player_rows.pkl")
-tr = pd.read_pickle(".cache/ffmodel-wf-2025/team_rows.pkl")
+pr = pd.read_pickle(_args.cache_dir / "player_rows.pkl")
+tr = pd.read_pickle(_args.cache_dir / "team_rows.pkl")
 train = SeasonAverageData(
     tr[tr.season < HOLDOUT].copy(), pr[pr.season < HOLDOUT].copy()
 )

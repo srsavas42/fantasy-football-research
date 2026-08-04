@@ -6,9 +6,12 @@ one scale for rookies and starters alike -- the exact defect the flag exists to
 fix, now invisible. The unit test pins this on a synthetic model; this pins it
 on a real fit and a real prediction.
 """
-import warnings; warnings.filterwarnings("ignore")
+import argparse
 import tempfile
+import warnings
 from pathlib import Path
+
+warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
@@ -16,12 +19,26 @@ import pandas as pd
 from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
 
-pr = pd.read_pickle(".cache/ffmodel-wf-2025/player_rows.pkl")
-tr = pd.read_pickle(".cache/ffmodel-wf-2025/team_rows.pkl")
-train = SeasonAverageData(tr[tr.season < 2025].copy(), pr[pr.season < 2025].copy())
-test = SeasonAverageData(tr[tr.season == 2025].copy(), pr[pr.season == 2025].copy())
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--holdout", type=int, default=2025)
+parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
+# A round trip does not need a converged posterior, only a real one: this is
+# checking that fitted metadata survives save and load, not what it contains.
+parser.add_argument("--draws", type=int, default=250)
+args = parser.parse_args()
 
-pipe = SeasonAverageVolumePipeline().fit(train, draws=250, tune=250, chains=2)
+pr = pd.read_pickle(args.cache_dir / "player_rows.pkl")
+tr = pd.read_pickle(args.cache_dir / "team_rows.pkl")
+train = SeasonAverageData(
+    tr[tr.season < args.holdout].copy(), pr[pr.season < args.holdout].copy()
+)
+test = SeasonAverageData(
+    tr[tr.season == args.holdout].copy(), pr[pr.season == args.holdout].copy()
+)
+
+pipe = SeasonAverageVolumePipeline().fit(
+    train, draws=args.draws, tune=args.draws, chains=2
+)
 print("\ndefaults on the fitted pipeline:",
       pipe.cold_role_innovation, pipe.cold_role_scale_mode, flush=True)
 for name in ("target", "carry"):

@@ -83,10 +83,15 @@ def main(argv=None) -> int:
     parser.add_argument("--holdout", type=int, default=2024)
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
     parser.add_argument("--draws", type=int, default=1000)
-    parser.add_argument(
-        "--output", type=Path, default=Path("scripts/validation_runs/cap_scoring_2025.json")
-    )
+    # Derived from the holdout rather than fixed: the default holdout moved to
+    # 2024 and a fixed name would have written 2024 results into a file called
+    # cap_scoring_2025.json, over the top of the 2025 diagnostic.
+    parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
+    if args.output is None:
+        args.output = Path(
+            f"scripts/validation_runs/cap_scoring_{args.holdout}.json"
+        )
 
     pr = pd.read_pickle(args.cache_dir / "player_rows.pkl")
     tr = pd.read_pickle(args.cache_dir / "team_rows.pkl")

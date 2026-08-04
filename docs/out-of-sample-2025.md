@@ -87,6 +87,13 @@ season where a player vastly outperforms or collapses is under-represented. That
 is a distributional question rather than a parameter, and it is now the
 best-evidenced open item in the package.
 
+> **Closed 2026-08-04.** Everything above this line is the state before the
+> tail work; the sections that follow attribute the defect and fix it. PPR
+> coverage on 2025 now reads z=−1.10 at the 95% level against the +3.99
+> recorded here. The numbers in this opening section were also produced from
+> the older cache, so they are not directly comparable to anything below —
+> see the frame fingerprints.
+
 ---
 
 # Attributing the tail deficit (2026-08-04)
@@ -276,7 +283,7 @@ Cold rows land at 1.50 — the multiplier cap of six binds before the measured
 2.68 does.
 
 Pooled PPR over the same three folds, same cache, all three arms sharing
-fingerprint `75a2c821`:
+fingerprint `e1e698b3`:
 
 | | cov80 misses/exp | z80 | cov95 misses/exp | z95 | MAE | CRPS |
 |---|---:|---:|---:|---:|---:|---:|
@@ -315,7 +322,7 @@ deficit was smallest to begin with, and it is why the 95% verdict reads
 The defect this document opened with is closed on the season it was found on.
 Every scoring system moves from three to four standard errors of under-coverage
 to within about one of nominal, and point accuracy, CRPS and RMSE all improve
-alongside it. Both arms share fingerprint `75a2c821`.
+alongside it. Both arms share fingerprint `e1e698b3`.
 
 The gate calls each metric "inconclusive", which is correct and worth keeping:
 one fold has no spread, so it cannot separate an effect from a fold. The

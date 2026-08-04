@@ -11,8 +11,8 @@ fit can serve both arms. Predicting twice from the *same* posterior with the
 *same* seed makes this an exactly paired test: the innovation draws are
 identical and the only difference is the softmax renormalization correction.
 """
+import argparse
 import json
-import sys
 import warnings
 from pathlib import Path
 
@@ -25,11 +25,16 @@ from ffmodel.evaluation.metrics import empirical_crps
 from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
 
-HOLDOUT = int(sys.argv[1]) if len(sys.argv) > 1 else 2025
-CACHE = ".cache/ffmodel-wf-2025" if HOLDOUT >= 2025 else ".cache/ffmodel-walkforward"
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument("--holdout", type=int, default=2025)
+_parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
+_args = _parser.parse_args()
 
-pr = pd.read_pickle(f"{CACHE}/player_rows.pkl")
-tr = pd.read_pickle(f"{CACHE}/team_rows.pkl")
+HOLDOUT = _args.holdout
+CACHE = _args.cache_dir
+
+pr = pd.read_pickle(CACHE / "player_rows.pkl")
+tr = pd.read_pickle(CACHE / "team_rows.pkl")
 train = SeasonAverageData(
     tr[tr.season < HOLDOUT].copy(), pr[pr.season < HOLDOUT].copy()
 )

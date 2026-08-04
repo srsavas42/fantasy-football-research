@@ -13,6 +13,7 @@ implicated. Two candidates remain, and this tests both from one fit:
       heavy workload also draws the efficiency that goes with it. Positive
       dependence fattens both tails of the product.
 """
+import argparse
 import json
 import warnings
 from dataclasses import replace
@@ -28,12 +29,18 @@ from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 from ffmodel.simulation.season_scoring import score_volume_prediction
 
-OUTPUT = Path("scripts/validation_runs/tail_attribution_2025.json")
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument("--holdout", type=int, default=2025)
+_parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
+_args = _parser.parse_args()
 
-pr = pd.read_pickle(".cache/ffmodel-wf-2025/player_rows.pkl")
-tr = pd.read_pickle(".cache/ffmodel-wf-2025/team_rows.pkl")
-train = SeasonAverageData(tr[tr.season < 2025].copy(), pr[pr.season < 2025].copy())
-test = SeasonAverageData(tr[tr.season == 2025].copy(), pr[pr.season == 2025].copy())
+HOLDOUT = _args.holdout
+OUTPUT = Path(f"scripts/validation_runs/tail_attribution_{HOLDOUT}.json")
+
+pr = pd.read_pickle(_args.cache_dir / "player_rows.pkl")
+tr = pd.read_pickle(_args.cache_dir / "team_rows.pkl")
+train = SeasonAverageData(tr[tr.season < HOLDOUT].copy(), pr[pr.season < HOLDOUT].copy())
+test = SeasonAverageData(tr[tr.season == HOLDOUT].copy(), pr[pr.season == HOLDOUT].copy())
 
 pipeline = SeasonAverageScoringPipeline()
 sample_kwargs = {"draws": 1000, "tune": 1000, "chains": 4}
@@ -76,7 +83,7 @@ def widen(prediction, k: float):
 
 results: dict[str, dict] = {"volume_width": {}, "dependence": {}}
 
-print("\n(a) VOLUME WIDTH — PPR, 2025 out of sample\n")
+print(f"\n(a) VOLUME WIDTH — PPR, holdout {HOLDOUT}\n")
 print(f"{'volume width':>14s} {'cov80':>7s} {'cov95':>7s} {'MAE':>8s} {'CRPS':>8s}")
 for k in (1.0, 1.25, 1.5, 2.0, 3.0):
     scored = score_volume_prediction(
@@ -90,7 +97,7 @@ for k in (1.0, 1.25, 1.5, 2.0, 3.0):
         flush=True,
     )
 
-print("\n(b) VOLUME-EFFICIENCY DEPENDENCE — PPR, 2025 out of sample\n")
+print(f"\n(b) VOLUME-EFFICIENCY DEPENDENCE — PPR, holdout {HOLDOUT}\n")
 print(f"{'path':>22s} {'cov80':>7s} {'cov95':>7s} {'MAE':>8s} {'CRPS':>8s}")
 for label, conditioned in (
     ("independent (accepted)", False),

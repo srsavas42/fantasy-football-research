@@ -41,6 +41,13 @@ _parser.add_argument("--holdout", type=int, default=2025)
 _parser.add_argument("--scoring", default="ppr")
 _parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025"))
 _parser.add_argument(
+    "--cold-role-scale-mode",
+    choices=("relative", "measured"),
+    default="measured",
+    help="which cold-role scale mode to run under; only read when the widening "
+         "is on",
+)
+_parser.add_argument(
     "--cold-role-innovation",
     action="store_true",
     help="widen the role innovation for players with no prior role. Run with "
@@ -51,7 +58,12 @@ _args = _parser.parse_args()
 
 HOLDOUT = _args.holdout
 SCORING = _args.scoring
-SUFFIX = "_coldrole" if _args.cold_role_innovation else ""
+# The mode belongs in the name. "relative" and "measured" differ by a factor of
+# four in what they do to cold rows, and a file that records only "coldrole"
+# cannot say which one produced it.
+SUFFIX = (
+    f"_coldrole_{_args.cold_role_scale_mode}" if _args.cold_role_innovation else ""
+)
 OUTPUT = Path(f"scripts/validation_runs/tail_miss_split_{HOLDOUT}{SUFFIX}.json")
 
 
@@ -71,6 +83,7 @@ test = SeasonAverageData(
 
 pipeline = SeasonAverageScoringPipeline()
 pipeline.volume_model.cold_role_innovation = _args.cold_role_innovation
+pipeline.volume_model.cold_role_scale_mode = _args.cold_role_scale_mode
 sample_kwargs = {"draws": 1000, "tune": 1000, "chains": 4}
 pipeline.fit(
     train, volume_sample_kwargs=sample_kwargs, efficiency_sample_kwargs=sample_kwargs
@@ -109,6 +122,7 @@ report: dict[str, object] = {
     "holdout": HOLDOUT,
     "scoring": SCORING,
     "cold_role_innovation": bool(_args.cold_role_innovation),
+    "cold_role_scale_mode": _args.cold_role_scale_mode,
     "n": n,
     "misses_95": int(miss95.sum()),
     "z95": float(binomial_z(int(miss95.sum()), n, 0.95)),

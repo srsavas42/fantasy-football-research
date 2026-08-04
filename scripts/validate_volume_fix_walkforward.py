@@ -82,6 +82,7 @@ def main(argv=None) -> None:
             ),
             calibrated_innovation=args.calibrated_innovation,
             cold_role_innovation=args.cold_role_innovation,
+            cold_role_scale_mode=args.cold_role_scale_mode,
             innovation_cap=args.innovation_cap,
         )
         if args.postseason is not None:

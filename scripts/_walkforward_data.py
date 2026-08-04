@@ -87,6 +87,14 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
              "log-share dispersion ratio",
     )
     parser.add_argument(
+        "--cold-role-scale-mode",
+        choices=("relative", "measured"),
+        default="relative",
+        help="how the cold rows' scale is derived: 'relative' keeps the cold-"
+             "to-warm dispersion ratio and inherits the cap's compression, "
+             "'measured' targets the cold population's own dispersion",
+    )
+    parser.add_argument(
         "--mean-preserving-innovation",
         action="store_true",
         help="correct the softmax renormalization bias in every allocation "

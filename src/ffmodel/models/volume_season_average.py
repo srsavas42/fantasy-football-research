@@ -602,6 +602,13 @@ class SeasonRosterShareModel:
     # 32 of 33 of them above it. ``cold_role_innovation`` gives those rows their
     # own, wider, innovation scale. Off until validated in-window.
     cold_role_innovation: bool = False
+    # How the cold scale is derived. "relative" keeps the ratio of cold to warm
+    # realized dispersion, which preserves the gap between the populations but
+    # inherits the cap's compression: the base is capped from 1.94 to 0.25, so a
+    # 1.38x ratio lands cold rows at 0.35 against a measured 2.68. "measured"
+    # targets the cold population's own dispersion instead, so the cap bounds
+    # the typical row without also bounding the row it was never about.
+    cold_role_scale_mode: str = "relative"
     cold_role_multiplier: float = 1.0
     cold_role_multiplier_cap: float = 6.0
     idata: object = None
@@ -717,9 +724,7 @@ class SeasonRosterShareModel:
         # so it belongs on the measured quantity. Calibration then asks what
         # input scale delivers that much churn through the softmax.
         target = min(self._estimate_role_innovation(d), float(self.innovation_cap))
-        self.cold_role_multiplier = (
-            self._estimate_cold_role_multiplier(d) if self.cold_role_innovation else 1.0
-        )
+        allocation = mask = None
         if self.calibrated_innovation:
             allocation, mask = self._innovation_rooms(d)
             self.role_innovation_scale = calibrate_innovation_scale(
@@ -727,6 +732,42 @@ class SeasonRosterShareModel:
             )
         else:
             self.role_innovation_scale = target
+        self.cold_role_multiplier = self._fit_cold_role_multiplier(
+            d, allocation, mask
+        )
+
+    def _fit_cold_role_multiplier(self, d, allocation, mask) -> float:
+        """The factor cold rows' innovation is scaled by, in the chosen mode.
+
+        Both modes go through the same calibration as the base scale when it is
+        on, because a realized dispersion and an input scale are not the same
+        quantity on either side of the split.
+        """
+        if not self.cold_role_innovation:
+            return 1.0
+        if self.cold_role_scale_mode == "relative":
+            return self._estimate_cold_role_multiplier(d)
+        if self.cold_role_scale_mode != "measured":
+            raise ValueError(
+                f"unknown cold_role_scale_mode: {self.cold_role_scale_mode!r}; "
+                "choose 'relative' or 'measured'"
+            )
+        cold_rms, _ = self._cold_and_warm_dispersion(d)
+        if not np.isfinite(cold_rms) or self.role_innovation_scale <= 1e-8:
+            return 1.0
+        if allocation is not None and mask is not None:
+            cold_scale = calibrate_innovation_scale(
+                allocation, mask, cold_rms, seed=self.innovation_calibration_seed
+            )
+        else:
+            cold_scale = cold_rms
+        return float(
+            np.clip(
+                cold_scale / self.role_innovation_scale,
+                1.0,
+                self.cold_role_multiplier_cap,
+            )
+        )
 
     def _innovation_support(self, d: pd.DataFrame) -> np.ndarray:
         """Rows the softmax is actually fitted over.
@@ -846,6 +887,16 @@ class SeasonRosterShareModel:
         if not len(residuals):
             return 0.10
         return float(np.clip(np.sqrt(np.mean(residuals**2)), 0.10, 2.0))
+
+    def _cold_and_warm_dispersion(self, d: pd.DataFrame) -> tuple[float, float]:
+        """Realized log-share spread either side of the cold split, or NaNs."""
+        residuals, cold = self._role_innovation_residuals(d)
+        if cold.sum() < MIN_COLD_ROLE_ROWS or (~cold).sum() < MIN_COLD_ROLE_ROWS:
+            return float("nan"), float("nan")
+        return (
+            float(np.sqrt(np.mean(residuals[cold] ** 2))),
+            float(np.sqrt(np.mean(residuals[~cold] ** 2))),
+        )
 
     def _estimate_cold_role_multiplier(self, d: pd.DataFrame) -> float:
         """How much wider the cold rows' realized log-share spread is.
@@ -1284,6 +1335,8 @@ class SeasonAverageVolumePipeline:
     # 2.6%. Off until validated in-window -- 2025 diagnosed it and must not size
     # it. See docs/out-of-sample-2025.md.
     cold_role_innovation: bool = False
+    # "relative" or "measured"; see ``SeasonRosterShareModel``.
+    cold_role_scale_mode: str = "relative"
     # Overrides the target and carry allocators' ``innovation_cap``. ``None``
     # keeps each stream's own default. See scripts/select_innovation_cap.py.
     innovation_cap: float | None = None
@@ -1301,8 +1354,9 @@ class SeasonAverageVolumePipeline:
         if self.calibrated_innovation:
             self._enable_calibrated_innovation()
         if self.cold_role_innovation:
-            self.target_model.cold_role_innovation = True
-            self.carry_model.cold_role_innovation = True
+            for model in (self.target_model, self.carry_model):
+                model.cold_role_innovation = True
+                model.cold_role_scale_mode = self.cold_role_scale_mode
         if self.innovation_cap is not None:
             self.target_model.innovation_cap = float(self.innovation_cap)
             self.carry_model.innovation_cap = float(self.innovation_cap)
@@ -1872,6 +1926,7 @@ class SeasonAverageVolumePipeline:
             "mean_preserving_innovation": bool(model.mean_preserving_innovation),
             "calibrated_innovation": bool(model.calibrated_innovation),
             "cold_role_innovation": bool(model.cold_role_innovation),
+            "cold_role_scale_mode": model.cold_role_scale_mode,
             "cold_role_multiplier": float(model.cold_role_multiplier),
             "cold_role_multiplier_cap": float(model.cold_role_multiplier_cap),
             "extra_features": list(model.extra_features),
@@ -1966,6 +2021,9 @@ class SeasonAverageVolumePipeline:
                 ),
                 cold_role_innovation=bool(
                     state.get("cold_role_innovation", False)
+                ),
+                cold_role_scale_mode=str(
+                    state.get("cold_role_scale_mode", "relative")
                 ),
                 cold_role_multiplier_cap=float(
                     state.get("cold_role_multiplier_cap", 6.0)

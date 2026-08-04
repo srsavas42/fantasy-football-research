@@ -141,3 +141,55 @@ def test_the_flag_is_off_by_default_and_reaches_both_allocators():
 
     assert pipeline.target_model.cold_role_innovation
     assert pipeline.carry_model.cold_role_innovation
+
+
+def test_measured_mode_targets_the_cold_population_rather_than_the_ratio():
+    """Why a second mode exists.
+
+    The relative mode preserves the gap between the populations and inherits
+    the cap's compression with it: the base is capped from 1.94 to 0.25, so a
+    1.38x ratio puts cold rows at 0.35 against a measured 2.68. Measured mode
+    targets that 2.68 directly, so the cap bounds the typical row without also
+    bounding the row it was never about.
+    """
+    model = SeasonRosterShareModel(
+        "carry", cold_role_innovation=True, cold_role_scale_mode="measured"
+    )
+    model.role_innovation_scale = 0.25
+    model._cold_and_warm_dispersion = lambda d: (2.678, 1.936)
+
+    multiplier = model._fit_cold_role_multiplier(pd.DataFrame(), None, None)
+
+    # 2.678 / 0.25 is over ten, so the multiplier cap is what binds here.
+    assert multiplier == pytest.approx(model.cold_role_multiplier_cap)
+
+
+def test_measured_mode_still_floors_at_one():
+    model = SeasonRosterShareModel(
+        "carry", cold_role_innovation=True, cold_role_scale_mode="measured"
+    )
+    model.role_innovation_scale = 0.25
+    model._cold_and_warm_dispersion = lambda d: (0.05, 1.936)
+
+    assert model._fit_cold_role_multiplier(pd.DataFrame(), None, None) == 1.0
+
+
+def test_an_unknown_mode_is_refused_rather_than_silently_relative():
+    model = SeasonRosterShareModel(
+        "carry", cold_role_innovation=True, cold_role_scale_mode="mesured"
+    )
+
+    with pytest.raises(ValueError, match="unknown cold_role_scale_mode"):
+        model._fit_cold_role_multiplier(pd.DataFrame(), None, None)
+
+
+def test_the_mode_reaches_both_allocators_and_survives_a_round_trip():
+    pipeline = SeasonAverageVolumePipeline(
+        cold_role_innovation=True, cold_role_scale_mode="measured"
+    )
+    for model in (pipeline.target_model, pipeline.carry_model):
+        model.cold_role_innovation = True
+        model.cold_role_scale_mode = pipeline.cold_role_scale_mode
+
+    assert pipeline.carry_model.cold_role_scale_mode == "measured"
+    assert pipeline.target_model.cold_role_scale_mode == "measured"

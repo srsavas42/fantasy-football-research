@@ -86,3 +86,90 @@ efficiency draws and the scoring simulation, the extremes are too rare — a
 season where a player vastly outperforms or collapses is under-represented. That
 is a distributional question rather than a parameter, and it is now the
 best-evidenced open item in the package.
+
+---
+
+# Attributing the tail deficit (2026-08-04)
+
+Three layers could own the missing tail mass. Each was tested by turning it up
+alone, from one fit on 2015–2024 predicted onto 2025, scored in counts against a
+binomial reference over n=508 (expected misses 101.6 at the 80% level, 25.4 at
+the 95%).
+
+## Not the efficiency layer
+
+Scaling the efficiency dispersion:
+
+| dispersion | cov80 | cov95 | MAE | CRPS |
+|---:|---:|---:|---:|---:|
+| 0.0 | 0.778 | 0.906 | 40.744 | 29.872 |
+| **1.0** | **0.785** | **0.909** | **40.746** | **29.862** |
+| 2.0 | 0.795 | 0.915 | 40.785 | 29.945 |
+| 3.0 | 0.811 | 0.925 | 40.875 | 30.146 |
+
+Deleting the efficiency noise entirely costs three tenths of a coverage point,
+and tripling it recovers 1.6 of the 4.1 points missing at the 95% level while
+MAE rises. A layer whose full removal barely moves the statistic is not the
+statistic's source.
+
+## Not volume–efficiency dependence
+
+The accepted scoring path draws efficiency from independent marginals.
+`draw_conditioned_efficiency` evaluates the fitted efficiency means at each
+simulated volume draw, so a player drawing a heavy workload also draws the
+efficiency that goes with it — positive dependence, which fattens both tails of
+the product.
+
+| path | cov80 | z | cov95 | z |
+|---|---:|---:|---:|---:|
+| independent (accepted) | 0.785 | +0.82 | 0.909 | +4.19 |
+| draw-conditioned | 0.781 | +1.04 | 0.911 | +3.99 |
+
+Two tenths of a point. Whatever the case for coupling the layers, closing this
+gap is not it.
+
+## It is the volume layer — but it is shape, not width
+
+Stretching the volume count draws k-fold about each row's own posterior mean,
+with the per-game rates the efficiency exposures read stretched to match:
+
+| k | cov80 | z80 | cov95 | z95 | MAE |
+|---:|---:|---:|---:|---:|---:|
+| **1.00** | 0.785 | **+0.82** ✓ | 0.909 | **+4.19** | 40.746 |
+| 1.25 | 0.848 | −2.73 | 0.929 | +2.16 | 40.891 |
+| 1.50 | 0.870 | −3.95 | 0.939 | +1.14 | 41.304 |
+| 2.00 | 0.900 | **−5.61** | 0.949 | **+0.12** ✓ | 42.999 |
+| 3.00 | 0.921 | −6.83 | 0.967 | −1.71 | 50.491 |
+
+At k=2.0 the 95% level lands on nominal almost exactly — 26 misses against 25.4
+expected — and the 80% level is destroyed, 51 misses against 101.6. The volume
+layer is where the missing mass lives, and **no single width fixes it**: the
+body is already right at k=1 and the tails are not, so any scaling that repairs
+the tails over-widens the body by more than it gains.
+
+That is excess kurtosis, not deficient variance. The volume predictive is
+correctly spread through its middle and too light in its extremes, which in this
+domain is the observation that a fixed fraction of players every season either
+break out or collapse by more than any smooth season-average process will
+generate.
+
+## What this rules in
+
+The remaining candidates are all inside the volume generator's shape:
+
+- the count likelihoods' tail behaviour (NegativeBinomial dispersion is fitted
+  to the bulk and its tail is determined by the same parameter);
+- the absence of a heavy-tailed player-level random effect — a Student-t
+  role term would leave the body alone and thicken the extremes, which is
+  exactly the shape the sweep asks for;
+- regime change not represented as such: a player whose role genuinely changes
+  between seasons is a mixture, and a unimodal predictive cannot produce one.
+
+The third is the most interesting because `SeasonRegimeModel` already exists in
+this package and is currently used for covariates rather than as a predictive
+mixture. Note also that this diagnostic scales every row identically, so it
+cannot distinguish "all rows slightly too thin" from "a minority of rows badly
+too thin" — and the mixture reading predicts the latter. Splitting the deficit by
+row is the next measurement, not another global knob.
+
+Raw numbers in `scripts/validation_runs/tail_attribution_2025.json`.

@@ -14,6 +14,7 @@ identical and the only difference is the softmax renormalization correction.
 import json
 import sys
 import warnings
+from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
@@ -139,7 +140,7 @@ for label in ("baseline", "carry_mp"):
     print(f"  {label:9s} {total:8.3f}")
 print(f"  observed  {np.nansum(observed) / len(np.unique(rows['team'])):8.3f}")
 
-out = f"/tmp/claude-0/-home-user-fantasy-football-research/131829d3-0b2b-5048-ab68-b632c37f56e0/scratchpad/carry_bias_{HOLDOUT}.json"
-with open(out, "w", encoding="utf-8") as handle:
-    json.dump(summary, handle, indent=2, sort_keys=True)
+out = Path(f"scripts/validation_runs/carry_bias_{HOLDOUT}.json")
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
 print(f"\nwrote {out}")

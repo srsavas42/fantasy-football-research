@@ -194,6 +194,20 @@ class SeasonSnapShareModel(_FeatureModel):
     """Conditional offensive-snap share, gated by projected active games."""
 
     extra_features: tuple[str, ...] = SNAP_HISTORY_FEATURES
+    # Width of the prior on the projected feature coefficients. It has to be one
+    # number rather than one per feature: ``_matrix`` rotates the standardized
+    # features onto their principal directions before the likelihood sees them,
+    # so a coefficient belongs to a combination of features and there is nothing
+    # feature-specific to widen.
+    #
+    # 0.35 is the historical value. Under it, the implied effects on depth_rank
+    # and is_replacement_player sit 4.4 and 5.5 prior standard deviations from
+    # zero with posterior widths below the prior's own -- the data has moved
+    # them far and the prior is still pulling back. Both are features that
+    # separate backups, and backup quarterback conditional snap share is
+    # over-predicted by 21% (0.253 against 0.209 observed) while starters land
+    # almost exactly (0.856 against 0.867).
+    feature_prior_scale: float = 0.35
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "SeasonSnapShareModel":
         import pymc as pm
@@ -229,7 +243,9 @@ class SeasonSnapShareModel(_FeatureModel):
             position_effect = _position_effect(
                 pm, "position_effect", 0.40, len(self.positions)
             )
-            beta = pm.Normal("beta", 0.0, 0.35, shape=X.shape[1])
+            beta = pm.Normal(
+                "beta", 0.0, float(self.feature_prior_scale), shape=X.shape[1]
+            )
             concentration = pm.Gamma("concentration", alpha=3.0, beta=0.08)
             eta = intercept + position_effect[position_index]
             eta = eta + pm.math.sum(X * beta, axis=1)

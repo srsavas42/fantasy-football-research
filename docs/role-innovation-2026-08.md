@@ -413,22 +413,24 @@ Per-position error moves the same negligible amount — QB MAE −0.49%, RB −0
 WR −0.81%, TE −0.12% — and the room total is unchanged to three decimals
 (27.158 both arms), as a mass-neutral correction must be.
 
-## Where the bias actually is
+## Where the bias is not
 
-The residual is upstream of the softmax, in the role prior's relative scaling.
-Measured on the 2025 rows, carries per snap:
+The exposure asymmetry I first expected is not there: median snap exposure is
+0.110 for quarterbacks against 0.111 for running backs. Renormalization is now
+measured at one point of thirty-six. That leaves the allocator's other inputs —
+the role prior, the projected snap exposure, the any-carry hurdle and the team
+rush total.
 
-| pos | model role prior | × exposure | observed carries/snap |
-|---|---:|---:|---:|
-| QB | 0.03710 | 0.00474 | 0.06453 |
-| RB | 0.25564 | 0.01856 | 0.30858 |
+An earlier version of this section named the role prior, on the strength of a
+comparison between the *median* role prior per position and the *aggregate*
+observed carries per snap. Those are not comparable quantities: the median is a
+typical row, which at quarterback is a backup, while the aggregate is dominated
+by the handful of players taking most of the carries. The direction it appeared
+to show does not survive weighting the prior the way the softmax weights it, so
+that attribution is withdrawn.
 
-The allocator's RB-to-QB ratio is 3.92 against an observed 4.78. Both priors sit
-below the realized rate, but the quarterback one sits proportionally closer, so
-the room's relative allocation hands passers more than they earn before any
-noise is added. Neither the exposure asymmetry I first expected (median 0.110
-for QBs against 0.111 for RBs — there is none) nor renormalization accounts for
-it.
+`scripts/decompose_carry_bias.py` settles it properly, by substituting each
+input with the truth in turn and reporting where the quarterback bias collapses.
 
 ## Status
 
@@ -444,5 +446,6 @@ right and cheap to carry, and it is the only clean instrument for asking "how
 much of this is renormalization?" of any allocation layer. The answer for carry
 happens to be "almost none".
 
-The QB/RB split remains open, and is now a role-prior question rather than an
-allocation-noise one.
+The QB/RB split remains open. It is not an allocation-noise question, which is
+what this measurement was for; which of the allocator's remaining inputs owns it
+is the next one.

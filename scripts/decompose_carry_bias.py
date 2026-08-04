@@ -135,9 +135,11 @@ def allocate(snap_samples, eligible_samples, *, observed_totals: bool) -> np.nda
             indexed["games"].reindex(wanted), errors="coerce"
         ).to_numpy(float)
         totals = np.repeat(np.rint(truth)[:, None].astype(int), draws, axis=1)
-        team_games = np.repeat(played[:, None], draws, axis=1)
+        team_games = played
     counts = _allocate_season_counts(carry, totals, seed=42 + 10)
-    return counts / team_games[group]
+    # ``_align_group_draws`` returns one games value per team-season, not per
+    # draw, which is why predict_samples indexes it as ``[group, None]``.
+    return counts / team_games[group, None]
 
 
 rungs = [

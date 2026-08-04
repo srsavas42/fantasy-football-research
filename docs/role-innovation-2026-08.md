@@ -449,3 +449,61 @@ happens to be "almost none".
 The QB/RB split remains open. It is not an allocation-noise question, which is
 what this measurement was for; which of the allocator's remaining inputs owns it
 is the next one.
+
+---
+
+# It was the exposure, not the prior (2026-08-04)
+
+Substituting each of the allocator's inputs with the truth in turn, on 2025:
+
+| rung | QB | RB | WR | TE |
+|---|---:|---:|---:|---:|
+| as served | **+36.5%** | −5.2% | +7.2% | −78.2% |
+| + observed snap share | **+12.9%** | +1.8% | −6.1% | −83.2% |
+| + observed eligibility | +7.1% | +0.4% | +25.6% | −79.6% |
+| + observed team total | +6.1% | −0.6% | +25.1% | −80.9% |
+
+Knowing how much each player actually played removes **23.6 of the 36.5
+points**, and running backs go from −5.2% to +1.8% at the same rung. The
+any-carry hurdle removes another 5.8. What survives all three substitutions is
+about six points, which is the role prior and the softmax together.
+
+The role prior is not the problem. Measured the way the allocator uses it —
+weighted by snaps within the room rather than as a median over rows — it is
+close to exact where it matters:
+
+| pos | prior (snap-weighted) | realized | ratio |
+|---|---:|---:|---:|
+| QB | 0.06577 | 0.06453 | **1.019** |
+| RB | 0.29161 | 0.30858 | 0.945 |
+| WR | 0.00864 | 0.00439 | 1.968 |
+| TE | 0.00079 | 0.00163 | 0.484 |
+
+Both earlier attributions were wrong, in opposite directions, and both came from
+comparing quantities that were not comparable. This is the third statistic in
+this document to fail that way.
+
+## What the exposure gets wrong
+
+Quarterback snap share is bimodal and the projection is not. Observed on 2025:
+
+| pos | n | mean | p10 | p50 | p90 | share below 0.05 |
+|---|---:|---:|---:|---:|---:|---:|
+| **QB** | 117 | 0.275 | 0.000 | 0.091 | **0.913** | **44.4%** |
+| RB | 181 | 0.195 | 0.000 | 0.105 | 0.527 | 38.7% |
+| WR | 248 | 0.317 | 0.000 | 0.264 | 0.737 | 23.4% |
+| TE | 157 | 0.279 | 0.000 | 0.227 | 0.627 | 27.4% |
+
+A quarterback either plays nearly every snap or almost none; the median of 0.091
+describes almost no actual quarterback. A unimodal predictive over that shape
+hands backups exposure they will never get, and `log(exposure)` enters `eta`
+directly, so that exposure buys carries. It also explains why the bias was flat
+in absolute terms across usage bands while reaching +131% in relative terms on
+backups — the error is concentrated on players whose true exposure is near zero.
+
+The other two rows are worth noting even though they are small in absolute
+terms. Receivers are over-allocated by a quarter once the hurdle stops hiding
+it, and tight ends are under-projected by four fifths at every rung, prior
+included.
+
+Recorded as task 33, against the snap model rather than the allocator.

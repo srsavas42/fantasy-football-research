@@ -55,7 +55,12 @@ COVERAGE_NOMINAL = {
     "coverage_95": 0.95,
 }
 NOT_A_METRIC = ("n", "seconds", "scoring")
-NOT_A_STREAM = ("seconds", "n", "diagnostics")
+# ``snap_by_position`` is a breakdown, not a stream: its values are per-position
+# metric blocks rather than metrics. The parser would skip it today because
+# those values are Mappings rather than numbers, but that is an accident of
+# shape, and a diagnostic that starts being scored because someone flattened it
+# would double-count the snap stream against itself.
+NOT_A_STREAM = ("seconds", "n", "diagnostics", "snap_by_position")
 # Keys a run records about itself rather than about a fold. Underscore-prefixed
 # so a future one needs no change here.
 RESERVED_PREFIX = "_"

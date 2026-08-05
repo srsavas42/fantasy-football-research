@@ -155,6 +155,20 @@ def main(argv=None) -> None:
             .gt(0)
             .to_numpy(float)
         )
+        # Snap broken out by position. The pooled stream mixes quarterbacks with
+        # skill positions, and a change can move them opposite ways -- widening
+        # the snap model's feature prior buys running backs and receivers about
+        # 6% of held-out MAE while costing backup quarterbacks. A pooled average
+        # reports the net and hides that entirely.
+        fold["snap_by_position"] = {}
+        for position in ("QB", "RB", "WR", "TE"):
+            at = snaps_seen & named & rows["position"].eq(position).to_numpy()
+            if at.sum() < 5:
+                continue
+            fold["snap_by_position"][position] = distribution(
+                pd.to_numeric(rows.loc[at, "snap_share"], errors="coerce").to_numpy(float),
+                prediction.snap_share[at],
+            )
         fold["carry_eligibility_brier"] = float(
             np.mean(
                 (

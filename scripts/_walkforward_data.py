@@ -98,6 +98,15 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--snap-feature-prior",
+        type=float,
+        default=None,
+        help="width of the snap model's projected-feature prior. 0.35 is the "
+             "historical value; wider lets depth_rank and is_replacement_player "
+             "off the leash, which buys held-out snap MAE on RB and WR and "
+             "costs backup quarterbacks",
+    )
+    parser.add_argument(
         "--cold-role-scale-mode",
         choices=("relative", "measured"),
         default="relative",

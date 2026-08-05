@@ -88,6 +88,8 @@ def main(argv=None) -> None:
             pipeline.postseason_role_features = args.postseason
         if args.cold_role_innovation is not None:
             pipeline.cold_role_innovation = args.cold_role_innovation
+        if args.snap_feature_prior is not None:
+            pipeline.snap_model.feature_prior_scale = args.snap_feature_prior
         pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.workload_model.couple_gate_to_availability = coupling

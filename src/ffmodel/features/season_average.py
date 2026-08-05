@@ -39,6 +39,7 @@ from ffmodel.features.season_efficiency import (
     SHRUNK_EFFICIENCY_COLUMNS,
     VOLUME_EFFICIENCY_DERIVED_FEATURES,
     add_conditional_volume_efficiency_features,
+    add_teammate_quality_features,
     add_volume_efficiency_features,
     lagged_efficiency_rows,
     player_season_efficiency,
@@ -915,6 +916,7 @@ def player_preseason_rows(
         ),
         axis=1,
     ).to_numpy(dtype=float)
+    out = add_teammate_quality_features(out)
     out = add_conditional_volume_efficiency_features(out)
     out["is_projection"] = out["season"].isin(projection).astype(int)
     if projection:

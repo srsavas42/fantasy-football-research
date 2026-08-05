@@ -104,7 +104,8 @@ def main(argv=None) -> None:
         pipeline.volume_model.calibrated_innovation = args.calibrated_innovation
         if args.cold_role_innovation is not None:
             pipeline.volume_model.cold_role_innovation = args.cold_role_innovation
-        pipeline.volume_model.cold_role_scale_mode = args.cold_role_scale_mode
+        if args.cold_role_scale_mode is not None:
+            pipeline.volume_model.cold_role_scale_mode = args.cold_role_scale_mode
         pipeline.volume_model.innovation_cap = args.innovation_cap
         pipeline.volume_model.team_model.models_play_transition = args.play_transition
         if coupling is not None:

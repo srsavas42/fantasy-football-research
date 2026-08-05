@@ -115,10 +115,13 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
     parser.add_argument(
         "--cold-role-scale-mode",
         choices=("relative", "measured"),
-        default="relative",
+        default=None,
         help="how the cold rows' scale is derived: 'relative' keeps the cold-"
              "to-warm dispersion ratio and inherits the cap's compression, "
-             "'measured' targets the cold population's own dispersion",
+             "'measured' targets the cold population's own dispersion. Unset "
+             "keeps the model's own value, which is 'measured' and promoted. A "
+             "default here silently overrides it, which is exactly what "
+             "--postseason did before it was made tri-state",
     )
     parser.add_argument(
         "--mean-preserving-innovation",

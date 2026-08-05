@@ -256,6 +256,12 @@ BASE_EFFICIENCY_FEATURES = (
     "cold_start",
 )
 
+# The receiving responses, which are the ones a quarterback plausibly moves.
+# Rushing is left out on purpose: the mechanism by which a passer changes yards
+# per carry is indirect at best, and testing where there is no story to tell is
+# how a feature earns a fold win by chance.
+TEAMMATE_QUALITY_TARGETS = ("rec_catch_rate", "rec_yards_per_target", "rec_td_rate")
+
 # Production mean gate after the 2022-2024 posterior screen. The posterior
 # challenger improved receiving yards/target by 1.22% with two fold wins. Every
 # other flexible mean failed either pooled accuracy or the two-of-three
@@ -1069,6 +1075,11 @@ class SeasonAveragePosteriorEfficiencyPipeline:
 
     use_volume: bool = True
     use_advanced: bool = True
+    # Cross-positional teammate quality on the receiving responses. Off
+    # until gated: every efficiency spec has run with an empty feature list
+    # since the pipeline was written, so this is the first thing any of them
+    # learns about a player's teammates. See docs/teammate-quality-2026-08.md.
+    teammate_quality_features: bool = False
     ridge_alpha: float = 500.0
     # Each response is fitted only on rows clearing its ``min_exposure`` but is
     # then scored on every row, and the gap is large: on the nflverse frame 57%
@@ -1122,6 +1133,14 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             if self.exposure_floor is not None:
                 spec = replace(
                     spec, min_exposure=min(spec.min_exposure, int(self.exposure_floor))
+                )
+            if self.teammate_quality_features and spec.target in TEAMMATE_QUALITY_TARGETS:
+                spec = replace(
+                    spec,
+                    advanced_features=(
+                        *spec.advanced_features,
+                        "teammate_qb_quality_signal",
+                    ),
                 )
             model = PosteriorSeasonEfficiencyModel(
                 spec,

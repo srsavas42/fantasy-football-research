@@ -83,6 +83,7 @@ def main(argv=None) -> None:
         )
         pipeline = SeasonAverageScoringPipeline(
             efficiency_exposure_floor=args.efficiency_exposure_floor,
+            teammate_quality_features=args.teammate_quality,
         )
         if args.volume_feature_estimator is not None:
             pipeline.volume_feature_estimator = args.volume_feature_estimator

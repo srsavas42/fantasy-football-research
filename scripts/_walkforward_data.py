@@ -98,6 +98,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--teammate-quality",
+        action="store_true",
+        help="let the receiving efficiency responses read the projected "
+             "starting quarterback's prior passing quality (scoring runs only)",
+    )
+    parser.add_argument(
         "--snap-feature-prior",
         type=float,
         default=None,

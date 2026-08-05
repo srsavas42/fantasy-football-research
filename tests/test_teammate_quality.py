@@ -72,3 +72,53 @@ def test_it_ignores_primary_qb_entirely():
     pd.testing.assert_series_equal(
         honest["teammate_qb_quality_signal"], inverted["teammate_qb_quality_signal"]
     )
+
+
+def test_the_flag_reaches_only_the_receiving_responses():
+    """Rushing is excluded deliberately. The mechanism by which a passer changes
+    yards per carry is indirect at best, and testing where there is no story to
+    tell is how a feature earns a fold win by chance."""
+    from ffmodel.models.efficiency_season_average import (
+        EFFICIENCY_MODEL_SPECS,
+        TEAMMATE_QUALITY_TARGETS,
+    )
+
+    assert set(TEAMMATE_QUALITY_TARGETS) == {
+        "rec_catch_rate",
+        "rec_yards_per_target",
+        "rec_td_rate",
+    }
+    targets = {spec.target for spec in EFFICIENCY_MODEL_SPECS}
+    assert set(TEAMMATE_QUALITY_TARGETS) <= targets
+
+
+def test_it_is_off_by_default():
+    """Every efficiency spec has run with an empty feature list since the
+    pipeline was written. This is the first thing any of them learns about a
+    player's teammates, so it stays off until a gate says otherwise."""
+    from ffmodel.models.efficiency_season_average import (
+        SeasonAveragePosteriorEfficiencyPipeline,
+    )
+    from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
+
+    assert not SeasonAveragePosteriorEfficiencyPipeline().teammate_quality_features
+    assert SeasonAverageScoringPipeline().teammate_quality_features is None
+
+
+def test_enabling_it_adds_exactly_one_feature_to_each_receiving_spec():
+    from dataclasses import replace
+
+    from ffmodel.models.efficiency_season_average import (
+        EFFICIENCY_MODEL_SPECS,
+        TEAMMATE_QUALITY_TARGETS,
+    )
+
+    for spec in EFFICIENCY_MODEL_SPECS:
+        if spec.target not in TEAMMATE_QUALITY_TARGETS:
+            continue
+        widened = replace(
+            spec,
+            advanced_features=(*spec.advanced_features, "teammate_qb_quality_signal"),
+        )
+        assert len(widened.advanced_features) == len(spec.advanced_features) + 1
+        assert widened.advanced_features[-1] == "teammate_qb_quality_signal"

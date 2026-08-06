@@ -1121,6 +1121,22 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             if targets is None
             else set(map(str, targets))
         )
+        if (
+            self.teammate_quality_features
+            and "teammate_qb_quality_signal" not in rows
+        ):
+            # ``_matrix`` keeps only features present in the frame, so an absent
+            # one is dropped without a word and the model fits as though the
+            # flag were off. That is how this feature's first walk-forward came
+            # back identical to its baseline to five decimal places on every
+            # metric: the cached frames predated the column. A flag that asks
+            # for a feature and silently gets none has to fail instead.
+            raise ValueError(
+                "teammate_quality_features is on but teammate_qb_quality_signal "
+                "is not in the rows; rebuild the frames with "
+                "add_teammate_quality_features rather than fitting a model that "
+                "quietly ignores the flag"
+            )
         unknown = selected - set(EFFICIENCY_MODEL_BY_TARGET)
         if unknown:
             raise ValueError(f"unknown efficiency targets: {sorted(unknown)}")

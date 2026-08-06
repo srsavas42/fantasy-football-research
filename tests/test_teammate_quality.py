@@ -122,3 +122,38 @@ def test_enabling_it_adds_exactly_one_feature_to_each_receiving_spec():
         )
         assert len(widened.advanced_features) == len(spec.advanced_features) + 1
         assert widened.advanced_features[-1] == "teammate_qb_quality_signal"
+
+
+def test_asking_for_the_feature_without_the_column_fails_loudly():
+    """The null result that exposed this.
+
+    ``_matrix`` keeps only features present in the frame, so an absent one is
+    dropped silently and the model fits as though the flag were off. The first
+    walk-forward of this feature came back identical to its baseline to five
+    decimals on every metric across three folds, because the cached frames were
+    built before the column existed. Nothing in the run said so.
+    """
+    from ffmodel.models.efficiency_season_average import (
+        SeasonAveragePosteriorEfficiencyPipeline,
+    )
+
+    pipeline = SeasonAveragePosteriorEfficiencyPipeline(teammate_quality_features=True)
+    rows = pd.DataFrame({"season": [2024], "team": ["KC"], "position": ["WR"]})
+
+    with pytest.raises(ValueError, match="teammate_qb_quality_signal"):
+        pipeline.fit(rows)
+
+
+def test_the_guard_stays_out_of_the_way_when_the_flag_is_off():
+    """Frames without the column are ordinary, and most are."""
+    from ffmodel.models.efficiency_season_average import (
+        SeasonAveragePosteriorEfficiencyPipeline,
+    )
+
+    pipeline = SeasonAveragePosteriorEfficiencyPipeline()
+    rows = pd.DataFrame({"season": [2024], "team": ["KC"], "position": ["WR"]})
+
+    # Fails later for want of real data, but not on the teammate guard.
+    with pytest.raises(Exception) as caught:
+        pipeline.fit(rows)
+    assert "teammate_qb_quality_signal" not in str(caught.value)

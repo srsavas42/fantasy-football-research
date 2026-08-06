@@ -44,6 +44,8 @@ from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 from ffmodel.simulation.scoring import fantasy_points
 
 RECEIVING_POSITIONS = ("RB", "WR", "TE")
+# The gate's own floor. A verdict without one calls 0.01% a finding.
+MATERIAL = 0.0025
 
 
 def main(argv=None) -> int:
@@ -140,11 +142,23 @@ def main(argv=None) -> int:
 
     groups = report["groups"]
     if "changed team" in groups and "stayed" in groups:
-        movers = groups["changed team"]["delta_crps"]
-        stayers = groups["stayed"]["delta_crps"]
+        # Signs alone are not a verdict. The first version of this keyed on the
+        # sign of delta CRPS and duly announced a real effect from -0.11% and
+        # -0.01%, with MAE moving the other way in both groups and 75 movers.
+        # The gate's floor applies here for the same reason it applies there.
+        def moved(group: dict[str, float]) -> int:
+            crps, mae = group["delta_crps"], group["delta_mae"]
+            if crps < -MATERIAL and mae < MATERIAL:
+                return -1  # a gain, and point accuracy did not pay for it
+            if crps > MATERIAL:
+                return 1
+            return 0
+
+        movers = moved(groups["changed team"])
+        stayers = moved(groups["stayed"])
         print()
         if movers < 0 and stayers < 0:
-            verdict = "both groups gain: the effect is real and the confound is not carrying it"
+            verdict = "both groups gain: real, and the confound is not carrying it"
         elif movers < 0 <= stayers:
             verdict = "only movers gain: real, and the pooled number understates it"
         elif stayers < 0 <= movers:
@@ -152,9 +166,14 @@ def main(argv=None) -> int:
                 "only stayers gain: circularity, the feature is a lagged "
                 "self-signal and the pooled improvement should be discarded"
             )
+        elif movers == 0 and stayers == 0:
+            verdict = (
+                f"neither group moves beyond {MATERIAL:.2%}: no effect to promote"
+            )
         else:
-            verdict = "neither group gains: no effect to promote"
+            verdict = "both groups worsen: no effect to promote"
         report["verdict"] = verdict
+        report["material_threshold"] = MATERIAL
         print(f"  {verdict}")
 
     output.parent.mkdir(parents=True, exist_ok=True)

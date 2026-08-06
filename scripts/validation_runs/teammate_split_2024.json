@@ -1,0 +1,36 @@
+{
+  "groups": {
+    "all receiving": {
+      "baseline_crps": 28.238809862296037,
+      "baseline_mae": 38.487680419580414,
+      "delta_crps": -0.00026897955927171745,
+      "delta_mae": 0.0005666073064072819,
+      "n": 429,
+      "teammate_crps": 28.23121419966492,
+      "teammate_mae": 38.50948782051282
+    },
+    "changed team": {
+      "baseline_crps": 32.28091429283333,
+      "baseline_mae": 45.89740933333333,
+      "delta_crps": -0.0010978155160615071,
+      "delta_mae": 3.4809517353643255e-05,
+      "n": 75,
+      "teammate_crps": 32.245475804250006,
+      "teammate_mae": 45.899007000000005
+    },
+    "stayed": {
+      "baseline_crps": 27.382431804978815,
+      "baseline_mae": 36.91782259887005,
+      "delta_crps": -6.196523521974591e-05,
+      "delta_mae": 0.0007066810135922992,
+      "n": 354,
+      "teammate_crps": 27.38073504615113,
+      "teammate_mae": 36.94391172316384
+    }
+  },
+  "holdout": 2024,
+  "material_threshold": 0.0025,
+  "scoring": "ppr",
+  "superseded_verdict": "both groups gain: the effect is real and the confound is not carrying it -- produced by the first version of the rule, which keyed on the sign of delta CRPS with no materiality floor",
+  "verdict": "neither group moves beyond 0.25%: no effect to promote"
+}

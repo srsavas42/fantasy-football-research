@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
@@ -102,3 +103,24 @@ def load(
         raise NflverseProviderError(
             f"nflreadpy failed to load {dataset!r}: {exc}"
         ) from exc
+
+
+def capture_dataset_payload(
+    dataset: str,
+    seasons: int | Iterable[int] | None = None,
+    **params: Any,
+) -> bytes:
+    """Capture an nflverse response as a self-describing deterministic JSON table.
+
+    The release pipeline must decode this stored payload on replay instead of
+    re-invoking nflreadpy, so revisions to an upstream artifact cannot enter a
+    previously captured attempt.
+    """
+    frame = load(dataset, seasons, **params)
+    if not isinstance(frame, pd.DataFrame):  # defensive: ``load`` promises this
+        raise NflverseProviderError("nflverse capture did not yield a dataframe")
+    try:
+        table = json.loads(frame.to_json(orient="table", index=False, date_format="iso"))
+        return json.dumps(table, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise NflverseProviderError(f"nflverse dataset {dataset!r} cannot be serialized for capture") from exc

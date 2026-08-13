@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -12,6 +13,18 @@ from ffmodel.data.http import get_json, records_frame
 
 BASE_URL = "https://api.sleeper.app/v1"
 SOURCE_URL = "https://docs.sleeper.com/"
+
+
+def capture_players_payload() -> bytes:
+    """Capture the current Sleeper roster response as deterministic raw JSON.
+
+    Release code uses this only at the immutable source boundary; normal data
+    loaders retain their existing cache-aware dataframe behavior.
+    """
+    payload = get_json(f"{BASE_URL}/players/nfl")
+    if not isinstance(payload, dict):
+        raise ValueError("Sleeper players response must be a JSON object")
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
 def _snapshot_day(value: str | date | datetime | None) -> str:

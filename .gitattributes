@@ -1,0 +1,2 @@
+# Canonical release-output byte goldens must retain LF on every checkout.
+tests/release/outputs/fixtures/* text eol=lf

@@ -180,6 +180,49 @@ explain the result away:
 None of which changes the headline. The next question for this package is not
 another feature; it is why a model with ADP in it does worse than ADP.
 
+### Where the gap actually comes from
+
+`scripts/decompose_adp_gap.py` builds a ladder, each rung adding one thing, all
+fitted on prior seasons and scored on the same rows.
+
+| rung | MAE | CRPS |
+|---|---:|---:|
+| 1. intercept only | 75.31 | 51.83 |
+| 2. one curve, no position | 60.54 | 42.41 |
+| 3. shared slope, position intercepts | 55.58 | 38.88 |
+| 4. per-position slopes | 54.48 | 38.22 |
+| 5. per-position, no functional form | 54.88 | 38.66 |
+| 3b. rung 3 fitted on all rostered | 57.56 | 42.52 |
+| model, with ADP | 58.90 | 43.72 |
+
+Three things fall out, and two of them contradict the obvious hypotheses.
+
+**Nonlinearity is not what is missing.** Rung 5 replaces the log curve with a
+local mean over nearby ranks — no functional form at all, free to bend however
+the data likes — and it scores *worse* than the log fit (54.88 against 54.48).
+There is no hidden nonlinear structure in the rank-to-points relationship. A log
+curve is the right shape, and a more flexible learner would be fitting noise.
+
+**The position interaction is real but minor.** Rung 3 to rung 4 is 1.09 MAE,
+a quarter of the model's deficit. Worth adding; not the explanation.
+
+**Most of the apparent gap was the comparison, not the model.** Rung 3b refits
+rung 3 on every rostered player — the mixture the model is actually trained on,
+undrafted rows included — and its edge collapses: 55.58 to 57.56 MAE, and 38.88
+to 42.52 CRPS. Training on a fringe-heavy population costs 3.6 CRPS points on
+drafted players, almost all of the baseline's distributional advantage.
+
+Against that fair comparison the model is **2.3% worse on MAE and 2.8% worse on
+CRPS**, not 8.1% and 14.4%. The honest headline is smaller than the one above.
+
+It is still a bad result. Rung 3b is four parameters — a log-rank slope and
+three position dummies — fitted by least squares, and it beats a hierarchical
+Bayesian pipeline carrying fifteen features of usage history. But it relocates
+the problem: the model is not failing to represent the relationship, it is
+diluting a signal it already has, and a large part of what looked like dilution
+is the price of being trained on everybody. That points at population weighting
+or a draft-status-aware calibration, not at a different model family.
+
 ## Recommendation
 
 Promote, conditional on a single 2025 confirmation run, and describe it

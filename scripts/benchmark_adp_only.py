@@ -55,7 +55,7 @@ RANK_WINDOW = 60
 MIN_RESIDUALS = 40
 
 
-def prepare(cache_dir: Path, scoring: str) -> pd.DataFrame:
+def prepare(cache_dir: Path, scoring: str, drafted_only: bool = True) -> pd.DataFrame:
     rows = pd.read_pickle(cache_dir / "player_rows.pkl")
     missing = {"adp_drafted", "adp_rank"} - set(rows.columns)
     if missing:
@@ -72,8 +72,10 @@ def prepare(cache_dir: Path, scoring: str) -> pd.DataFrame:
     named = (
         pd.to_numeric(rows.get("is_replacement_player"), errors="coerce").fillna(0).ne(1)
     )
-    drafted = pd.to_numeric(rows["adp_drafted"], errors="coerce").eq(1)
-    return rows[named & drafted & rows.points.notna()].copy()
+    keep = named & rows.points.notna()
+    if drafted_only:
+        keep &= pd.to_numeric(rows["adp_drafted"], errors="coerce").eq(1)
+    return rows[keep].copy()
 
 
 def project_pooled(

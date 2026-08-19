@@ -30,6 +30,16 @@
       "n": 238,
       "projection": "ADP curve (all matched)",
       "rmse": 74.84459464756735
+    },
+    {
+      "bias": -0.8598199945281517,
+      "correlation": 0.7457668196820616,
+      "mae": 34.533190865871354,
+      "mae_pct": 0.23898763338218554,
+      "mean_availability": 0.809688581314879,
+      "n": 238,
+      "projection": "availability floor",
+      "rmse": 63.152243168942455
     }
   ],
   "curve_training_rows": 3662,

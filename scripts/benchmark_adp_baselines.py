@@ -16,6 +16,15 @@ Both are honest baselines in the sense that matters: they use only information
 available before the season, and they are scored on the same rows with the same
 metric.
 
+A third reference runs the other way. Instead of asking how little a projection
+can know, it asks how much would be enough:
+
+* **the availability floor.** An oracle handed every player's realized per-game
+  scoring rate -- perfect knowledge of how good he turned out to be -- and told
+  nothing about who gets hurt. It projects the pool's average availability for
+  everyone, so it carries no bias and its whole error is missed games. Nothing
+  that improves rate modelling can score below it.
+
 A model that cannot beat "last season" is not earning its complexity. A model
 that beats ADP is finding something the market has not priced. Neither
 comparison is flattered here -- rookies and anyone without a prior season are
@@ -177,6 +186,27 @@ def main(argv=None) -> int:
         )
     everyone = report("ADP curve (all matched)", pool["points"].to_numpy(), pool["adp_points"].to_numpy())
 
+    # How much of the error is not forecastable at all?
+    #
+    # This oracle is handed every player's realized per-game scoring rate --
+    # perfect knowledge of how good he was, which no preseason projection has --
+    # and is told nothing about who gets hurt. It projects the pool's average
+    # availability for everyone, so it is unbiased by construction and its error
+    # is availability alone. Whatever it scores is a floor: the part of the
+    # relative error that better rate modelling cannot touch.
+    games = pd.to_numeric(pool["games"], errors="coerce")
+    team_games = pd.to_numeric(pool["team_games"], errors="coerce")
+    playable = games.gt(0) & team_games.gt(0)
+    rate = (pool.loc[playable, "points"] / games[playable]).to_numpy()
+    slate = team_games[playable].to_numpy(float)
+    availability = float((games[playable] / team_games[playable]).mean())
+    floor = report(
+        "availability floor",
+        pool.loc[playable, "points"].to_numpy(),
+        rate * slate * availability,
+    )
+    floor["mean_availability"] = availability
+
     print(f"\n{args.season} {args.scoring.upper()}, ADP top {args.top}\n")
     print(f"  {'projection':26s} {'n':>4s} {'MAE':>8s} {'MAE %':>7s} {'bias':>8s} "
           f"{'RMSE':>8s} {'corr':>6s}")
@@ -187,6 +217,9 @@ def main(argv=None) -> int:
         print(f"  {row['projection']:26s} {row['n']:>4d} {row['mae']:>8.2f} "
               f"{row['mae_pct']:>6.1%} {row['bias']:>+8.2f} {row['rmse']:>8.2f} "
               f"{row['correlation']:>6.3f}")
+    print(f"  {floor['projection']:26s} {floor['n']:>4d} {floor['mae']:>8.2f} "
+          f"{floor['mae_pct']:>6.1%} {floor['bias']:>+8.2f} {floor['rmse']:>8.2f} "
+          f"{floor['correlation']:>6.3f}   <- perfect rates, no injury foresight")
     print(f"\n  restricted to players with a prior season (n={len(complete)}):")
     for row in results:
         print(f"  {row['projection']:26s} {row['n']:>4d} {row['mae']:>8.2f} "
@@ -198,7 +231,7 @@ def main(argv=None) -> int:
         "top": args.top,
         "scoring": args.scoring,
         "model": model,
-        "baselines": results + [everyone],
+        "baselines": results + [everyone, floor],
         "adp_curve_coefficients": [float(c) for c in coefficients],
         "curve_training_rows": int(len(curve)),
     }

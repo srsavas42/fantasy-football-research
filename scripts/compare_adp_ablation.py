@@ -100,62 +100,77 @@ def main(argv=None) -> int:
         return 3
     print()
 
-    rows = []
-    header = (
-        f"  {'holdout':>8s} {'base MAE':>9s} {'adp MAE':>9s} {'d MAE':>8s} "
-        f"{'base CRPS':>10s} {'adp CRPS':>9s} {'d CRPS':>8s} "
-        f"{'cov95 b':>8s} {'cov95 a':>8s}"
-    )
-    print(f"{args.scoring.upper()} total fantasy points\n")
-    print(header)
-    totals = {metric: [0.0, 0.0] for metric in METRICS}
-    weight = 0.0
-    for fold in shared:
-        b = base[fold][args.scoring]
-        c = cand[fold][args.scoring]
-        n = float(b.get("n", 1))
-        entry: dict[str, object] = {"holdout": fold, "n": int(n)}
-        for metric in METRICS:
-            entry[f"base_{metric}"] = float(b[metric])
-            entry[f"adp_{metric}"] = float(c[metric])
-            entry[f"delta_{metric}"] = (float(c[metric]) - float(b[metric])) / float(
-                b[metric]
-            )
-            totals[metric][0] += float(b[metric]) * n
-            totals[metric][1] += float(c[metric]) * n
-        for name in COVERAGE:
-            entry[f"base_{name}"] = float(b[name])
-            entry[f"adp_{name}"] = float(c[name])
-        weight += n
-        rows.append(entry)
+    # Two populations. Most rostered rows are fringe players whose season is a
+    # handful of points, so a change worth something to a drafter can be
+    # invisible pooled; and a change that only moves the fringe is not worth
+    # shipping. Reporting one without the other answers half the question.
+    populations = [("all rostered", args.scoring)]
+    if all(f"{args.scoring}_drafted" in base[f] for f in shared) and all(
+        f"{args.scoring}_drafted" in cand[f] for f in shared
+    ):
+        populations.append(("ADP drafted", f"{args.scoring}_drafted"))
+    else:
         print(
-            f"  {fold:>8s} {entry['base_mae']:>9.3f} {entry['adp_mae']:>9.3f} "
-            f"{entry['delta_mae']:>+7.2%} {entry['base_crps']:>10.3f} "
-            f"{entry['adp_crps']:>9.3f} {entry['delta_crps']:>+7.2%} "
-            f"{entry['base_coverage_95']:>8.3f} {entry['adp_coverage_95']:>8.3f}"
+            "note: one arm predates the drafted-pool breakdown, so only the "
+            "pooled population is reported\n"
         )
 
-    pooled = {
-        metric: (totals[metric][1] - totals[metric][0]) / totals[metric][0]
-        for metric in METRICS
-    }
-    wins = {
-        metric: sum(1 for r in rows if r[f"delta_{metric}"] < 0) for metric in METRICS
-    }
-    print(
-        f"\n  pooled (n-weighted): MAE {pooled['mae']:+.2%}, "
-        f"CRPS {pooled['crps']:+.2%}"
-    )
-    print(
-        f"  holdouts improved:   MAE {wins['mae']}/{len(rows)}, "
-        f"CRPS {wins['crps']}/{len(rows)}"
-    )
+    results: dict[str, dict[str, object]] = {}
+    for label, key in populations:
+        rows = []
+        totals = {metric: [0.0, 0.0] for metric in METRICS}
+        print(f"{args.scoring.upper()} total fantasy points -- {label}\n")
+        print(
+            f"  {'holdout':>8s} {'n':>5s} {'base MAE':>9s} {'adp MAE':>9s} "
+            f"{'d MAE':>8s} {'base CRPS':>10s} {'adp CRPS':>9s} {'d CRPS':>8s} "
+            f"{'cov95 b':>8s} {'cov95 a':>8s}"
+        )
+        for fold in shared:
+            b, c = base[fold][key], cand[fold][key]
+            n = float(b.get("n", 1))
+            entry: dict[str, object] = {"holdout": fold, "n": int(n)}
+            for metric in METRICS:
+                entry[f"base_{metric}"] = float(b[metric])
+                entry[f"adp_{metric}"] = float(c[metric])
+                entry[f"delta_{metric}"] = (
+                    float(c[metric]) - float(b[metric])
+                ) / float(b[metric])
+                totals[metric][0] += float(b[metric]) * n
+                totals[metric][1] += float(c[metric]) * n
+            for name in COVERAGE:
+                entry[f"base_{name}"] = float(b[name])
+                entry[f"adp_{name}"] = float(c[name])
+            rows.append(entry)
+            print(
+                f"  {fold:>8s} {entry['n']:>5d} {entry['base_mae']:>9.3f} "
+                f"{entry['adp_mae']:>9.3f} {entry['delta_mae']:>+7.2%} "
+                f"{entry['base_crps']:>10.3f} {entry['adp_crps']:>9.3f} "
+                f"{entry['delta_crps']:>+7.2%} {entry['base_coverage_95']:>8.3f} "
+                f"{entry['adp_coverage_95']:>8.3f}"
+            )
+        pooled = {
+            metric: (totals[metric][1] - totals[metric][0]) / totals[metric][0]
+            for metric in METRICS
+        }
+        wins = {
+            metric: sum(1 for r in rows if r[f"delta_{metric}"] < 0)
+            for metric in METRICS
+        }
+        print(
+            f"\n  pooled (n-weighted): MAE {pooled['mae']:+.2%}, "
+            f"CRPS {pooled['crps']:+.2%}"
+        )
+        print(
+            f"  holdouts improved:   MAE {wins['mae']}/{len(rows)}, "
+            f"CRPS {wins['crps']}/{len(rows)}\n"
+        )
+        results[label] = {"folds": rows, "pooled": pooled, "holdouts_improved": wins}
 
-    def verdict() -> str:
+    def verdict(pooled: dict[str, float], wins: dict[str, int], n: int) -> str:
         gains = [m for m in METRICS if pooled[m] < -MATERIAL]
         losses = [m for m in METRICS if pooled[m] > MATERIAL]
         if gains and not losses:
-            swept = all(wins[m] == len(rows) for m in gains)
+            swept = all(wins[m] == n for m in gains)
             return (
                 f"ADP helps on {', '.join(gains)}"
                 + (", winning every holdout" if swept else ", but not on every holdout")
@@ -169,8 +184,12 @@ def main(argv=None) -> int:
             "play-by-play history does not already carry"
         )
 
-    line = verdict()
-    print(f"\n  {line}")
+    for label, result in results.items():
+        line = verdict(
+            result["pooled"], result["holdouts_improved"], len(result["folds"])
+        )
+        result["verdict"] = line
+        print(f"  {label:14s} {line}")
 
     payload = {
         "baseline": args.baseline,
@@ -179,10 +198,7 @@ def main(argv=None) -> int:
         "frames": base_frames,
         "adp_columns_fitted": saw,
         "material_threshold": MATERIAL,
-        "folds": rows,
-        "pooled": pooled,
-        "holdouts_improved": wins,
-        "verdict": line,
+        "populations": results,
     }
     output = args.output or args.runs / "adp_ablation.json"
     output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

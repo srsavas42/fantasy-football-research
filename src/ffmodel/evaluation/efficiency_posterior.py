@@ -194,8 +194,15 @@ def score_fantasy_points_posterior(
     prediction: SeasonScoringPrediction,
     *,
     scoring: str = "ppr",
+    subset: np.ndarray | None = None,
 ) -> dict[str, object]:
-    """Score total-season fantasy-point samples against observed stat lines."""
+    """Score total-season fantasy-point samples against observed stat lines.
+
+    ``subset`` restricts the population without changing anything else, for
+    asking whether a change that does nothing to the pooled number does
+    something to a group that matters -- most of the pooled rows are fringe
+    players whose season is a handful of points.
+    """
     rows = prediction.player_rows.reset_index(drop=True)
     observed_stats = observed_scoring_rows(rows)
     observed = fantasy_points(observed_stats, scoring).to_numpy(dtype=float)
@@ -209,6 +216,15 @@ def score_fantasy_points_posterior(
         & np.isfinite(samples).all(axis=1)
         & replacement.ne(1).to_numpy()
     )
+    if subset is not None:
+        subset = np.asarray(subset, dtype=bool)
+        if subset.shape != valid.shape:
+            raise ValueError(
+                f"subset has {subset.shape} entries for {valid.shape} rows"
+            )
+        valid = valid & subset
+    if not valid.any():
+        raise ValueError("no rows left to score")
     mean = samples.mean(axis=1)
     error = mean[valid] - observed[valid]
     crps = empirical_crps(observed[valid], samples[valid])

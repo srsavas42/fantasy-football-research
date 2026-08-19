@@ -164,6 +164,20 @@ def main(argv=None) -> None:
             scoring: score_fantasy_points_posterior(prediction, scoring=scoring)
             for scoring in SCORING_FORMATS
         }
+        # The same rows again, restricted to the players the market drafted.
+        # Most of the pooled population is fringe -- a handful of points a
+        # season -- so a change worth something to a drafter can be invisible
+        # pooled and obvious here. The mask is the frame's own adp_drafted
+        # column, so both arms of a comparison get an identical population and
+        # no second name join can disagree with the first.
+        scored_rows = prediction.player_rows.reset_index(drop=True)
+        drafted = scored_rows.get("adp_drafted")
+        if drafted is not None:
+            mask = pd.to_numeric(drafted, errors="coerce").eq(1).to_numpy()
+            for scoring in SCORING_FORMATS:
+                fold[f"{scoring}_drafted"] = score_fantasy_points_posterior(
+                    prediction, scoring=scoring, subset=mask
+                )
         fold["seconds"] = round(time.perf_counter() - started, 1)
         # Both layers, because a scoring run that samples badly reports a CRPS
         # like any other and nothing in the output says otherwise. The volume

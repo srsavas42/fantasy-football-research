@@ -51,15 +51,29 @@
           "delta_mae": -0.008877870859711394,
           "holdout": "2023",
           "n": 224
+        },
+        {
+          "adp_coverage_80": 0.8595744680851064,
+          "adp_coverage_95": 0.9829787234042553,
+          "adp_crps": 41.0826160023032,
+          "adp_mae": 55.891613978723406,
+          "base_coverage_80": 0.8297872340425532,
+          "base_coverage_95": 0.9872340425531915,
+          "base_crps": 42.30885657276064,
+          "base_mae": 56.15882482978723,
+          "delta_crps": -0.0289830704440952,
+          "delta_mae": -0.004758127540483915,
+          "holdout": "2024",
+          "n": 235
         }
       ],
       "holdouts_improved": {
-        "crps": 2,
-        "mae": 2
+        "crps": 3,
+        "mae": 3
       },
       "pooled": {
-        "crps": -0.02680621883694433,
-        "mae": -0.008569580977574796
+        "crps": -0.027504914557075398,
+        "mae": -0.007339099125760029
       },
       "verdict": "ADP helps on mae, crps, winning every holdout"
     },
@@ -92,15 +106,29 @@
           "delta_mae": -0.024811170499780735,
           "holdout": "2023",
           "n": 507
+        },
+        {
+          "adp_coverage_80": 0.8283433133732535,
+          "adp_coverage_95": 0.9640718562874252,
+          "adp_crps": 29.04679981593064,
+          "adp_mae": 40.142235319361276,
+          "base_coverage_80": 0.8143712574850299,
+          "base_coverage_95": 0.9620758483033932,
+          "base_crps": 29.74069963664671,
+          "base_mae": 40.744155728542914,
+          "delta_crps": -0.023331657600315525,
+          "delta_mae": -0.01477317172042832,
+          "holdout": "2024",
+          "n": 501
         }
       ],
       "holdouts_improved": {
-        "crps": 2,
-        "mae": 2
+        "crps": 3,
+        "mae": 3
       },
       "pooled": {
-        "crps": -0.02566811210418049,
-        "mae": -0.026605818714295095
+        "crps": -0.02492890010762953,
+        "mae": -0.02283033466852304
       },
       "verdict": "ADP helps on mae, crps, winning every holdout"
     },
@@ -133,15 +161,29 @@
           "delta_mae": -0.05384252844617696,
           "holdout": "2023",
           "n": 283
+        },
+        {
+          "adp_coverage_80": 0.8007518796992481,
+          "adp_coverage_95": 0.9473684210526315,
+          "adp_crps": 18.413653936992482,
+          "adp_mae": 26.22831056390977,
+          "base_coverage_80": 0.8007518796992481,
+          "base_coverage_95": 0.9398496240601504,
+          "base_crps": 18.637252719403197,
+          "base_mae": 27.125933026315792,
+          "delta_crps": -0.011997411087199924,
+          "delta_mae": -0.03309093410852297,
+          "holdout": "2024",
+          "n": 266
         }
       ],
       "holdouts_improved": {
-        "crps": 2,
-        "mae": 2
+        "crps": 3,
+        "mae": 3
       },
       "pooled": {
-        "crps": -0.02352313703280562,
-        "mae": -0.058044916734135206
+        "crps": -0.019978150368094753,
+        "mae": -0.050249028342210254
       },
       "verdict": "ADP helps on mae, crps, winning every holdout"
     }

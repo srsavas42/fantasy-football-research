@@ -101,17 +101,84 @@ it moves the wrong way, so it belongs in the record rather than in the rounding.
 
 ## What the result does not say
 
-**It is not evidence the model beats the market.** ADP is a forecast, and a
-model that reads it is partly following consensus. Before this feature, "the
-model beats ADP by 6.5% on the drafted pool" (see
-[out-of-sample-2025.md](out-of-sample-2025.md)) was a claim about independent
-information. With it, the claim becomes "the two together beat the history
-alone", which is a different and weaker statement about the model's own
-contribution — though a more useful one for a drafter, who has access to both.
+**It is not evidence the model beats the market. The model loses to the
+market.** See [the next section](#the-model-does-not-beat-the-draft-board),
+which was measured after this ablation and is the more important result.
 
 **It has not been confirmed on 2025.** The selection was made on 2022–2024, so
 2025 remains untouched and can still serve as the one honest confirmation. That
 run has not been done.
+
+## The model does not beat the draft board
+
+Measured by `scripts/benchmark_adp_only.py` after the ablation, on the same
+drafted-pool rows the walk-forward scored, pooled over 2022–2024:
+
+| projection | MAE | RMSE | CRPS |
+|---|---:|---:|---:|
+| **ADP alone, per-position curves** | **54.48** | **68.24** | **38.22** |
+| ADP alone, one pooled curve | 60.73 | 75.63 | 42.48 |
+| model, no ADP | 59.33 | 74.53 | 44.96 |
+| model, with ADP | 58.90 | 73.49 | 43.72 |
+
+The ADP-only estimator is a per-position log fit of points on draft rank, with
+predictive draws resampled from the curve's own residuals at nearby ranks, all
+fitted on seasons strictly before each holdout. It is a lookup table with error
+bars.
+
+It beats the model by **8.1% MAE and 14.4% CRPS**.
+
+The curve is doing real work rather than exploiting the scoring. Replacing rank
+with no information at all — resampling prior seasons' drafted-pool outcomes —
+gives MAE 75.24 and CRPS 51.86, so the rank signal is worth about 21 points of
+MAE and the model captures only part of it.
+
+### Correcting an earlier number
+
+`benchmark_adp_baselines.py` reported the model beating ADP by 6.5% on 2025.
+That comparison was wrong in two ways, both of which flattered the model.
+
+| 2025, drafted pool | n | MAE | CRPS |
+|---|---:|---:|---:|
+| model (no ADP feature) | 238 | 55.29 | 42.40 |
+| ADP, one pooled curve | 237 | 60.26 | **41.84** |
+| ADP, per-position curves | 237 | **55.36** | **38.52** |
+
+The baseline did not know position, so it could not tell a quarterback taken
+40th overall from a running back taken 40th — a distinction any drafter reads
+straight off the board. And it was scored on point metrics only, so nobody
+computed its CRPS. Against a position-aware curve the model ties on MAE and
+loses CRPS by 10%; against even the weak curve it was already losing CRPS.
+
+### What this means, and what it does not
+
+The uncomfortable reading is the right one: **on the players people draft, this
+model is not beating consensus.** Adding ADP as a covariate narrows the gap from
+8.9% to 8.1% MAE, which is progress in the right direction and nowhere near
+enough. The model now has the better signal in its design matrix and is still
+turning it into a worse forecast — the feature enters four submodels
+standardized, SVD-rotated and under a shared prior, competing with a dozen
+others, and its influence is plainly being attenuated on the way through.
+
+Three things the comparison does not establish, stated so they are not used to
+explain the result away:
+
+- **The baseline's training distribution is better matched.** The curve is
+  fitted on drafted players who appeared in the frames; the model is fitted on
+  every rostered player, most of whom are fringe. Both are scored on identical
+  rows, so the evaluation is fair, but the curve is specialised to the
+  population it is tested on and the model is not.
+- **The curve cannot do anything else.** It has nothing to say about a player
+  the market did not rank, and the undrafted rows are where the ADP feature
+  helped the model most (MAE −5.02%). It carries no team structure, no
+  volume-and-efficiency decomposition, and no way to respond to news after the
+  board is published.
+- **Beating realised points is not the only question.** A drafter wants to know
+  who is mispriced relative to ADP, and a projection that reproduces ADP
+  perfectly would score well here while being useless for that.
+
+None of which changes the headline. The next question for this package is not
+another feature; it is why a model with ADP in it does worse than ADP.
 
 ## Recommendation
 

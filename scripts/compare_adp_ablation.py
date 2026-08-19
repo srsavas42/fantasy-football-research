@@ -105,10 +105,34 @@ def main(argv=None) -> int:
     # invisible pooled; and a change that only moves the fringe is not worth
     # shipping. Reporting one without the other answers half the question.
     populations = [("all rostered", args.scoring)]
-    if all(f"{args.scoring}_drafted" in base[f] for f in shared) and all(
+    has_drafted = all(f"{args.scoring}_drafted" in base[f] for f in shared) and all(
         f"{args.scoring}_drafted" in cand[f] for f in shared
-    ):
+    )
+    if has_drafted:
         populations.append(("ADP drafted", f"{args.scoring}_drafted"))
+        # The complement, recovered rather than refitted. MAE, CRPS and the two
+        # coverages are all means over rows, so the undrafted group's value
+        # follows exactly from the two recorded ones and their counts. Without
+        # it the pooled and drafted numbers can only be compared by eye, and a
+        # pooled gain three times the drafted gain invites the wrong reading of
+        # where the feature is working.
+        key = f"{args.scoring}_undrafted"
+        for report in (base, cand):
+            for fold in shared:
+                whole, part = report[fold][args.scoring], report[fold][f"{args.scoring}_drafted"]
+                n_rest = int(whole["n"]) - int(part["n"])
+                if n_rest <= 0:
+                    break
+                report[fold][key] = {"n": n_rest} | {
+                    metric: (
+                        float(whole[metric]) * whole["n"]
+                        - float(part[metric]) * part["n"]
+                    )
+                    / n_rest
+                    for metric in (*METRICS, *COVERAGE)
+                }
+        if all(key in base[f] and key in cand[f] for f in shared):
+            populations.append(("undrafted (derived)", key))
     else:
         print(
             "note: one arm predates the drafted-pool breakdown, so only the "
@@ -189,7 +213,7 @@ def main(argv=None) -> int:
             result["pooled"], result["holdouts_improved"], len(result["folds"])
         )
         result["verdict"] = line
-        print(f"  {label:14s} {line}")
+        print(f"  {label:20s} {line}")
 
     payload = {
         "baseline": args.baseline,

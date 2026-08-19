@@ -85,6 +85,8 @@ def main(argv=None) -> None:
         )
         if args.postseason is not None:
             pipeline.postseason_role_features = args.postseason
+        if args.market_adp is not None:
+            pipeline.market_adp_features = args.market_adp
         if args.cold_role_innovation is not None:
             pipeline.cold_role_innovation = args.cold_role_innovation
         if args.cold_role_scale_mode is not None:

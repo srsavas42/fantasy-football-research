@@ -44,6 +44,7 @@ from ffmodel.features.season_efficiency import (
     lagged_efficiency_rows,
     player_season_efficiency,
 )
+from ffmodel.features.market import add_market_adp_features
 from ffmodel.features.season_injury import (
     INJURY_AVAILABILITY_FEATURES,
     add_season_injury_features,
@@ -917,6 +918,7 @@ def player_preseason_rows(
         axis=1,
     ).to_numpy(dtype=float)
     out = add_teammate_quality_features(out)
+    out = add_market_adp_features(out)
     out = add_conditional_volume_efficiency_features(out)
     out["is_projection"] = out["season"].isin(projection).astype(int)
     if projection:

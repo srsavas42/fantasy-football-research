@@ -69,6 +69,21 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the lagged postseason role features off, for ablations",
     )
     parser.add_argument(
+        "--market-adp",
+        dest="market_adp",
+        action="store_const",
+        const=True,
+        default=None,
+        help="force preseason ADP into the role and playing-time regressions",
+    )
+    parser.add_argument(
+        "--no-market-adp",
+        dest="market_adp",
+        action="store_const",
+        const=False,
+        help="force preseason ADP out, for the paired arm of the ablation",
+    )
+    parser.add_argument(
         "--innovation-cap",
         type=float,
         default=None,

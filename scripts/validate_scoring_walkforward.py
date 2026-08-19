@@ -96,6 +96,8 @@ def main(argv=None) -> None:
             }
         if args.postseason is not None:
             pipeline.volume_model.postseason_role_features = args.postseason
+        if args.market_adp is not None:
+            pipeline.volume_model.market_adp_features = args.market_adp
         pipeline.volume_model.mean_preserving_innovation = (
             tuple(args.mean_preserving_layers)
             if args.mean_preserving_layers

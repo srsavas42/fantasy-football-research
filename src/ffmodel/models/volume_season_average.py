@@ -22,6 +22,7 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
+from ffmodel.features.market import ADP_FEATURES
 from ffmodel.features.season_average import (
     POSTSEASON_FEATURES,
     SeasonAverageData,
@@ -1348,6 +1349,12 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
+    # Preseason market consensus in the role and playing-time regressions. Off
+    # until measured: it is the one input not derived from play-by-play, so a
+    # gain would be real new information and a loss would say the market adds
+    # nothing the history does not already carry. See
+    # ``_enable_market_adp_features`` and ffmodel.features.market.
+    market_adp_features: bool = False
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1379,6 +1386,8 @@ class SeasonAverageVolumePipeline:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.market_adp_features:
+            self._enable_market_adp_features(data.player_rows)
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
         if self.calibrated_innovation:
@@ -1507,6 +1516,44 @@ class SeasonAverageVolumePipeline:
 
         def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
             return tuple(dict.fromkeys((*existing, *POSTSEASON_FEATURES)))
+
+        self.snap_model.extra_features = merged(self.snap_model.extra_features)
+        self.target_role_model.extra_features = merged(
+            self.target_role_model.extra_features
+        )
+        self.carry_eligibility_model.extra_features = merged(
+            self.carry_eligibility_model.extra_features
+        )
+        self.target_model.extra_features = merged(self.target_model.extra_features)
+        self.carry_model.extra_features = merged(self.carry_model.extra_features)
+
+    def _enable_market_adp_features(self, player_rows: pd.DataFrame) -> None:
+        """Append preseason consensus to the role and playing-time regressions.
+
+        The same rooms the postseason features go to, and for the same reason:
+        these are the layers that decide who holds a role, which is what a draft
+        board is an opinion about. Availability, the team layer and the
+        efficiency layer are left alone in this arm -- ADP plausibly informs all
+        three, but adding it everywhere at once would make a null result
+        uninterpretable and a gain unattributable.
+
+        The absent-column check is not defensive noise. A cache built before
+        this feature existed has none of these columns, ``_matrix`` silently
+        drops names it cannot find, and the arm would fit exactly the baseline
+        and report a clean +0.00% null. That has already happened twice on this
+        branch with other features, so it fails here instead.
+        """
+        missing = [name for name in ADP_FEATURES if name not in player_rows.columns]
+        if missing:
+            raise ValueError(
+                f"market_adp_features is on but {missing} are absent from the "
+                "player rows. These frames predate the feature -- rebuild the "
+                "cache rather than fitting a model that would silently drop it "
+                "and report the baseline as a null result"
+            )
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *ADP_FEATURES)))
 
         self.snap_model.extra_features = merged(self.snap_model.extra_features)
         self.target_role_model.extra_features = merged(
@@ -1922,6 +1969,11 @@ class SeasonAverageVolumePipeline:
                     else {}
                 ),
             },
+            # Recorded so a served artifact says which inputs it was fitted on.
+            # Prediction does not need it -- the fitted feature names, fills and
+            # projection round-trip on each submodel -- but an artifact that
+            # reads the market and does not say so is one nobody can audit.
+            "market_adp": {"enabled": self.market_adp_features},
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
                 **(
@@ -2123,6 +2175,9 @@ class SeasonAverageVolumePipeline:
             target_role_model=optional["target_role"],
             carry_eligibility_model=optional["carry_eligibility"],
             role_regime_coupling=role_regime_coupling,
+            market_adp_features=bool(
+                metadata.get("market_adp", {}).get("enabled", False)
+            ),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level
             # one only has to agree with what was actually restored.

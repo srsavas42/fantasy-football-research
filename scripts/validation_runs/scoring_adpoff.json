@@ -1,0 +1,13 @@
+{
+  "_frames": {
+    "cache_dir": ".cache/ffmodel-wf-2025-adp",
+    "digest": "03e7a906a5bb535b",
+    "player_rows": 7937,
+    "seasons": [
+      2015,
+      2025
+    ],
+    "team_rows": 352,
+    "version": 2
+  }
+}

@@ -57,6 +57,32 @@ def _diagnostics(pipeline) -> dict[str, dict[str, object]]:
     return out
 
 
+def _fitted_features(pipeline) -> dict[str, list[str]]:
+    """What each volume submodel actually put in its design matrix.
+
+    A feature flag sets a name on a list; the design matrix drops names it
+    cannot find in the frame. Between those two steps an arm can be enabled,
+    report no error, and fit exactly the baseline -- which has happened twice on
+    this branch. The fitted names belong in the record so a null result can be
+    read as "the feature did nothing" rather than "the feature was not there".
+    """
+    volume = pipeline.volume_model
+    names = (
+        "availability_model",
+        "workload_model",
+        "snap_model",
+        "carry_eligibility_model",
+        "target_model",
+        "carry_model",
+    )
+    out: dict[str, list[str]] = {}
+    for name in names:
+        model = getattr(volume, name, None)
+        if model is not None and getattr(model, "idata", None) is not None:
+            out[name] = sorted(getattr(model, "feature_names", []))
+    return out
+
+
 def main(argv=None) -> None:
     parser = add_common_arguments(argparse.ArgumentParser(description=__doc__))
     parser.add_argument(
@@ -71,6 +97,21 @@ def main(argv=None) -> None:
     report: dict[str, object] = {
         "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
     }
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    path = args.output_dir / f"scoring_{args.label}.json"
+
+    def flush() -> None:
+        """Persist after every holdout, not once at the end.
+
+        A run is hours of sampling and the container it runs in is ephemeral.
+        Writing only on completion means a restart in the third fold throws away
+        the first two, which has now happened twice here. A partial file is
+        readable -- the reader keys on holdout -- and says plainly which folds
+        finished.
+        """
+        path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+    flush()
     for holdout in args.holdouts:
         started = time.perf_counter()
         train = SeasonAverageData(
@@ -130,16 +171,15 @@ def main(argv=None) -> None:
         # did, and a cap selection built on it hid 304 divergences in an
         # efficiency response behind a clean-looking table.
         fold["diagnostics"] = _diagnostics(pipeline)
+        fold["volume_features"] = _fitted_features(pipeline)
         report[str(holdout)] = fold
+        flush()
         print(
             f"[{args.label}] holdout {holdout} done in {fold['seconds']}s "
             f"ppr cov95={fold['ppr']['coverage_95']:.3f}",
             flush=True,
         )
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    path = args.output_dir / f"scoring_{args.label}.json"
-    path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     print(f"[{args.label}] wrote {path}")
 
 

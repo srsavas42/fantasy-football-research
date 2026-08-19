@@ -196,6 +196,23 @@ def main(argv=None) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     print(f"\nwrote {output}")
+
+    # Per-row predictions, so a baseline scored on a subset of these rows can be
+    # compared against the model on that same subset rather than against the
+    # pooled number. Without this the only honest comparison is the one that
+    # happens to share a population.
+    per_row = output.with_suffix(".rows.csv")
+    pd.DataFrame(
+        {
+            "key": rows.loc[matched, "key"].to_numpy(),
+            "player_name": rows.loc[matched, "player_name"].to_numpy(),
+            "position": rows.loc[matched, "position"].to_numpy(),
+            "adp_rank": rank_of[matched].to_numpy(),
+            "observed": observed[matched],
+            "predicted": samples[matched].mean(axis=1),
+        }
+    ).to_csv(per_row, index=False)
+    print(f"wrote {per_row}")
     return 0
 
 

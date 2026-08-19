@@ -1,0 +1,81 @@
+{
+  "adp_columns_fitted": {
+    "adpoff": [],
+    "adpon": [
+      "adp_drafted",
+      "adp_log_rank",
+      "adp_position_log_rank"
+    ]
+  },
+  "baseline": "adpoff",
+  "candidate": "adpon",
+  "frames": {
+    "cache_dir": ".cache/ffmodel-wf-2025-adp",
+    "digest": "03e7a906a5bb535b",
+    "player_rows": 7937,
+    "seasons": [
+      2015,
+      2025
+    ],
+    "team_rows": 352,
+    "version": 2
+  },
+  "material_threshold": 0.0025,
+  "populations": {
+    "ADP drafted": {
+      "folds": [
+        {
+          "adp_coverage_80": 0.8521739130434782,
+          "adp_coverage_95": 0.9869565217391304,
+          "adp_crps": 42.37756388384239,
+          "adp_mae": 56.967248152173916,
+          "base_coverage_80": 0.8478260869565217,
+          "base_coverage_95": 0.9695652173913043,
+          "base_crps": 43.81327072839674,
+          "base_mae": 57.44008945652174,
+          "delta_crps": -0.03276876664731218,
+          "delta_mae": -0.00823190403813234,
+          "holdout": "2022",
+          "n": 230
+        }
+      ],
+      "holdouts_improved": {
+        "crps": 1,
+        "mae": 1
+      },
+      "pooled": {
+        "crps": -0.03276876664731222,
+        "mae": -0.00823190403813229
+      },
+      "verdict": "ADP helps on mae, crps, winning every holdout"
+    },
+    "all rostered": {
+      "folds": [
+        {
+          "adp_coverage_80": 0.7934990439770554,
+          "adp_coverage_95": 0.9521988527724665,
+          "adp_crps": 29.148825063181167,
+          "adp_mae": 39.28700928298279,
+          "base_coverage_80": 0.7934990439770554,
+          "base_coverage_95": 0.9426386233269598,
+          "base_crps": 30.02858174848231,
+          "base_mae": 40.439851787762905,
+          "delta_crps": -0.029297310564645854,
+          "delta_mae": -0.028507584815851573,
+          "holdout": "2022",
+          "n": 523
+        }
+      ],
+      "holdouts_improved": {
+        "crps": 1,
+        "mae": 1
+      },
+      "pooled": {
+        "crps": -0.02929731056464591,
+        "mae": -0.028507584815851503
+      },
+      "verdict": "ADP helps on mae, crps, winning every holdout"
+    }
+  },
+  "scoring": "ppr"
+}

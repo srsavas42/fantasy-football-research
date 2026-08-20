@@ -76,45 +76,60 @@ Two separate follow-ups, deliberately not merged into one:
 - Backup quarterback exposure is untouched and task 33 stays open. Nothing in
   this sweep moved it, so the mechanism is elsewhere.
 
-## The gate rejects prior 3.0 (2026-08-20)
+## The gate accepts prior 3.0 (2026-08-20)
 
-The sweep selected 3.0 by a plateau rule on **snap** MAE. The acceptance gate
-looks at every stream, and one of them moves the other way.
-
-`compare_validation_runs.py wf_snapconfbase.json wf_snap300.json` exits 1:
+`compare_validation_runs.py wf_snapconfbase.json wf_snapconf300.json` exits 0.
+Every accuracy metric improves on three folds of three, nothing regresses:
 
 ```
-target/mae     +1.95%   0/3   regressed
-snap/mae       -3.37%   3/3   improved
-snap/crps      -3.18%   3/3   improved
-carry/mae      -1.37%   3/3   improved
-target/cov80  -3.66pp   3/3   improved
+snap/mae      -3.37%   3/3   improved
+snap/crps     -3.18%   3/3   improved
+target/mae    -2.38%   3/3   improved
+carry/mae     -1.94%   3/3   improved
+target/crps   -1.39%   3/3   improved
+carry/crps    -0.94%   3/3   improved
 ```
 
-Per fold:
+Coverage is negligible everywhere. The one sampler watch, `team` R-hat 1.0107 at
+2023, is the pre-existing statistic present in every arm.
 
-| fold | snap MAE | carry MAE | target MAE |
-|---|---|---|---|
-| 2022 | 0.14624 → 0.14242 (−2.6%) | 0.80783 → 0.80367 (−0.5%) | 0.83763 → 0.85825 (**+2.5%**) |
-| 2023 | 0.14912 → 0.14367 (−3.7%) | 0.76603 → 0.74073 (−3.3%) | 0.86028 → 0.88864 (**+3.3%**) |
-| 2024 | 0.14932 → 0.14359 (−3.8%) | 0.75959 → 0.75747 (−0.3%) | 0.78960 → 0.79027 (**+0.1%**) |
+### This section first said the opposite, and was wrong
 
-Widening the prior buys snap and carry accuracy on every fold and costs target
-accuracy on every fold. Pooled, the target regression is 1.95% against a gate
-that allows no consistent regression, so the change does not ship.
+An earlier version reported the gate **rejecting** prior 3.0 on `target/mae`
+regressing +1.95% across 3/3 folds. That verdict came from comparing
+`wf_snapconfbase.json` against `wf_snap300.json` — a baseline re-run on the
+current configuration against a candidate from the original sweep. The two were
+fitted under different configurations, so the comparison attributed a
+configuration difference to the prior.
 
-This is the failure mode the gate was rebuilt to catch, in its own words: *"It
-only watched what somebody tabulated."* The sweep tabulated snap MAE. Nobody
-looked at the target stream until the gate did.
+The check that was supposed to catch this compared **only `snap.mae`**, found it
+identical to five decimals across all three folds, and concluded the old runs
+were on-config. `snap.mae` is the one stream `cold_role_scale_mode` does not
+touch. Every other stream differed:
 
-**The on-config concern was unfounded.** `wf_snapconfbase.json` reproduces the
-sweep's `wf_snapbase.json` to five decimals on all three folds, so the sweep was
-already running the shipping configuration in this harness — the
-`--cold-role-scale-mode` default that had corrupted a *scoring* run never
-affected the volume walk-forward. Three container restarts were spent chasing a
-confirmation that was already in hand.
+| stream | old sweep vs re-run, baseline arm |
+|---|---|
+| snap | identical on all folds |
+| availability, pass_qb, qb_workload | identical on all folds |
+| **target** | mae 0.87555 → 0.83763, cov95 0.908 → **0.947** |
+| **carry** | mae 0.81555 → 0.80783, cov95 0.940 → 0.943 |
 
-**Where this leaves task 40.** The plateau at 3.0 is real for snap share and
-irrelevant, because snap share is not what the package ships. Any future attempt
-at this needs to select on a metric the gate will accept — the total-scoring
-walk-forward, or a snap-and-target objective — rather than on one stream.
+The target cov95 moving 0.908 → 0.947 is the exact signature of the
+`--cold-role-scale-mode` tri-state bug, which is how that bug was found in the
+first place. Both sweep arms were off-config on the allocation layers; both
+re-runs are correct; the sweep's *snap* numbers were always right, which is why
+the plateau selection itself stands.
+
+So the confirmation runs were not wasted after all — they were the whole reason
+this is right. What was wasted was the intermediate verdict, published from a
+one-stream check.
+
+**The lesson is the gate's own.** Its rebuild note says it was previously
+"watching what somebody tabulated". Verifying two runs match by tabulating one
+metric is the same error in the same document, committed an hour after quoting
+it.
+
+### Where this leaves task 40
+
+Prior 3.0 is selected by the plateau rule, confirmed on the shipping
+configuration, and accepted by the gate on every stream. It is ready to promote.

@@ -515,3 +515,65 @@ confidently, and been precisely backwards.
   higher weights help.
 - **The error correlation is rising**: 0.766, 0.795, 0.823. If that is a trend
   rather than noise, the blend's headroom is shrinking.
+
+## Confirmed on 2025 (2026-08-20)
+
+2025 had not been touched by any choice in this package. The blend was scored on
+it once, with the weight taken from 2022-2024 only.
+
+**On 2025, drafted pool, n=237:**
+
+| projection | MAE | CRPS |
+|---|---:|---:|
+| model alone | 57.25 | 43.60 |
+| draft board alone | 55.33 | 38.46 |
+| blend, grid weight (w=0.20) | 53.66 | 37.59 |
+| **blend, slope weight (w=0.33)** | **53.07** | **37.42** |
+
+The blend beats the board by **4.1% MAE and 2.7% CRPS** on a season neither the
+model nor the weight rule had seen.
+
+**Pooled over every scorable fold (2023, 2024, 2025):**
+
+| rule | combination | MAE vs board | CRPS vs board |
+|---|---|---:|---:|
+| grid | average | −2.01% | −1.60% |
+| grid | mixture | −2.07% | −1.77% |
+| **slope** | **average** | **−3.13%** | −2.12% |
+| slope | mixture | −3.07% | **−2.21%** |
+
+The blend beats the board on **every scored fold under both rules and both
+combination methods**. 2022 stays unscored throughout: no earlier holdout exists
+to pick its weight from.
+
+### The slope rule was right, and for the stated reason
+
+It was committed as theoretically better — the variance-optimal weight *is* the
+regression coefficient — while conceding the preference was formed after seeing
+the grid pick weights that were too low. On 2025 it beats the grid rule, 53.07
+against 53.66 MAE and 37.42 against 37.59 CRPS, and its weights climb toward the
+measured optimum as folds accumulate: 0.20, 0.26, 0.33 against a pooled beta of
+0.409.
+
+### Two earlier worries, resolved
+
+**The rising error correlation was noise.** 0.766, 0.795, 0.823, then 0.788 on
+2025. The trend that would have closed the headroom did not continue.
+
+**The model does contribute.** Against the board alone the blend wins by 3.1%
+MAE; against the model alone by 6.3%. Neither component is redundant, which is
+what the +0.409 disagreement slope predicted.
+
+### What this cost, and what it does not settle
+
+Scoring two weight rules on 2025 rather than one uses that season slightly more
+than a single confirmation would. Both were fully specified before it was
+exported and both are reported, so nothing was selected on it after the fact —
+but a third rule tried now would not be honest, and 2025 should be considered
+spent for this question.
+
+Still open: the blend is analysis-only, living in `scripts/blend_with_market.py`
+rather than in the package. Shipping it means deciding that the published
+projection reads the draft board, with everything that implies for what "beats
+ADP" means — the product judgement this document has flagged throughout, and one
+the metrics cannot make.

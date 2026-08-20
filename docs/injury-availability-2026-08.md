@@ -68,3 +68,63 @@ games, not in projected fantasy points, and the two are not the same claim.
 default, scoped to the availability model only (verified: no injury column
 reaches the snap or allocation designs), guarded against frames that predate the
 columns. The scoring walk-forward decides whether it ships.
+
+## The 2025 confirmation does not confirm (2026-08-20)
+
+The scoring gate accepted on 2022-2024 with every accuracy metric improving on
+three folds of three. On 2025 — the season no choice in this package has seen —
+the effect is not there.
+
+| metric | 2025 | 2022-24 pooled |
+|---|---:|---:|
+| ppr/mae | −0.12% | −1.35% |
+| ppr/crps | −0.12% | −1.55% |
+| ppr/rmse | **+0.02%** | −1.43% |
+| drafted/mae | −0.18% | −1.82% |
+| drafted/crps | −0.12% | −2.13% |
+| drafted/rmse | **+0.15%** | −1.73% |
+
+Every number is inside ±0.2%, against a 0.25% materiality floor. Two are the
+wrong sign. The challenger fitted its nine injury columns and the control fitted
+none, so this is not a mis-wired arm; zero divergences in both.
+
+Per fold the effect declines monotonically across the window:
+
+| fold | points ΔMAE |
+|---|---:|
+| 2022 | −1.59% |
+| 2023 | −1.85% |
+| 2024 | −0.61% |
+| **2025** | **−0.12%** |
+
+### What to make of it
+
+This is not the usual overfitting story. Nothing was tuned on 2022-2024: the
+eleven features were built before this session, the contract was fixed, and the
+screen and the gate were each run once. There is no search here to have
+overfitted.
+
+Three readings, and the data does not separate them:
+
+- **Year-to-year variation.** Three folds is not many, and 2024 was already the
+  weak one. 2025 may simply be another weak year.
+- **A real decline.** Injury-report practice and roster rules have changed
+  across this window, and a feature built on reporting conventions can decay.
+- **Chance in the other direction** — that 2022 and 2023 were the unusual folds
+  and the true effect was always small.
+
+### Recommendation, revised
+
+**Do not promote on this evidence.** An in-window gate pass with a flat
+confirmation is exactly the pattern the reserved season exists to catch, and the
+honest description is "accepted in-window, unconfirmed out-of-sample" rather than
+"clears the gate".
+
+What would settle it is more holdouts rather than more argument: the walk-forward
+window can extend back before 2022, and if the effect is real it should appear
+in 2019-2021 at a size like the 2022-2023 one. That is six more fits and it is
+the cheapest thing that would move the question.
+
+The availability-layer screen still stands on its own — CRPS −2.39% on three
+folds of three, −5.15% on the injury-exposed half. What has not survived is the
+claim that it reaches fantasy points.

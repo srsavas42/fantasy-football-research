@@ -531,6 +531,272 @@
       ]
     }
   },
+  "2021": {
+    "diagnostics": {
+      "efficiency/fumble_lost_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0025588755556836,
+        "min_ess": 1232.331841931105
+      },
+      "efficiency/pass_completion_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0003684734186258,
+        "min_ess": 1448.0102486001394
+      },
+      "efficiency/pass_int_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0021560033204724,
+        "min_ess": 1442.5144364518765
+      },
+      "efficiency/pass_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0029085338038657,
+        "min_ess": 1345.7447025821234
+      },
+      "efficiency/pass_yards_per_attempt": {
+        "divergences": 0,
+        "max_rhat": 1.0017809005922498,
+        "min_ess": 1104.2251372245141
+      },
+      "efficiency/rec_catch_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0021962717853232,
+        "min_ess": 1590.7266138804312
+      },
+      "efficiency/rec_td_rate": {
+        "divergences": 304,
+        "max_rhat": 1.563513584387966,
+        "min_ess": 7.02103542648517
+      },
+      "efficiency/rec_yards_per_target": {
+        "divergences": 0,
+        "max_rhat": 1.006260360679727,
+        "min_ess": 708.5921451524159
+      },
+      "efficiency/rush_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0011445005755941,
+        "min_ess": 1243.2696503859456
+      },
+      "efficiency/rush_yards_per_carry": {
+        "divergences": 0,
+        "max_rhat": 1.0049195268456284,
+        "min_ess": 690.4187263222675
+      },
+      "volume/availability": {
+        "divergences": 0,
+        "max_rhat": 1.0028530073716992,
+        "min_ess": 1489.9333470645329
+      },
+      "volume/carry": {
+        "divergences": 0,
+        "max_rhat": 1.0013737813103467,
+        "min_ess": 3066.9242111902454
+      },
+      "volume/carry_eligibility": {
+        "divergences": 0,
+        "max_rhat": 1.003490502922319,
+        "min_ess": 2007.0011823875116
+      },
+      "volume/qb_propensity": {
+        "divergences": 0,
+        "max_rhat": 1.003226125626981,
+        "min_ess": 5569.915255056803
+      },
+      "volume/snap": {
+        "divergences": 0,
+        "max_rhat": 1.0032189751990468,
+        "min_ess": 1766.9649632528908
+      },
+      "volume/target": {
+        "divergences": 0,
+        "max_rhat": 1.0038912766992736,
+        "min_ess": 3057.0694860995486
+      },
+      "volume/team": {
+        "divergences": 0,
+        "max_rhat": 1.0055713548423504,
+        "min_ess": 1408.4750483599532
+      },
+      "volume/workload": {
+        "divergences": 0,
+        "max_rhat": 1.0031376321065526,
+        "min_ess": 2738.97748160278
+      }
+    },
+    "half_ppr": {
+      "coverage_80": 0.8103448275862069,
+      "coverage_95": 0.9482758620689655,
+      "crps": 25.862963830316094,
+      "mae": 34.80899254789273,
+      "n": 522,
+      "rmse": 49.49062732090782,
+      "scoring": "half_ppr"
+    },
+    "half_ppr_drafted": {
+      "coverage_80": 0.8938053097345132,
+      "coverage_95": 0.9867256637168141,
+      "crps": 38.60707868820797,
+      "mae": 51.43929761061947,
+      "n": 226,
+      "rmse": 66.09243282570023,
+      "scoring": "half_ppr"
+    },
+    "half_ppr_full_season": {
+      "coverage_80": 0.839622641509434,
+      "coverage_95": 0.9575471698113207,
+      "crps": 30.33333370099647,
+      "mae": 38.67424662735849,
+      "n": 212,
+      "rmse": 54.00969093137136,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.8122605363984674,
+      "coverage_95": 0.9521072796934866,
+      "crps": 29.720208486087163,
+      "mae": 39.76814264367816,
+      "n": 522,
+      "rmse": 55.98775371341084,
+      "scoring": "ppr"
+    },
+    "ppr_drafted": {
+      "coverage_80": 0.8938053097345132,
+      "coverage_95": 0.9911504424778761,
+      "crps": 43.86428819077987,
+      "mae": 57.993422500000015,
+      "n": 226,
+      "rmse": 74.33003348032435,
+      "scoring": "ppr"
+    },
+    "ppr_full_season": {
+      "coverage_80": 0.839622641509434,
+      "coverage_95": 0.9669811320754716,
+      "crps": 34.64876721326061,
+      "mae": 43.737444268867925,
+      "n": 212,
+      "rmse": 60.46412052190723,
+      "scoring": "ppr"
+    },
+    "seconds": 863.3,
+    "standard": {
+      "coverage_80": 0.8084291187739464,
+      "coverage_95": 0.946360153256705,
+      "crps": 22.11057241103927,
+      "mae": 30.025301551724137,
+      "n": 522,
+      "rmse": 43.56922798179366,
+      "scoring": "standard"
+    },
+    "standard_drafted": {
+      "coverage_80": 0.8805309734513275,
+      "coverage_95": 0.9867256637168141,
+      "crps": 33.510660366830756,
+      "mae": 45.09067869469026,
+      "n": 226,
+      "rmse": 58.57583316586823,
+      "scoring": "standard"
+    },
+    "standard_full_season": {
+      "coverage_80": 0.839622641509434,
+      "coverage_95": 0.9575471698113207,
+      "crps": 26.179713058484673,
+      "mae": 33.840123750000004,
+      "n": 212,
+      "rmse": 48.13170104861067,
+      "scoring": "standard"
+    },
+    "volume_features": {
+      "availability_model": [
+        "age",
+        "cold_start",
+        "current_injury_expected_recovery_weeks",
+        "current_injury_practice_severity",
+        "current_injury_reported",
+        "current_injury_severity",
+        "depth_rank",
+        "experience",
+        "is_replacement_player",
+        "prior_availability",
+        "prior_injury_episode_count_3yr",
+        "prior_injury_mean_recovery_weeks_3yr",
+        "prior_injury_out_weeks_3yr",
+        "prior_injury_report_weeks_3yr",
+        "prior_injury_weeks_since_last",
+        "qb_listed_starter",
+        "roster_active",
+        "roster_reserve",
+        "team_change"
+      ],
+      "carry_eligibility_model": [
+        "age",
+        "cold_start",
+        "depth_rank",
+        "experience",
+        "is_replacement_player",
+        "is_replacement_qb",
+        "prior_carry_per_snap",
+        "prior_carry_role",
+        "prior_post_available",
+        "prior_post_carry_share",
+        "prior_post_games",
+        "prior_post_pass_attempt_share",
+        "prior_post_target_share",
+        "prior_rush_epa_per_carry",
+        "prior_snap_share",
+        "team_change"
+      ],
+      "carry_model": [
+        "prior_availability",
+        "prior_post_available",
+        "prior_post_carry_share",
+        "prior_post_games",
+        "prior_post_pass_attempt_share",
+        "prior_post_target_share",
+        "prior_snap_share"
+      ],
+      "snap_model": [
+        "age",
+        "cold_start",
+        "depth_rank",
+        "experience",
+        "is_replacement_player",
+        "is_replacement_qb",
+        "prior_availability",
+        "prior_availability_3yr",
+        "prior_post_available",
+        "prior_post_carry_share",
+        "prior_post_games",
+        "prior_post_pass_attempt_share",
+        "prior_post_target_share",
+        "prior_snap_share",
+        "prior_snap_share_3yr",
+        "prior_snap_share_trend",
+        "qb_listed_starter",
+        "roster_active",
+        "roster_reserve",
+        "team_change"
+      ],
+      "target_model": [
+        "prior_availability",
+        "prior_post_available",
+        "prior_post_carry_share",
+        "prior_post_games",
+        "prior_post_pass_attempt_share",
+        "prior_post_target_share"
+      ],
+      "workload_model": [
+        "age",
+        "cold_start",
+        "experience",
+        "is_replacement_qb",
+        "qb_depth_rank",
+        "qb_listed_starter",
+        "roster_active",
+        "team_change"
+      ]
+    }
+  },
   "_frames": {
     "cache_dir": ".cache/ffmodel-wf-2025-adp2",
     "digest": "054fd64b0e0489ca",

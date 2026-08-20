@@ -449,3 +449,69 @@ recorded as tested and rejected; `market_adp_interactions` should stay off and
 opposite conclusions about the same terms, and the difference was which other
 features were in the design. A probe run against a subset of the model's inputs
 measures the subset, not the model.
+
+## A projection that beats the draft board (2026-08-20)
+
+Blending the pipeline with the rank curve beats the curve out of sample on both
+scorable holdouts, at weights chosen only from earlier holdouts:
+
+| holdout | w(model) | model MAE | curve MAE | blend MAE | model CRPS | curve CRPS | blend CRPS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 2022 | — | 57.62 | 49.07 | — | 43.75 | 34.54 | — |
+| 2023 | 0.10 | 64.19 | 58.95 | **58.19** | 48.51 | 41.42 | **41.05** |
+| 2024 | 0.15 | 54.75 | 55.98 | **55.01** | 41.67 | 39.04 | **38.39** |
+
+Pooled over the two scored folds, paired-draw averaging gives **MAE −1.50% and
+CRPS −1.28%** against the curve; mixing gives −1.39% and −1.49%. Both clear the
+0.25% materiality floor several times over, and both improve on each fold
+individually. 2022 is unscored on purpose: it has no earlier holdout to pick a
+weight from, and an in-sample weight there would be the least meaningful number
+in the table.
+
+Worth noting separately: **on 2024 the model beats the curve outright**, 54.75
+against 55.98. The fold-to-fold spread is large and the curve still wins the
+other two.
+
+### Why this works: the model knows which way the board is wrong
+
+The board's error regressed on the model's disagreement with it:
+
+    observed - curve = alpha + beta * (model - curve)
+
+Pooled over the two test folds, **beta = +0.409 ± 0.071** (n=459). Roughly two
+fifths of the model's contrarian opinion is correct — when it likes a player by
+100 points over his ADP-implied total, he beats it by about 41. That is why a
+blend works even though the model loses on absolute error, and it is the
+quantity a drafter actually wants.
+
+### Every subgroup story from the exploratory fold was noise
+
+Four predictions were registered from 2022 and committed before 2023 and 2024
+finished exporting. One survived. Three were falsified, and two of them
+reversed:
+
+| prediction (from 2022) | test folds | verdict |
+|---|---|---|
+| pooled slope positive: +0.195 | **+0.409 ± 0.071** | survives, larger |
+| QB above the pool: +0.564 | +0.064 vs pool +0.409 | **falsified, reversed** |
+| later board above early: +0.296 vs +0.059 | +0.286 vs **+0.513** | **falsified, reversed** |
+| RB and TE carry none: +0.057, −0.035 | RB **+0.617 ± 0.138**, TE +0.243 | **falsified** |
+
+Running backs went from the emptiest subgroup on 2022 to the richest on the test
+folds. Quarterbacks went the other way. Without the pre-registration this
+document would have recommended a quarterback-and-late-round mispricing signal,
+confidently, and been precisely backwards.
+
+### What is not established
+
+- **Two scored folds.** The weight rule needs a third before anyone should trust
+  its stability, and 2022's absence from the scored set is a real cost.
+- **The weight rule is conservative.** It grid-searches CRPS on earlier
+  holdouts, which picked 0.10 and 0.15 while the measured optimum is near 0.41,
+  so the blend is under-using the model. Switching to a slope-based weight —
+  which is the variance-optimal estimator, and better motivated a priori — would
+  probably improve on this. It must be validated on 2025, untouched, rather than
+  chosen here: the reason to prefer it is now contaminated by having seen that
+  higher weights help.
+- **The error correlation is rising**: 0.766, 0.795, 0.823. If that is a trend
+  rather than noise, the blend's headroom is shrinking.

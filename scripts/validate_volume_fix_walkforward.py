@@ -64,6 +64,20 @@ def main(argv=None) -> None:
     report: dict[str, object] = {
         "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
     }
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    path = args.output_dir / f"wf_{args.label}.json"
+
+    def flush() -> None:
+        """Persist after every holdout, as the scoring walk-forward does.
+
+        This script has lost a run to a container restart three times, each
+        time discarding folds that had already finished, because the file was
+        only written on completion. A partial file is readable -- every reader
+        here keys on holdout -- and says plainly which folds it has.
+        """
+        path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+    flush()
     for holdout in args.holdouts:
         started = time.perf_counter()
         train = SeasonAverageData(
@@ -193,11 +207,9 @@ def main(argv=None) -> None:
             for name, result in pipeline.diagnostics().items()
         }
         report[str(holdout)] = fold
+        flush()
         print(f"[{args.label}] holdout {holdout} done in {fold['seconds']}s", flush=True)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    path = args.output_dir / f"wf_{args.label}.json"
-    path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     print(f"[{args.label}] wrote {path}")
 
 

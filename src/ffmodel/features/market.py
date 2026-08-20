@@ -202,9 +202,22 @@ def add_market_adp_features(
     # Interactions, because the submodels form a linear predictor with an
     # additive position effect and cannot otherwise express that points fall
     # with rank at a different rate for a quarterback than for a running back.
-    # Measured on a linear probe over 2022-2024: adding these to an
-    # all-rostered fit closes its entire MAE gap against the same form fitted
-    # on drafted players only, 57.60 to 55.67 against a 55.68 target.
+    #
+    # TESTED AND REJECTED. Built on a probe that fitted rank, position and
+    # drafted and nothing else, where these terms are worth 4.11% on logit snap
+    # share. With the model's own SNAP_FEATURES present they are worth +0.04%:
+    # the usage history already carries whatever the market's positional
+    # structure knows about exposure. In the pipeline they cost 1.12% pooled
+    # drafted-pool MAE across three holdouts of three, at double the fit time,
+    # because their encoding is collinear with the main effects and the shared
+    # Normal(0, 0.35) prior collapses the whole ADP block from 1.13x to 0.25x of
+    # its unregularized magnitude -- taking the working main effects down with
+    # it. Re-encoding as absolute per-position slopes handles the penalty better
+    # and is still worse than no interaction at every penalty strength.
+    #
+    # Kept, unused, so the negative result stays reproducible. Do not enable
+    # without a reason these measurements do not already cover. See
+    # docs/adp-ablation-2026-08.md.
     #
     # There is deliberately no drafted-by-rank term. Every unranked player sits
     # at the same sentinel, so rank is an exact linear combination of the

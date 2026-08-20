@@ -1355,10 +1355,13 @@ class SeasonAverageVolumePipeline:
     # nothing the history does not already carry. See
     # ``_enable_market_adp_features`` and ffmodel.features.market.
     market_adp_features: bool = False
-    # Per-position rank slopes and drafted effects. Separate from the flag
-    # above so the interaction is measurable on its own: a linear probe says
-    # these terms are what let an all-rostered fit match a drafted-only one,
-    # and that claim should be falsifiable here rather than assumed.
+    # Per-position rank slopes and drafted effects. Measured and rejected:
+    # worse on three drafted-pool holdouts of three at double the fit time,
+    # because the encoding is collinear with the main effects and the shared
+    # feature prior cannot hold the opposing coefficients it needs. The terms
+    # themselves are redundant with the usage history. Left in place so the
+    # negative result stays reproducible; see ffmodel.features.market and
+    # docs/adp-ablation-2026-08.md before turning it on.
     market_adp_interactions: bool = False
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because

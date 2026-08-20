@@ -177,6 +177,31 @@ def main(argv=None) -> None:
         # column, so both arms of a comparison get an identical population and
         # no second name join can disagree with the first.
         scored_rows = prediction.player_rows.reset_index(drop=True)
+
+        # A third population: players who were available essentially all season.
+        #
+        # About a quarter of relative error on the drafted pool is missed games
+        # that no preseason input can forecast, so every gate is reading
+        # modelling changes of one or two percent against a metric that is
+        # largely irreducible. Restricting to players who stayed available
+        # removes that term and isolates whether the model got the *player*
+        # right, separately from whether it got his availability right.
+        #
+        # This conditions on an outcome, deliberately. It is a diagnostic, not a
+        # forecast population: the absolute level is not comparable to the other
+        # two, and a model that projects availability badly is partly excused
+        # here. Both arms of any comparison are scored on identical rows, so the
+        # paired difference remains fair, which is all it is used for.
+        played = pd.to_numeric(scored_rows.get("games"), errors="coerce")
+        slate = pd.to_numeric(scored_rows.get("team_games"), errors="coerce")
+        if played is not None and slate is not None:
+            full = (played / slate.replace(0, float("nan"))).ge(0.94).to_numpy()
+            if full.sum() >= 30:
+                for scoring in SCORING_FORMATS:
+                    fold[f"{scoring}_full_season"] = score_fantasy_points_posterior(
+                        prediction, scoring=scoring, subset=full
+                    )
+
         drafted = scored_rows.get("adp_drafted")
         if drafted is not None:
             mask = pd.to_numeric(drafted, errors="coerce").eq(1).to_numpy()

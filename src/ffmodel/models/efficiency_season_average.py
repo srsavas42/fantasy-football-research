@@ -281,6 +281,27 @@ POSTERIOR_MEAN_MODE = {
 }
 
 
+
+# Beyond this, a Beta-Binomial is a Binomial to more decimal places than any
+# prediction here carries, so the likelihood is flat above it and the sampler
+# has nothing to grip. Left unbounded, rec_td_rate ran the concentration to
+# 1.6e19 on the 2020 fold: 178 divergences, bulk ESS 7 of 4000 draws, R-hat
+# 1.54, and a posterior mean with no meaning. The cap does not constrain a
+# healthy fit -- the folds that converge land near 240 -- it only stops the
+# chains wandering in a region where the data cannot tell one value from
+# another.
+CONCENTRATION_CAP = 10_000.0
+
+
+def _concentration(pm, prior: float):
+    """Overdispersion, bounded where the likelihood stops being informative."""
+    return pm.Truncated(
+        "concentration",
+        pm.LogNormal.dist(mu=np.log(prior), sigma=0.75),
+        upper=CONCENTRATION_CAP,
+    )
+
+
 @dataclass
 class ExposureWeightedEfficiencyModel:
     """Weighted ridge regression for one transformed efficiency response."""
@@ -802,10 +823,8 @@ class PosteriorSeasonEfficiencyModel:
                 )
                 if self.spec.likelihood == "beta_binomial":
                     mean = np.clip(mean, 1e-5, 1.0 - 1e-5)
-                    concentration = pm.LogNormal(
-                        "concentration",
-                        mu=np.log(self.spec.prior_concentration),
-                        sigma=0.75,
+                    concentration = _concentration(
+                        pm, self.spec.prior_concentration
                     )
                     pm.BetaBinomial(
                         "efficiency_obs",
@@ -859,10 +878,8 @@ class PosteriorSeasonEfficiencyModel:
 
                 if self.spec.likelihood == "beta_binomial":
                     mean = pm.math.sigmoid(eta)
-                    concentration = pm.LogNormal(
-                        "concentration",
-                        mu=np.log(self.spec.prior_concentration),
-                        sigma=0.75,
+                    concentration = _concentration(
+                        pm, self.spec.prior_concentration
                     )
                     pm.BetaBinomial(
                         "efficiency_obs",

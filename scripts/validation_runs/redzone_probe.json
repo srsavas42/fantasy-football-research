@@ -1,0 +1,38 @@
+{
+  "coverage": {
+    "prior_goalline_carry_share_diff": 0.7028985507246377,
+    "prior_goalline_target_share_diff": 0.6281573498964803,
+    "prior_redzone_carry_share_diff": 0.7540372670807454,
+    "prior_redzone_target_share_diff": 0.7540372670807454
+  },
+  "results": {
+    "carry_share": {
+      "base": 0.04108288305121258,
+      "change": 0.004880016599938735,
+      "n": 4830,
+      "rank": "secondary",
+      "with_zone": 0.04128336820247584
+    },
+    "rec_td_rate": {
+      "base": 0.02412100938898985,
+      "change": 0.001968589630053707,
+      "n": 3942,
+      "rank": "PRIMARY",
+      "with_zone": 0.024168493757939443
+    },
+    "rush_td_rate": {
+      "base": 0.04190348172826647,
+      "change": 0.0010538776742653247,
+      "n": 2838,
+      "rank": "PRIMARY",
+      "with_zone": 0.04194764287213387
+    },
+    "target_share": {
+      "base": 0.03273510814998441,
+      "change": 0.001973716050434419,
+      "n": 4830,
+      "rank": "secondary",
+      "with_zone": 0.03279971795835274
+    }
+  }
+}

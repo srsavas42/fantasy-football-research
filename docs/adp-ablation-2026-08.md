@@ -342,3 +342,63 @@ component projections are simply less accurate than a rank curve's, and the
 architecture is not the reason. Testing that needs the pipeline's own per-row
 volume and efficiency predictions scored against realised volume and
 efficiency — which needs a fit that saves them, and has not been done.
+
+## Why the interaction backfired (2026-08-20)
+
+The interaction arm lost on both scored holdouts — pooled MAE +0.78% and +0.82%,
+drafted-pool MAE +1.57% and +1.37%, zero divergences. Consistent sign, consistent
+magnitude. Two hypotheses for why, both tested, both wrong, and the third is the
+answer.
+
+**Not the target.** The obvious reading was that the probe optimised the wrong
+thing: it regressed *points* on rank, while the submodel regresses *snap share*.
+Running the identical ladder on the snap model's own response, its own rows and
+its own filter says otherwise — the interaction helps snap share **more** than it
+helps points.
+
+| terms | logit snap share | season points |
+|---|---:|---:|
+| rank + position + drafted | 1.0612 | 42.81 |
+| + position × rank | −2.28% | −1.91% |
+| + drafted × position | **−4.11%** | −3.03% |
+
+The terms are genuinely informative about exactly what the submodel is fitting.
+
+**It is the prior, once the columns are collinear.** Re-running the attenuation
+measurement with interactions enabled:
+
+| | median coefficient kept |
+|---|---:|
+| ADP columns, no interactions (3) | **1.13x** |
+| ADP columns, with interactions (9) | **0.25x** |
+| every other feature (15) | 0.62x |
+
+Adding the interactions collapses the whole ADP block. And it does not only
+shrink the new columns — it damages the main effects that were previously
+untouched: `adp_log_rank` falls from 1.13x to 0.46x, `adp_position_log_rank` from
+1.20x to 0.28x.
+
+The free coefficients say why. Unregularized least squares wants
+`adp_log_rank` −0.574 with `_x_qb` −0.554, `_x_rb` +0.513, `_x_wr` +0.388: large
+opposing values whose *differences* are identified and whose levels are not. This
+is the same pathology `depth_rank` and `is_replacement_player` already exhibit at
+−16.8 and +17.2. A shared `Normal(0, 0.35)` over every coefficient cannot supply
+that, so it pulls the entire block toward zero and takes the working main effect
+down with it.
+
+So the sequence is: the terms are real, the encoding makes them collinear, the
+prior cannot express collinear terms, and the net result is less ADP signal than
+before the interaction was added.
+
+Two candidate fixes, neither tested:
+
+- **Re-encode.** Position-masked slopes with no shared main effect span the same
+  space but parameterise it as four absolute slopes rather than a level plus
+  three deviations. An isotropic prior is not invariant to that choice.
+- **Widen the prior for the ADP block.** `feature_prior_scale` is one number for
+  every coefficient, so this needs a per-block prior the submodels do not
+  currently have.
+
+Caveat on the numbers above: two chains at 400 draws, and the sampler warned on
+R-hat. The block-level contrast (0.25x against 1.13x) is large enough to survive
+that; individual coefficients from this run should not be quoted.

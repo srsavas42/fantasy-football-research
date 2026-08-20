@@ -196,12 +196,8 @@ def main(argv=None) -> int:
         "prior_scale": model.feature_prior_scale,
         "interactions": args.interactions,
         "features": report,
-        "rms": {
-            "adp_model": adp_model,
-            "adp_free": adp_free,
-            "other_model": other_model,
-            "other_free": other_free,
-        },
+        "median_kept": {"adp": adp_ratio, "other": other_ratio},
+        "collinear": [r["feature"] for r in collinear],
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

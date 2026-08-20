@@ -69,6 +69,22 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the lagged postseason role features off, for ablations",
     )
     parser.add_argument(
+        "--injury-availability",
+        dest="injury_availability",
+        action="store_const",
+        const=True,
+        default=None,
+        help="let the availability regression read injury history and the "
+             "preseason injury snapshot",
+    )
+    parser.add_argument(
+        "--no-injury-availability",
+        dest="injury_availability",
+        action="store_const",
+        const=False,
+        help="force the injury features out, for the paired arm",
+    )
+    parser.add_argument(
         "--market-adp",
         dest="market_adp",
         action="store_const",

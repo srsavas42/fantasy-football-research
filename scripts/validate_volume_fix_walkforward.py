@@ -99,6 +99,8 @@ def main(argv=None) -> None:
         )
         if args.postseason is not None:
             pipeline.postseason_role_features = args.postseason
+        if args.injury_availability is not None:
+            pipeline.injury_availability_features = args.injury_availability
         if args.market_adp is not None:
             pipeline.market_adp_features = args.market_adp
         if args.market_adp_interactions is not None:

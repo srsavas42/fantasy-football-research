@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.features.market import ADP_FEATURES, ADP_INTERACTION_FEATURES
+from ffmodel.features.season_injury import INJURY_AVAILABILITY_FEATURES
 from ffmodel.features.season_average import (
     POSTSEASON_FEATURES,
     SeasonAverageData,
@@ -1354,6 +1355,12 @@ class SeasonAverageVolumePipeline:
     # gain would be real new information and a loss would say the market adds
     # nothing the history does not already carry. See
     # ``_enable_market_adp_features`` and ffmodel.features.market.
+    # Leakage-safe injury history and preseason injury snapshot in the
+    # availability regression. Screened at the availability layer first
+    # (docs/injury-availability-2026-08.md): CRPS -2.39% pooled and 3/3 folds,
+    # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
+    # because availability feeds exposure and a gain there is not a gain here.
+    injury_availability_features: bool = False
     market_adp_features: bool = False
     # Per-position rank slopes and drafted effects. Measured and rejected:
     # worse on three drafted-pool holdouts of three at double the fit time,
@@ -1394,6 +1401,26 @@ class SeasonAverageVolumePipeline:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.injury_availability_features:
+            missing = [
+                name
+                for name in INJURY_AVAILABILITY_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                raise ValueError(
+                    f"injury_availability_features is on but {missing} are "
+                    "absent from the player rows; rebuild the cache rather than "
+                    "fitting a model that would silently drop them"
+                )
+            self.availability_model.extra_features = tuple(
+                dict.fromkeys(
+                    (
+                        *self.availability_model.extra_features,
+                        *INJURY_AVAILABILITY_FEATURES,
+                    )
+                )
+            )
         if self.market_adp_interactions and not self.market_adp_features:
             raise ValueError(
                 "market_adp_interactions needs market_adp_features: an "

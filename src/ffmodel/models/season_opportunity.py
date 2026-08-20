@@ -200,14 +200,26 @@ class SeasonSnapShareModel(_FeatureModel):
     # so a coefficient belongs to a combination of features and there is nothing
     # feature-specific to widen.
     #
-    # 0.35 is the historical value. Under it, the implied effects on depth_rank
-    # and is_replacement_player sit 4.4 and 5.5 prior standard deviations from
-    # zero with posterior widths below the prior's own -- the data has moved
-    # them far and the prior is still pulling back. Both are features that
-    # separate backups, and backup quarterback conditional snap share is
-    # over-predicted by 21% (0.253 against 0.209 observed) while starters land
-    # almost exactly (0.856 against 0.867).
-    feature_prior_scale: float = 0.35
+    # 0.35 was the historical value. Under it, the implied effects on
+    # depth_rank and is_replacement_player sit 4.4 and 5.5 prior standard
+    # deviations from zero with posterior widths below the prior's own -- the
+    # data has moved them far and the prior is still pulling back. Both are
+    # features that separate backups, and backup quarterback conditional snap
+    # share was over-predicted by 21% (0.253 against 0.209 observed) while
+    # starters landed almost exactly (0.856 against 0.867).
+    #
+    # Promoted to 3.0 on 2026-08-20. Selected by a plateau rule on held-out snap
+    # MAE, then confirmed on the shipping configuration and accepted by the
+    # gate on every stream: snap MAE -3.37% and CRPS -3.18%, target MAE -2.38%
+    # and CRPS -1.39%, carry MAE -1.94% and CRPS -0.94%, each winning three
+    # holdouts of three, with coverage negligible everywhere and no metric
+    # regressing.
+    #
+    # The intermediate verdict said the opposite. It compared this candidate
+    # against a baseline fitted under a different cold_role_scale_mode, and the
+    # check meant to rule that out compared only snap MAE -- the one stream that
+    # setting does not touch. See docs/snap-prior-2026-08.md.
+    feature_prior_scale: float = 3.0
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "SeasonSnapShareModel":
         import pymc as pm

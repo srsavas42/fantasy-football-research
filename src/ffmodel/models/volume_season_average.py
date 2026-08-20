@@ -22,7 +22,7 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
-from ffmodel.features.market import ADP_FEATURES
+from ffmodel.features.market import ADP_FEATURES, ADP_INTERACTION_FEATURES
 from ffmodel.features.season_average import (
     POSTSEASON_FEATURES,
     SeasonAverageData,
@@ -1355,6 +1355,11 @@ class SeasonAverageVolumePipeline:
     # nothing the history does not already carry. See
     # ``_enable_market_adp_features`` and ffmodel.features.market.
     market_adp_features: bool = False
+    # Per-position rank slopes and drafted effects. Separate from the flag
+    # above so the interaction is measurable on its own: a linear probe says
+    # these terms are what let an all-rostered fit match a drafted-only one,
+    # and that claim should be falsifiable here rather than assumed.
+    market_adp_interactions: bool = False
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1386,6 +1391,12 @@ class SeasonAverageVolumePipeline:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.market_adp_interactions and not self.market_adp_features:
+            raise ValueError(
+                "market_adp_interactions needs market_adp_features: an "
+                "interaction without its main effects is not a model anyone "
+                "meant to fit"
+            )
         if self.market_adp_features:
             self._enable_market_adp_features(data.player_rows)
         if self.mean_preserving_innovation:
@@ -1543,7 +1554,10 @@ class SeasonAverageVolumePipeline:
         and report a clean +0.00% null. That has already happened twice on this
         branch with other features, so it fails here instead.
         """
-        missing = [name for name in ADP_FEATURES if name not in player_rows.columns]
+        wanted = ADP_FEATURES + (
+            ADP_INTERACTION_FEATURES if self.market_adp_interactions else ()
+        )
+        missing = [name for name in wanted if name not in player_rows.columns]
         if missing:
             raise ValueError(
                 f"market_adp_features is on but {missing} are absent from the "
@@ -1553,7 +1567,7 @@ class SeasonAverageVolumePipeline:
             )
 
         def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
-            return tuple(dict.fromkeys((*existing, *ADP_FEATURES)))
+            return tuple(dict.fromkeys((*existing, *wanted)))
 
         self.snap_model.extra_features = merged(self.snap_model.extra_features)
         self.target_role_model.extra_features = merged(
@@ -1973,7 +1987,10 @@ class SeasonAverageVolumePipeline:
             # Prediction does not need it -- the fitted feature names, fills and
             # projection round-trip on each submodel -- but an artifact that
             # reads the market and does not say so is one nobody can audit.
-            "market_adp": {"enabled": self.market_adp_features},
+            "market_adp": {
+                "enabled": self.market_adp_features,
+                "interactions": self.market_adp_interactions,
+            },
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
                 **(
@@ -2177,6 +2194,9 @@ class SeasonAverageVolumePipeline:
             role_regime_coupling=role_regime_coupling,
             market_adp_features=bool(
                 metadata.get("market_adp", {}).get("enabled", False)
+            ),
+            market_adp_interactions=bool(
+                metadata.get("market_adp", {}).get("interactions", False)
             ),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level

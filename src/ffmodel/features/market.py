@@ -48,6 +48,16 @@ ADP_DEPTH = 300
 
 ADP_FEATURES = ("adp_log_rank", "adp_position_log_rank", "adp_drafted")
 
+# Positions carrying their own rank slope and their own drafted effect. One is
+# left out as the reference, the way position dummies are coded elsewhere in
+# this package; with all four the design would be rank deficient and the SVD
+# would drop a direction anyway.
+INTERACTION_POSITIONS = MODEL_POSITIONS[:-1]
+
+ADP_INTERACTION_FEATURES = tuple(
+    f"adp_log_rank_x_{position.lower()}" for position in INTERACTION_POSITIONS
+) + tuple(f"adp_drafted_x_{position.lower()}" for position in INTERACTION_POSITIONS)
+
 # Resolved from this file rather than the working directory: the frames get
 # built from scripts, notebooks and tests that do not share a cwd, and a
 # relative path would make the feature present or absent depending on where
@@ -188,4 +198,22 @@ def add_market_adp_features(
     out["adp_log_rank"] = np.log(rank.to_numpy(dtype=float))
     out["adp_position_log_rank"] = np.log(position_rank.to_numpy(dtype=float))
     out["adp_drafted"] = drafted.to_numpy(dtype=float)
+
+    # Interactions, because the submodels form a linear predictor with an
+    # additive position effect and cannot otherwise express that points fall
+    # with rank at a different rate for a quarterback than for a running back.
+    # Measured on a linear probe over 2022-2024: adding these to an
+    # all-rostered fit closes its entire MAE gap against the same form fitted
+    # on drafted players only, 57.60 to 55.67 against a 55.68 target.
+    #
+    # There is deliberately no drafted-by-rank term. Every unranked player sits
+    # at the same sentinel, so rank is an exact linear combination of the
+    # intercept, the drafted flag and their product -- the flag already gives
+    # drafted players their own slope, and the interaction adds a column
+    # without adding rank.
+    position_of = out["position"].astype(str).str.upper()
+    for position in INTERACTION_POSITIONS:
+        indicator = position_of.eq(position).to_numpy(dtype=float)
+        out[f"adp_log_rank_x_{position.lower()}"] = indicator * out["adp_log_rank"]
+        out[f"adp_drafted_x_{position.lower()}"] = indicator * out["adp_drafted"]
     return out

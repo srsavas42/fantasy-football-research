@@ -84,6 +84,22 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force preseason ADP out, for the paired arm of the ablation",
     )
     parser.add_argument(
+        "--market-adp-interactions",
+        dest="market_adp_interactions",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give each position its own ADP rank slope and drafted effect "
+             "(requires --market-adp)",
+    )
+    parser.add_argument(
+        "--no-market-adp-interactions",
+        dest="market_adp_interactions",
+        action="store_const",
+        const=False,
+        help="force the per-position ADP terms off",
+    )
+    parser.add_argument(
         "--innovation-cap",
         type=float,
         default=None,

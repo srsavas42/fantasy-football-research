@@ -234,3 +234,71 @@ Whether to accept a market-following model at all is a product judgement the
 gate cannot make. The metrics say yes; the cost is that the projection stops
 being independent of consensus, and any future claim about beating ADP has to
 be worded around that.
+
+## Following the three leads (2026-08-20)
+
+The gap decomposition left three candidate causes. All three were tried.
+
+### Interaction terms: implemented, and they do not help
+
+`market_adp_interactions` gives each position its own rank slope and its own
+drafted effect — the terms a linear probe said would close the population gap
+entirely on MAE (55.67 against a 55.68 drafted-only target). All nine ADP
+columns verified present in all four rooms.
+
+On the first holdout the pipeline moved the **wrong way**: drafted-pool MAE
++1.57% and CRPS +0.64% against plain ADP, and the fold took 1382s against 734s.
+One fold, and an indicative rather than controlled comparison — the arms sit on
+caches differing by the six new columns, and `adpon2`/`adpoff2` on the matching
+cache are the real control. But the probe predicted a gain and the model
+delivered a loss, which is the interesting direction.
+
+### Attenuation: refuted
+
+`scripts/measure_adp_attenuation.py` fits the snap model as shipped, reads the
+implied per-feature coefficients back through the SVD projection, and compares
+them against an unregularized least-squares fit of the same response on the same
+rows, with the same nuisance structure.
+
+| | median coefficient kept |
+|---|---:|
+| ADP columns (3) | **1.13x** |
+| every other feature (15) | 0.58x |
+| every other, excluding the collinear pair (13) | 0.59x |
+
+The prior is binding on the ordinary features — they keep 58% of what free
+least squares would give them — and **not binding on ADP at all**. The three ADP
+columns come through at full strength or slightly amplified: `adp_drafted` 0.310
+against 0.362, `adp_log_rank` −0.306 against −0.271, `adp_position_log_rank`
+0.121 against 0.101.
+
+Nothing is diluting the ADP signal. The hypothesis behind task 42 was wrong.
+
+A note on reading this table: a root-mean-square comparison reports the non-ADP
+features as 7% kept, which is an artifact. `depth_rank` and
+`is_replacement_player` both separate backups from starters and are nearly
+collinear, so free least squares hands them cancelling coefficients of −15.8 and
++16.2 whose difference is identified and whose levels are not. The median ratio
+is the honest statistic; the magnitude ratio measures the collinearity.
+
+Scope: one submodel, one fold. The carry and target allocators have not been
+checked the same way.
+
+### What is left: the target, not the features
+
+By elimination and by evidence, the deficit is neither the prior nor the terms.
+It is that these columns are being asked the wrong question.
+
+ADP predicts **fantasy points** — that is what a draft board is a forecast of,
+and it is what the rank curve regresses on directly. The pipeline never
+regresses points on anything. It uses ADP to predict *snap share*, then
+composes: snap share to role share to volume, multiplied by a separately fitted
+efficiency posterior, aggregated to points. Every stage is individually
+defensible and the composition is where the accuracy goes.
+
+That is an architectural finding rather than a feature one, and it is also why
+richer ADP terms in the snap model did not help: a better exposure projection
+cannot recover what the composition loses. It suggests the next thing to measure
+is the composition itself — score the pipeline's own volume and efficiency
+posteriors against realised volume and efficiency, and find which stage's error
+dominates the points error — before any further work on inputs.

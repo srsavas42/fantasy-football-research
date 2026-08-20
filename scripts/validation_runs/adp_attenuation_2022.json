@@ -1,0 +1,139 @@
+{
+  "features": [
+    {
+      "feature": "prior_snap_share",
+      "is_adp": false,
+      "model": 0.023289646882390182,
+      "ratio": -1.2037456136161215,
+      "unregularized": -0.019347648389286116
+    },
+    {
+      "feature": "prior_availability",
+      "is_adp": false,
+      "model": 0.03917215749344887,
+      "ratio": 0.5804371507713405,
+      "unregularized": 0.06748733681397401
+    },
+    {
+      "feature": "age",
+      "is_adp": false,
+      "model": -0.16149939093773155,
+      "ratio": 0.5305476114548197,
+      "unregularized": -0.30440131564230877
+    },
+    {
+      "feature": "experience",
+      "is_adp": false,
+      "model": 0.10905585247038933,
+      "ratio": 0.6261534493778604,
+      "unregularized": 0.17416793372095304
+    },
+    {
+      "feature": "team_change",
+      "is_adp": false,
+      "model": -0.048416291057502545,
+      "ratio": 1.0777437518942987,
+      "unregularized": -0.044923750170115614
+    },
+    {
+      "feature": "cold_start",
+      "is_adp": false,
+      "model": -0.1333864611564466,
+      "ratio": 0.8426197795076241,
+      "unregularized": -0.15829970337794533
+    },
+    {
+      "feature": "roster_active",
+      "is_adp": false,
+      "model": 0.013918003135676267,
+      "ratio": -5.207029005945345,
+      "unregularized": -0.002672925985199007
+    },
+    {
+      "feature": "roster_reserve",
+      "is_adp": false,
+      "model": -0.013918003135677875,
+      "ratio": -5.207029005454886,
+      "unregularized": 0.002672925985451083
+    },
+    {
+      "feature": "depth_rank",
+      "is_adp": false,
+      "model": -0.7327174232650687,
+      "ratio": 0.04636328393584649,
+      "unregularized": -15.803829260216766
+    },
+    {
+      "feature": "qb_listed_starter",
+      "is_adp": false,
+      "model": 0.45388906396687667,
+      "ratio": 0.6236120618708134,
+      "unregularized": 0.7278388147356003
+    },
+    {
+      "feature": "is_replacement_qb",
+      "is_adp": false,
+      "model": 0.11033039184784948,
+      "ratio": 0.6930557455746683,
+      "unregularized": 0.15919410891885136
+    },
+    {
+      "feature": "is_replacement_player",
+      "is_adp": false,
+      "model": 1.1207641008431592,
+      "ratio": 0.0689808744902295,
+      "unregularized": 16.24746147574434
+    },
+    {
+      "feature": "prior_snap_share_3yr",
+      "is_adp": false,
+      "model": 0.34403072353054204,
+      "ratio": 0.6969573731365889,
+      "unregularized": 0.493618027143131
+    },
+    {
+      "feature": "prior_snap_share_trend",
+      "is_adp": false,
+      "model": 0.004735112694006086,
+      "ratio": 0.581453907616817,
+      "unregularized": 0.008143573603991608
+    },
+    {
+      "feature": "prior_availability_3yr",
+      "is_adp": false,
+      "model": -0.09805549566558264,
+      "ratio": 0.5938764743805429,
+      "unregularized": -0.16511092776972142
+    },
+    {
+      "feature": "adp_log_rank",
+      "is_adp": true,
+      "model": -0.3059409030709968,
+      "ratio": 1.1292090541832451,
+      "unregularized": -0.27093380268039324
+    },
+    {
+      "feature": "adp_position_log_rank",
+      "is_adp": true,
+      "model": 0.12086366369044152,
+      "ratio": 1.1950960830215271,
+      "unregularized": 0.10113300964460145
+    },
+    {
+      "feature": "adp_drafted",
+      "is_adp": true,
+      "model": 0.31045142917960156,
+      "ratio": 0.8582095216125651,
+      "unregularized": 0.36174316569719145
+    }
+  ],
+  "holdout": 2022,
+  "interactions": false,
+  "prior_scale": 0.35,
+  "rms": {
+    "adp_free": 0.26738930981078196,
+    "adp_model": 0.2611436075241809,
+    "other_free": 5.8578842438780825,
+    "other_model": 0.38294865755019736
+  }
+}

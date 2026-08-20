@@ -7,7 +7,7 @@ layer first, before it is allowed to change the accepted volume pipeline.
 Example:
 
     python scripts/validate_injury_availability.py --draws 300 --tune 300 \
-        --chains 2 --nuts-sampler nutpie --report-json reports/injury.json
+        --chains 2 --report-json reports/injury.json
 """
 
 from __future__ import annotations
@@ -98,7 +98,12 @@ def main(argv=None) -> int:
     parser.add_argument("--draws", type=int, default=300)
     parser.add_argument("--tune", type=int, default=300)
     parser.add_argument("--chains", type=int, default=2)
-    parser.add_argument("--nuts-sampler", choices=("pymc", "nutpie"), default="nutpie")
+    # Defaulted to nutpie, which is not installed here and is not a declared
+    # dependency, so every invocation of this script has died on an ImportError
+    # before reaching a fit. That is the most likely reason it has no output in
+    # validation_runs despite being written to produce some. pymc is the sampler
+    # every other validation on this branch uses.
+    parser.add_argument("--nuts-sampler", choices=("pymc", "nutpie"), default="pymc")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cache-dir", type=Path, default=None,
                         help="use prebuilt walk-forward frames instead of a fresh "

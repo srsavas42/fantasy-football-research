@@ -402,3 +402,50 @@ Two candidate fixes, neither tested:
 Caveat on the numbers above: two chains at 400 draws, and the sampler warned on
 R-hat. The block-level contrast (0.25x against 1.13x) is large enough to survive
 that; individual coefficients from this run should not be quoted.
+
+### The re-encoding does not rescue it, and the terms were never worth much
+
+`scripts/probe_adp_encoding.py` compares the two parameterisations under ridge —
+which *is* the Gaussian prior: the posterior mean of a Normal likelihood with a
+`Normal(0, tau)` coefficient prior is the ridge solution at
+`lambda = sigma^2 / tau^2` — sweeping lambda so the answer does not depend on
+pinning the noise scale down. Scored on the snap model's own response, rows and
+filter, **with the model's full feature set present**.
+
+| lambda | no interaction | deviations | absolute |
+|---:|---:|---:|---:|
+| 0 | 0.9348 | 0.9352 | 0.9352 |
+| 10 | 0.9483 | 0.9470 | **0.9448** |
+| 100 | 0.9507 | 0.9479 | **0.9473** |
+| 1000 | 0.9491 | **0.9464** | 0.9500 |
+| best over lambda | **0.9348** | 0.9352 | 0.9352 |
+
+At `lambda = 0` all three agree to four decimals, as they must — the encodings
+span the same space. The divergence at moderate lambda is real and the absolute
+encoding does handle the penalty better, which confirms the parameterisation
+diagnosis. It does not matter, because **both interaction encodings are worse
+than no interaction at every lambda**, including their own optima.
+
+#### The earlier −4.11% was an artifact
+
+The ladder that motivated all of this fitted `rank + position + drafted` and
+nothing else. In that feature-poor setting the interaction is worth 4.11% on
+logit snap share. With `prior_snap_share`, `prior_snap_share_3yr`, `depth_rank`,
+`is_replacement_player`, `qb_listed_starter` and the rest of `SNAP_FEATURES`
+present — the setting the submodel actually fits in — it is worth **+0.04%**,
+which is to say nothing.
+
+Whatever the market's positional structure knows about exposure, the usage
+history already knows. The interaction was measured in a room the model does not
+live in.
+
+That is the honest cause. The collinearity finding above is real and reproducible
+— the block does collapse from 1.13x to 0.25x — but it is the mechanism for a
+term that had nothing to contribute in the first place. Both encodings are
+recorded as tested and rejected; `market_adp_interactions` should stay off and
+`ADP_INTERACTION_FEATURES` is dead weight unless something else motivates it.
+
+**Method note for the next feature.** Two probes in this document reached
+opposite conclusions about the same terms, and the difference was which other
+features were in the design. A probe run against a subset of the model's inputs
+measures the subset, not the model.

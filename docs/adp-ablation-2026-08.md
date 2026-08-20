@@ -156,9 +156,13 @@ The uncomfortable reading is the right one: **on the players people draft, this
 model is not beating consensus.** Adding ADP as a covariate narrows the gap from
 8.9% to 8.1% MAE, which is progress in the right direction and nowhere near
 enough. The model now has the better signal in its design matrix and is still
-turning it into a worse forecast — the feature enters four submodels
-standardized, SVD-rotated and under a shared prior, competing with a dozen
-others, and its influence is plainly being attenuated on the way through.
+turning it into a worse forecast.
+
+The obvious explanation — that the feature is being shrunk on its way through
+four submodels under a shared prior — was written here first and is **wrong**.
+It was measured afterwards and refuted: the ADP columns keep 113% of their
+unregularized magnitude while everything else keeps 58%. See
+[Following the three leads](#following-the-three-leads-2026-08-20).
 
 Three things the comparison does not establish, stated so they are not used to
 explain the result away:

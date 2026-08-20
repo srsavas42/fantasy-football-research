@@ -56,6 +56,38 @@ _spec.loader.exec_module(_adp_only)
 WEIGHTS = np.round(np.arange(0.0, 1.0001, 0.05), 2)
 
 
+def slope_weight(folds: dict, earlier: list[int]) -> float:
+    """Variance-optimal weight, estimated as a regression slope.
+
+    For two forecasts the weight that minimises the combined error variance is
+    the coefficient from regressing one forecast's error on the difference
+    between them, which here is exactly ``beta`` in
+
+        observed - curve = alpha + beta * (model - curve)
+
+    So the "how much of the model's disagreement is right" question and the "how
+    much weight should the model get" question have the same answer, and beta
+    estimates it directly from every row rather than by scanning a grid against
+    a fold-level summary.
+
+    This matters because the grid rule is a poor estimator on one or two folds:
+    it picks the minimum of a noisy curve computed from a handful of aggregate
+    numbers, while this uses several hundred rows. The preference is on those
+    grounds and not on the observed outcome -- but it was formed *after* seeing
+    that the grid's weights were too low, so this rule is validated on 2025
+    rather than being credited from the folds that suggested it.
+
+    Clipped to [0, 1]: a negative weight would mean betting against the model,
+    which is a different claim needing its own evidence, and above one would
+    mean extrapolating past it.
+    """
+    x = np.concatenate([folds[h]["model"].mean(axis=1) - folds[h]["curve"].mean(axis=1) for h in earlier])
+    y = np.concatenate([folds[h]["observed"] - folds[h]["curve"].mean(axis=1) for h in earlier])
+    design = np.column_stack([np.ones(len(x)), x])
+    beta, *_ = np.linalg.lstsq(design, y, rcond=None)
+    return float(np.clip(beta[1], 0.0, 1.0))
+
+
 def score(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
     mean = samples.mean(axis=1)
     return {
@@ -98,6 +130,14 @@ def main(argv=None) -> int:
         "--cache-dir", type=Path, default=Path(".cache/ffmodel-wf-2025-adp2")
     )
     parser.add_argument("--scoring", default="ppr")
+    parser.add_argument(
+        "--weight-rule",
+        choices=("grid", "slope"),
+        default="grid",
+        help="how each holdout's blend weight is estimated from earlier "
+             "holdouts: 'grid' scans CRPS, 'slope' uses the variance-optimal "
+             "regression coefficient",
+    )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
     output = args.output or Path("scripts/validation_runs/market_blend.json")
@@ -156,7 +196,11 @@ def main(argv=None) -> int:
         return mixture(f["model"], f["curve"], w, np.random.default_rng(7))
 
     # Weight chosen on earlier holdouts only.
-    report: dict[str, object] = {"config": config, "correlation": correlations}
+    report: dict[str, object] = {
+        "config": config,
+        "correlation": correlations,
+        "weight_rule": args.weight_rule,
+    }
     ordered = sorted(folds)
     for how in ("average", "mixture"):
         print(f"\n  {how.upper()}\n")
@@ -167,17 +211,20 @@ def main(argv=None) -> int:
         for i, holdout in enumerate(ordered):
             earlier = ordered[:i]
             if earlier:
-                totals = []
-                for w in WEIGHTS:
-                    value = sum(
-                        empirical_crps(
-                            folds[h]["observed"], curve_for(h, w, how)
-                        ).mean()
-                        * len(folds[h]["observed"])
-                        for h in earlier
-                    )
-                    totals.append(value)
-                w = float(WEIGHTS[int(np.argmin(totals))])
+                if args.weight_rule == "slope":
+                    w = slope_weight(folds, earlier)
+                else:
+                    totals = []
+                    for w_try in WEIGHTS:
+                        value = sum(
+                            empirical_crps(
+                                folds[h]["observed"], curve_for(h, w_try, how)
+                            ).mean()
+                            * len(folds[h]["observed"])
+                            for h in earlier
+                        )
+                        totals.append(value)
+                    w = float(WEIGHTS[int(np.argmin(totals))])
                 honest = True
             else:
                 w = float("nan")

@@ -282,15 +282,23 @@ POSTERIOR_MEAN_MODE = {
 
 
 
-# Beyond this, a Beta-Binomial is a Binomial to more decimal places than any
-# prediction here carries, so the likelihood is flat above it and the sampler
-# has nothing to grip. Left unbounded, rec_td_rate ran the concentration to
-# 1.6e19 on the 2020 fold: 178 divergences, bulk ESS 7 of 4000 draws, R-hat
-# 1.54, and a posterior mean with no meaning. The cap does not constrain a
-# healthy fit -- the folds that converge land near 240 -- it only stops the
-# chains wandering in a region where the data cannot tell one value from
-# another.
-CONCENTRATION_CAP = 10_000.0
+# An upper bound on the overdispersion, set to exclude the region where the
+# sampler breaks rather than the region where the parameter stops mattering.
+#
+# Left unbounded, rec_td_rate reached a posterior mean of 1.6e19 on the 2020
+# fold: 178 divergences, bulk ESS 7 of 4000 draws, R-hat 1.54. That value is
+# about fifty prior standard deviations out, so the chains did not find it --
+# they broke, most likely on the precision of the Beta-Binomial log-density at
+# very large alpha and beta.
+#
+# The height was chosen by sweeping it. rec_td_rate converges at 1e4, 1e6 and
+# 1e9 alike, so bounding the parameter at all is what fixes it. What the sweep
+# ruled out was a *tight* bound: at 1e4 the cap sits at twice
+# fumble_lost_rate's 97.5th percentile of 4695 and clips a legitimate
+# posterior, which cost that response four divergences it did not have before.
+# At 1e9 the bound is five orders of magnitude above any posterior mass
+# observed here and fumble_lost_rate returns to zero divergences.
+CONCENTRATION_CAP = 1e9
 
 
 def _concentration(pm, prior: float):

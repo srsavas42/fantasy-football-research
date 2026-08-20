@@ -300,9 +300,45 @@ composes: snap share to role share to volume, multiplied by a separately fitted
 efficiency posterior, aggregated to points. Every stage is individually
 defensible and the composition is where the accuracy goes.
 
-That is an architectural finding rather than a feature one, and it is also why
-richer ADP terms in the snap model did not help: a better exposure projection
-cannot recover what the composition loses. It suggests the next thing to measure
-is the composition itself — score the pipeline's own volume and efficiency
-posteriors against realised volume and efficiency, and find which stage's error
-dominates the points error — before any further work on inputs.
+That reading was measured next, and it is **also wrong**. See below.
+
+### Composition: refuted too
+
+`scripts/test_composition_cost.py` holds the estimator, the information set and
+the machinery fixed — a per-position log fit on draft rank with residuals
+resampled from nearby ranks — and varies only the route to points.
+
+| route to points | MAE | CRPS | bias | cov95 |
+|---|---:|---:|---:|---:|
+| direct: points on rank | 54.70 | 38.35 | −3.07 | 0.946 |
+| composed, independent draws | 55.01 | 38.44 | +2.63 | 0.967 |
+| composed, dependence kept | 54.90 | 38.42 | −2.26 | 0.953 |
+
+Projecting opportunity and points-per-opportunity separately and multiplying
+costs **0.6% MAE** drawing them independently and **0.4%** drawing both
+residuals from the same training player. Essentially nothing.
+
+The dependence arm was included because independent draws lose the covariance
+term in `E[XY]` outright, which is a bias rather than a spread — and the bias
+does flip, +2.63 against −2.26. But the residual correlation between opportunity
+and rate is **−0.040**, so there is almost no covariance to lose, and the two
+arms land in the same place.
+
+Multiplying volume by efficiency is not what costs the model four points of MAE.
+
+### Where that leaves it
+
+Four explanations have now been tested and eliminated:
+
+| hypothesis | verdict | evidence |
+|---|---|---|
+| the rank curve is nonlinear and the model is linear | no | rung 5 scores worse than the log fit |
+| the model lacks a position-by-rank interaction | small | worth 1.09 MAE of a 4.41 deficit |
+| the ADP coefficients are shrunk by the prior | no | 1.13x kept, against 0.58x for everything else |
+| composing volume times efficiency is lossy | no | 0.4% |
+
+What remains is the least exciting and most likely explanation: the pipeline's
+component projections are simply less accurate than a rank curve's, and the
+architecture is not the reason. Testing that needs the pipeline's own per-row
+volume and efficiency predictions scored against realised volume and
+efficiency — which needs a fit that saves them, and has not been done.

@@ -128,3 +128,57 @@ the cheapest thing that would move the question.
 The availability-layer screen still stands on its own — CRPS −2.39% on three
 folds of three, −5.15% on the injury-exposed half. What has not survived is the
 claim that it reaches fantasy points.
+
+## Six holdouts, on a window that finally samples cleanly (2026-08-21)
+
+The three-fold gate accepted with every accuracy metric improving 3/3. Six
+holdouts, all twelve fits on one configuration with **zero divergences in either
+arm**, say something weaker:
+
+| metric | six folds | three folds |
+|---|---:|---:|
+| ppr_drafted/crps | −0.94% ±0.59%, 3/6 | −2.13%, 3/3 |
+| ppr/crps | −0.73% ±0.39%, 4/6 | −1.55%, 3/3 |
+| ppr/mae | −0.55% ±0.39%, 3/6 | −1.35%, 3/3 |
+
+Every one is marked *sign varies*. The effect is roughly half what the narrow
+window reported, and it does not hold its direction across folds. Together with
+the flat 2025 confirmation, six holdouts say **inconclusive**, not established.
+
+`injury_availability_features` stays off.
+
+## The full-season population is the wrong instrument for this question
+
+The gate's only remaining blocker is the population added earlier the same day:
+`ppr_full_season/crps` regresses +0.39%, and its siblings with it. That is not
+evidence against the feature. It is a defect in the diagnostic.
+
+The population selects on **games actually played**. An availability feature
+earns its keep by shading down players who will miss time; restricting the
+scoring to players who did *not* miss time removes precisely the rows it gets
+right and keeps the ones where its adjustment was wrong. A feature that is
+correct on average must look worse inside that group.
+
+The per-fold pattern is the signature:
+
+| fold | full season ΔCRPS | drafted ΔCRPS | all rostered ΔCRPS |
+|---|---:|---:|---:|
+| 2022 | **+1.07%** | −1.40% | −1.32% |
+| 2023 | −0.19% | **−3.27%** | −2.16% |
+| 2024 | **+0.15%** | −1.69% | −1.15% |
+
+On the three folds where the feature helps most, the full-season population
+shows no benefit or a regression. A genuinely harmful feature would hurt every
+population; this one hurts only the one that conditions on the outcome it exists
+to predict.
+
+The comment added with the population says it "conditions on an outcome,
+deliberately" and that "a model that projects availability badly is partly
+excused here". Both true, and both understated the problem: the population is
+not merely lenient toward bad availability modelling, it is **actively biased
+against good availability modelling**, and it should not gate any change to the
+availability layer.
+
+It remains a reasonable instrument for its intended purpose — isolating rate
+accuracy from availability accuracy, which is why it was built — but that
+purpose excludes exactly the feature it was first used on.

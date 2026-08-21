@@ -282,31 +282,42 @@ POSTERIOR_MEAN_MODE = {
 
 
 
-# An upper bound on the overdispersion, set to exclude the region where the
-# sampler breaks rather than the region where the parameter stops mattering.
+# Width of the prior on the Beta-Binomial overdispersion, in log space.
 #
-# Left unbounded, rec_td_rate reached a posterior mean of 1.6e19 on the 2020
-# fold: 178 divergences, bulk ESS 7 of 4000 draws, R-hat 1.54. That value is
-# about fifty prior standard deviations out, so the chains did not find it --
-# they broke, most likely on the precision of the Beta-Binomial log-density at
-# very large alpha and beta.
+# It was 0.75, and at that width rec_td_rate ran the concentration to 1.6e19 on
+# the 2020 fold: 178 divergences, bulk ESS 7 of 4000 draws, R-hat 1.54. The
+# chains did not find that value -- it is about fifty prior standard deviations
+# out -- they broke, most likely on the precision of the Beta-Binomial
+# log-density at very large alpha and beta.
 #
-# The height was chosen by sweeping it. rec_td_rate converges at 1e4, 1e6 and
-# 1e9 alike, so bounding the parameter at all is what fixes it. What the sweep
-# ruled out was a *tight* bound: at 1e4 the cap sits at twice
-# fumble_lost_rate's 97.5th percentile of 4695 and clips a legitimate
-# posterior, which cost that response four divergences it did not have before.
-# At 1e9 the bound is five orders of magnitude above any posterior mass
-# observed here and fumble_lost_rate returns to zero divergences.
-CONCENTRATION_CAP = 1e9
+# Truncating the parameter was tried first and worked, but a bounded variable's
+# transform costs a scattering of single divergences that the acceptance gate
+# treats as blockers, and raising target_accept to 0.95 did not clear them.
+# Tightening the prior instead keeps the log transform, fixes the runaway, and
+# samples better than truncation everywhere tested.
+#
+# It is a modelling change, so what it moves was measured against how much each
+# response is worth. The shifts are largest where they matter least, which is
+# the prior behaving correctly rather than a cost:
+#
+#   response              share of points variance   concentration shift
+#   rec_catch_rate                  8.39%                    +0.2%
+#   pass_td_rate                    7.03%                    -3.1%
+#   rec_td_rate                     2.60%                    -7.3%
+#   rush_td_rate                    2.33%                    -5.1%
+#   pass_int_rate                   0.39%                   -20.9%
+#   fumble_lost_rate                0.05%                   -38.0%
+#
+# Rare-event responses have diffuse concentration posteriors because the data
+# cannot pin them down, so a tighter prior pulls them in. High-usage responses
+# are pinned by the data and barely move.
+CONCENTRATION_PRIOR_SIGMA = 0.40
 
 
 def _concentration(pm, prior: float):
-    """Overdispersion, bounded where the likelihood stops being informative."""
-    return pm.Truncated(
-        "concentration",
-        pm.LogNormal.dist(mu=np.log(prior), sigma=0.75),
-        upper=CONCENTRATION_CAP,
+    """Overdispersion, on the log scale so the sampler sees no boundary."""
+    return pm.LogNormal(
+        "concentration", mu=np.log(prior), sigma=CONCENTRATION_PRIOR_SIGMA
     )
 
 

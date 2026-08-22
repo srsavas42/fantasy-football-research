@@ -152,3 +152,56 @@ def test_missing_directory_leaves_the_columns_off(tmp_path: Path) -> None:
         rows(("Derrick Henry", "RB")), directory=tmp_path / "nope"
     )
     assert not set(ADP_FEATURES) & set(out.columns)
+
+
+def _volume_pipeline():
+    from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
+
+    return SeasonAverageVolumePipeline()
+
+
+def test_the_availability_arm_reaches_the_availability_model_only() -> None:
+    """The promoted arm is availability; the role layers stay on their own flag."""
+    frame = pd.DataFrame(
+        {name: [0.0] for name in ADP_FEATURES} | {"player_id": ["a"]}
+    )
+    pipeline = _volume_pipeline()
+    pipeline._enable_market_adp_availability(frame)
+
+    assert set(ADP_FEATURES) <= set(pipeline.availability_model.extra_features)
+    for model in (
+        pipeline.snap_model,
+        pipeline.target_model,
+        pipeline.carry_model,
+        pipeline.workload_model,
+    ):
+        assert not set(ADP_FEATURES) & set(model.extra_features)
+
+
+def test_a_frame_without_the_board_fails_loudly_now_that_it_is_a_default() -> None:
+    """The columns are required, not optional, and silence is the failure mode.
+
+    ``_matrix`` drops feature names it cannot find. Degrading quietly to the
+    baseline would mean a cache built before these columns existed fits a
+    different model from the one that cleared the gate and says nothing.
+    """
+    pipeline = _volume_pipeline()
+    assert pipeline.market_adp_availability_features is True
+
+    with pytest.raises(ValueError, match="absent from the player rows"):
+        pipeline._enable_market_adp_availability(pd.DataFrame({"player_id": ["a"]}))
+
+
+def test_the_quarterback_arm_leaves_the_starter_model_alone() -> None:
+    """Same question, same inputs -- feeding both would double-count it."""
+    frame = pd.DataFrame(
+        {name: [0.0] for name in ADP_FEATURES} | {"player_id": ["a"]}
+    )
+    pipeline = _volume_pipeline()
+    pipeline._enable_market_adp_qb(frame)
+
+    assert set(ADP_FEATURES) <= set(pipeline.workload_model.extra_features)
+    assert set(ADP_FEATURES) <= set(pipeline.qb_propensity_model.extra_features)
+    starter = getattr(pipeline, "qb_starter_model", None)
+    if starter is not None:
+        assert not set(ADP_FEATURES) & set(getattr(starter, "extra_features", ()))

@@ -1390,7 +1390,14 @@ class SeasonAverageVolumePipeline:
     #
     # Kept a separate flag from ``market_adp_features`` so that arm's measured
     # result stays exactly reproducible.
-    market_adp_availability_features: bool = False
+    #
+    # Promoted 2026-08-22 on the paired 2022-2024 scoring gate, zero divergences
+    # in both arms: pooled MAE -0.93% and CRPS -1.11% winning every holdout,
+    # drafted-pool CRPS -1.44% winning every holdout, undrafted MAE -1.83%
+    # winning every holdout. Drafted-pool MAE is +0.36%/-0.72%/-0.94%, so it
+    # wins two of three rather than all three -- the one exception, and it meets
+    # the two-of-three stability rule rather than needing a waiver.
+    market_adp_availability_features: bool = True
     # The draft board in the quarterback room -- the passing-share softmax, its
     # hurdle, and pass attempts per snap.
     #
@@ -1431,6 +1438,20 @@ class SeasonAverageVolumePipeline:
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
     def fit(self, data: SeasonAverageData, **sample_kwargs) -> "SeasonAverageVolumePipeline":
+        # Input preflight first, before any feature enablement.
+        #
+        # The enablement guards below raise on a frame missing their columns,
+        # which is right, but they were running first: a frame with no usable
+        # volume inputs *and* no ADP columns reported the ADP problem, sending
+        # the reader to rebuild a market feature when the real fault was that
+        # the frame could not be fitted at all. Preflight reports every input
+        # problem at once and should be what a caller sees first.
+        problems = volume_input_problems(data)
+        if problems:
+            raise ValueError(
+                "season-average volume inputs are not fittable:\n  - "
+                + "\n  - ".join(problems)
+            )
         if self.role_regime_coupling and self.regime_likelihood_features:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
         if self.postseason_role_features:
@@ -1478,12 +1499,6 @@ class SeasonAverageVolumePipeline:
         if self.innovation_cap is not None:
             self.target_model.innovation_cap = float(self.innovation_cap)
             self.carry_model.innovation_cap = float(self.innovation_cap)
-        problems = volume_input_problems(data)
-        if problems:
-            raise ValueError(
-                "season-average volume inputs are not fittable:\n  - "
-                + "\n  - ".join(problems)
-            )
         player_rows = data.player_rows
         if self.regime_likelihood_features:
             started = perf_counter()

@@ -100,6 +100,24 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force preseason ADP out, for the paired arm of the ablation",
     )
     parser.add_argument(
+        "--market-adp-availability",
+        dest="market_adp_availability",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give the availability regression the preseason draft board. The "
+             "--market-adp arm deliberately excludes this layer, so its result "
+             "says nothing about this one",
+    )
+    parser.add_argument(
+        "--no-market-adp-availability",
+        dest="market_adp_availability",
+        action="store_const",
+        const=False,
+        help="force the board out of the availability regression, for the "
+             "paired arm",
+    )
+    parser.add_argument(
         "--market-adp-interactions",
         dest="market_adp_interactions",
         action="store_const",

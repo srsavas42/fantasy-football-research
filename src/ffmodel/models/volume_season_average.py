@@ -1370,6 +1370,27 @@ class SeasonAverageVolumePipeline:
     # negative result stays reproducible; see ffmodel.features.market and
     # docs/adp-ablation-2026-08.md before turning it on.
     market_adp_interactions: bool = False
+    # The draft board in the *availability* regression, which the arm above
+    # deliberately excludes.
+    #
+    # The exclusion was reasonable when written -- adding a feature everywhere
+    # at once makes a null uninterpretable -- but it meant the ADP ablation's
+    # null result never tested this layer, and this layer is where the defect
+    # is. Fitting availability alone and scoring it on the rows it was trained
+    # on shows the model reproducing the drafted/undrafted split *in sample*:
+    # -6.7% on drafted and +5.3% on undrafted against a pooled -0.2%. A model
+    # unbiased overall while missing in opposite directions on two halves of
+    # its own training data is not mis-levelled, it is unable to tell the
+    # halves apart, and no intercept correction can fix that.
+    #
+    # The board can. On 2024, held out, drafted-pool bias falls from -8.5% to
+    # -4.1% and the in-sample flip largely collapses (running backs from
+    # -5.6%/+5.3% to -1.4%/+0.5%). Receivers keep about half of theirs, so this
+    # narrows the resolution failure rather than closing it.
+    #
+    # Kept a separate flag from ``market_adp_features`` so that arm's measured
+    # result stays exactly reproducible.
+    market_adp_availability_features: bool = False
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1429,6 +1450,8 @@ class SeasonAverageVolumePipeline:
             )
         if self.market_adp_features:
             self._enable_market_adp_features(data.player_rows)
+        if self.market_adp_availability_features:
+            self._enable_market_adp_availability(data.player_rows)
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
         if self.calibrated_innovation:
@@ -1608,6 +1631,30 @@ class SeasonAverageVolumePipeline:
         )
         self.target_model.extra_features = merged(self.target_model.extra_features)
         self.carry_model.extra_features = merged(self.carry_model.extra_features)
+
+    def _enable_market_adp_availability(self, player_rows: pd.DataFrame) -> None:
+        """Append preseason consensus to the availability regression only.
+
+        Separate from ``_enable_market_adp_features`` because the two answer
+        different questions. That one asks whether the board knows something
+        about *roles* the usage history does not; this asks whether it knows
+        something about *who stays on the field*.
+
+        The same absent-column check, for the same reason: ``_matrix`` drops
+        names it cannot find, so a cache built before these columns existed
+        would fit the baseline and report a clean null.
+        """
+        missing = [name for name in ADP_FEATURES if name not in player_rows.columns]
+        if missing:
+            raise ValueError(
+                f"market_adp_availability_features is on but {missing} are "
+                "absent from the player rows. These frames predate the feature "
+                "-- rebuild the cache rather than fitting a model that would "
+                "silently drop it and report the baseline as a null result"
+            )
+        self.availability_model.extra_features = tuple(
+            dict.fromkeys((*self.availability_model.extra_features, *ADP_FEATURES))
+        )
 
     def _enable_regime_likelihood_features(self) -> None:
         """Append the leakage-safe regime contract to upstream submodels."""
@@ -2020,6 +2067,7 @@ class SeasonAverageVolumePipeline:
             "market_adp": {
                 "enabled": self.market_adp_features,
                 "interactions": self.market_adp_interactions,
+                "availability": self.market_adp_availability_features,
             },
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
@@ -2227,6 +2275,9 @@ class SeasonAverageVolumePipeline:
             ),
             market_adp_interactions=bool(
                 metadata.get("market_adp", {}).get("interactions", False)
+            ),
+            market_adp_availability_features=bool(
+                metadata.get("market_adp", {}).get("availability", False)
             ),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level

@@ -43,6 +43,11 @@ from ffmodel.simulation.scoring import fantasy_points
 
 CARRIED = (
     "season",
+    # The frame's own key. Joining these rows to weekly data on name and team
+    # instead loses every player who changed teams mid-season and every name
+    # nflverse spells two ways, so carry the identifier even though nothing in
+    # the model reads it.
+    "player_id",
     "team",
     "player_name",
     "position",
@@ -98,6 +103,13 @@ def main(argv=None) -> int:
             observed_scoring_rows(rows), args.scoring
         ).to_numpy(float)
         samples = np.asarray(prediction.fantasy_points[args.scoring], dtype=float)
+        # Season points are the product of a per-game rate and an exposure, and
+        # the two answer different questions. Without the exposure draws there
+        # is no way to ask what the model thinks a player scores *per game*,
+        # which is the quantity a drafter comparing two backs actually wants.
+        # Paired draw-for-draw with the points, so a ratio taken per draw keeps
+        # whatever correlation the simulation put between them.
+        games = np.asarray(prediction.volume.games_active, dtype=float)
 
         frame = pd.DataFrame(
             {name: rows[name] for name in CARRIED if name in rows}
@@ -108,7 +120,9 @@ def main(argv=None) -> int:
         # float32 halves the file and is far finer than the sampling noise the
         # draws themselves carry.
         np.savez_compressed(
-            path.with_suffix(".samples.npz"), samples=samples.astype(np.float32)
+            path.with_suffix(".samples.npz"),
+            samples=samples.astype(np.float32),
+            games_active=games.astype(np.float32),
         )
         volume = pipeline.volume_model
         meta = {

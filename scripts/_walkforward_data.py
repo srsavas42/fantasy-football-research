@@ -118,6 +118,22 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
              "paired arm",
     )
     parser.add_argument(
+        "--market-adp-qb",
+        dest="market_adp_qb",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give the quarterback room the preseason draft board: the passing "
+             "share softmax, its hurdle, and pass attempts per snap",
+    )
+    parser.add_argument(
+        "--no-market-adp-qb",
+        dest="market_adp_qb",
+        action="store_const",
+        const=False,
+        help="force the board out of the quarterback room, for the paired arm",
+    )
+    parser.add_argument(
         "--market-adp-interactions",
         dest="market_adp_interactions",
         action="store_const",

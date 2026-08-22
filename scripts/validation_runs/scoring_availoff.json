@@ -9,5 +9,29 @@
     ],
     "team_rows": 352,
     "version": 2
+  },
+  "_settings": {
+    "calibrated_innovation": false,
+    "chains": 4,
+    "cold_role_innovation": null,
+    "cold_role_scale_mode": null,
+    "couple_gate": false,
+    "draws": 1000,
+    "efficiency_exposure_floor": null,
+    "injury_availability": null,
+    "innovation_cap": null,
+    "market_adp": null,
+    "market_adp_availability": false,
+    "market_adp_interactions": null,
+    "mean_preserving_innovation": false,
+    "mean_preserving_layers": null,
+    "no_couple_gate": false,
+    "play_transition": false,
+    "postseason": null,
+    "snap_feature_prior": null,
+    "teammate_quality": false,
+    "tune": 1000,
+    "volume_feature_draws": 200,
+    "volume_feature_estimator": null
   }
 }

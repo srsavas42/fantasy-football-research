@@ -1391,6 +1391,19 @@ class SeasonAverageVolumePipeline:
     # Kept a separate flag from ``market_adp_features`` so that arm's measured
     # result stays exactly reproducible.
     market_adp_availability_features: bool = False
+    # The draft board in the quarterback room -- the passing-share softmax, its
+    # hurdle, and pass attempts per snap.
+    #
+    # Also excluded from the measured ADP arm, and with a clearer story than
+    # most: the room's existing evidence about who starts is ``qb_depth_rank``
+    # and ``qb_listed_starter``, both read off preseason depth charts, which
+    # nflverse itself re-shaped in 2025 and which teams publish without meaning
+    # them. The market's opinion on a starting quarterback is the thing it is
+    # most confident about and least likely to be wrong on.
+    #
+    # Untested at the time of writing. Off, and to stay off until a layer-level
+    # screen and then the scoring gate say otherwise.
+    market_adp_qb_features: bool = False
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1452,6 +1465,8 @@ class SeasonAverageVolumePipeline:
             self._enable_market_adp_features(data.player_rows)
         if self.market_adp_availability_features:
             self._enable_market_adp_availability(data.player_rows)
+        if self.market_adp_qb_features:
+            self._enable_market_adp_qb(data.player_rows)
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
         if self.calibrated_innovation:
@@ -1654,6 +1669,33 @@ class SeasonAverageVolumePipeline:
             )
         self.availability_model.extra_features = tuple(
             dict.fromkeys((*self.availability_model.extra_features, *ADP_FEATURES))
+        )
+
+    def _enable_market_adp_qb(self, player_rows: pd.DataFrame) -> None:
+        """Append preseason consensus to the quarterback room.
+
+        ``QBStarterModel`` is deliberately left out. It reads a fixed feature
+        list with no ``extra_features`` hook, and more to the point it is a
+        within-room categorical over who starts -- the same question the
+        workload softmax already answers continuously, from the same inputs.
+        Adding the board to both would put the same evidence in twice and make
+        an attributable result unattributable.
+        """
+        missing = [name for name in ADP_FEATURES if name not in player_rows.columns]
+        if missing:
+            raise ValueError(
+                f"market_adp_qb_features is on but {missing} are absent from "
+                "the player rows. These frames predate the feature -- rebuild "
+                "the cache rather than fitting a model that would silently "
+                "drop it and report the baseline as a null result"
+            )
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *ADP_FEATURES)))
+
+        self.workload_model.extra_features = merged(self.workload_model.extra_features)
+        self.qb_propensity_model.extra_features = merged(
+            self.qb_propensity_model.extra_features
         )
 
     def _enable_regime_likelihood_features(self) -> None:
@@ -2068,6 +2110,7 @@ class SeasonAverageVolumePipeline:
                 "enabled": self.market_adp_features,
                 "interactions": self.market_adp_interactions,
                 "availability": self.market_adp_availability_features,
+                "qb": self.market_adp_qb_features,
             },
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
@@ -2278,6 +2321,9 @@ class SeasonAverageVolumePipeline:
             ),
             market_adp_availability_features=bool(
                 metadata.get("market_adp", {}).get("availability", False)
+            ),
+            market_adp_qb_features=bool(
+                metadata.get("market_adp", {}).get("qb", False)
             ),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level

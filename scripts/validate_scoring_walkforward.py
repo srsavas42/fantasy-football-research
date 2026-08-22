@@ -88,17 +88,68 @@ def main(argv=None) -> None:
     parser.add_argument(
         "--output-dir", type=Path, default=Path("scripts/validation_runs")
     )
+    parser.add_argument(
+        "--no-resume",
+        dest="resume",
+        action="store_false",
+        help="refit every holdout even if this label already has results from "
+             "the same frame build (the default is to skip finished folds)",
+    )
     args = parser.parse_args(argv)
 
     player_rows, team_rows = load_frames(args.cache_dir)
     coupling = gate_override(args)
     sample_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
 
-    report: dict[str, object] = {
-        "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
+    fingerprint = frames_fingerprint(player_rows, team_rows, args.cache_dir)
+    # Every argument that changes what gets fitted, so a resume cannot splice
+    # two configurations into one arm. The frames fingerprint catches a changed
+    # cache; nothing caught a changed flag, and the failure would be invisible:
+    # the output would name one label and contain folds from two models.
+    settings = {
+        key: (sorted(value) if isinstance(value, (list, tuple)) else value)
+        for key, value in sorted(vars(args).items())
+        if key not in {"label", "output_dir", "resume", "holdouts", "cache_dir"}
+        and not isinstance(value, Path)
     }
+    report: dict[str, object] = {"_frames": fingerprint, "_settings": settings}
     args.output_dir.mkdir(parents=True, exist_ok=True)
     path = args.output_dir / f"scoring_{args.label}.json"
+
+    # Resume. A fold is a quarter-hour of sampling and this container has now
+    # killed three multi-hour runs mid-flight; the per-fold flush below saved
+    # what had finished, but a restart still threw it away by overwriting.
+    #
+    # Only folds from an *identical* frame build are reused. Two caches covering
+    # the same seasons are not the same data -- nflverse revises history -- so
+    # resuming across a rebuild would silently mix two populations inside one
+    # arm, which is exactly the failure the fingerprint exists to catch.
+    done: set[int] = set()
+    if args.resume and path.exists():
+        previous = json.loads(path.read_text(encoding="utf-8"))
+        # A file written before _settings existed has no configuration to check,
+        # so it cannot be shown to match and is not reused.
+        matches = previous.get("_frames") == fingerprint and previous.get(
+            "_settings"
+        ) == settings
+        if matches:
+            for key, value in previous.items():
+                if key.startswith("_"):
+                    continue
+                report[key] = value
+                done.add(int(key))
+            if done:
+                print(
+                    f"[{args.label}] resuming, {sorted(done)} already scored",
+                    flush=True,
+                )
+        else:
+            print(
+                f"[{args.label}] {path} was built from different frames or "
+                "settings; starting over rather than mixing two configurations "
+                "in one arm",
+                flush=True,
+            )
 
     def flush() -> None:
         """Persist after every holdout, not once at the end.
@@ -113,6 +164,8 @@ def main(argv=None) -> None:
 
     flush()
     for holdout in args.holdouts:
+        if holdout in done:
+            continue
         started = time.perf_counter()
         train = SeasonAverageData(
             team_rows[team_rows.season < holdout].copy(),
@@ -145,6 +198,8 @@ def main(argv=None) -> None:
             pipeline.volume_model.market_adp_availability_features = (
                 args.market_adp_availability
             )
+        if args.market_adp_qb is not None:
+            pipeline.volume_model.market_adp_qb_features = args.market_adp_qb
         if args.market_adp_interactions is not None:
             pipeline.volume_model.market_adp_interactions = (
                 args.market_adp_interactions

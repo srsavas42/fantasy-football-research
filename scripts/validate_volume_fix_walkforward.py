@@ -105,6 +105,8 @@ def main(argv=None) -> None:
             pipeline.market_adp_features = args.market_adp
         if args.market_adp_availability is not None:
             pipeline.market_adp_availability_features = args.market_adp_availability
+        if args.market_adp_qb is not None:
+            pipeline.market_adp_qb_features = args.market_adp_qb
         if args.market_adp_interactions is not None:
             pipeline.market_adp_interactions = args.market_adp_interactions
         if args.cold_role_innovation is not None:

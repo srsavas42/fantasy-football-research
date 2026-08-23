@@ -74,6 +74,30 @@ def _stack(posterior, name: str) -> np.ndarray:
     return posterior[name].stack(sample=("chain", "draw")).to_numpy()
 
 
+def _apply_slopes(beta: np.ndarray, X: np.ndarray, position_index) -> np.ndarray:
+    """Linear predictor for a shared slope vector or a per-position one.
+
+    Read off the posterior's own shape rather than a flag, so an artifact
+    fitted one way cannot be served the other. ``(features, draws)`` is the
+    shared vector; ``(positions, features, draws)`` is the hierarchy.
+    """
+    beta = np.asarray(beta, dtype=float)
+    if beta.ndim == 2:
+        return X @ beta
+    if beta.ndim != 3:
+        raise ValueError(
+            f"availability slopes have unexpected shape {beta.shape}; expected "
+            "(features, draws) or (positions, features, draws)"
+        )
+    # One matrix product per position rather than materialising a
+    # (rows, features, draws) array, which for a full frame is gigabytes.
+    out = np.zeros((X.shape[0], beta.shape[-1]), dtype=float)
+    for position in np.unique(position_index):
+        rows = position_index == position
+        out[rows] = X[rows] @ beta[position]
+    return out
+
+
 def _position_effect(pm, name: str, scale: float, size: int):
     raw = pm.Normal(f"{name}_raw", 0.0, scale, shape=size - 1)
     return pm.Deterministic(name, pm.math.dot(_sum_to_zero_basis(size), raw))
@@ -138,6 +162,33 @@ class SeasonAvailabilityModel:
     # the two must be set together; ``SeasonAverageVolumePipeline`` owns that
     # pairing and no caller should set one without the other.
     games_column: str = "games"
+    # Let each position have its own slope vector, drawn around a shared mean.
+    #
+    # The layer carries position-specific *intercepts* and one shared slope
+    # vector. Receivers are 37.9% of all training rows and 60.7% undrafted, so
+    # the shared slope is fitted largely on fringe receivers -- which is the
+    # standing explanation for why they keep about half their drafted/undrafted
+    # shrinkage after the board was added.
+    #
+    # Additive position dummies are the obvious encoding and are the wrong one
+    # here. That is how the role-layer interaction arm was built and it lost on
+    # every holdout, because the dummies are collinear with the main effects and
+    # a shared feature prior cannot hold the opposing coefficients that
+    # requires. A hierarchy has no such problem: each position gets its own
+    # vector, non-centred, with a half-normal on how far positions may drift
+    # from the common mean. If they do not differ the scale shrinks toward zero
+    # and this collapses back to the current model, so it is a generalisation
+    # rather than a different model.
+    #
+    # It has to apply to every slope, not just the market ones. ``_matrix``
+    # projects the design onto its SVD basis, so after projection a column is a
+    # rotation of all the features and there is no "ADP coefficient" to single
+    # out.
+    position_varying_slopes: bool = False
+    # How far a position's slopes may drift from the shared mean. Deliberately
+    # tighter than the slope priors themselves (0.40 and 0.35): the claim being
+    # entertained is that positions differ somewhat, not that they are unrelated.
+    position_slope_scale: float = 0.15
     # New covariates remain opt-in until a multi-fold posterior validation
     # clears the model-promotion gate. See ``validate_injury_availability.py``.
     extra_features: tuple[str, ...] = ()
@@ -208,6 +259,27 @@ class SeasonAvailabilityModel:
             return matrix
         return matrix @ np.asarray(self.feature_projection, dtype=float)
 
+    def _slopes(self, pm, name: str, prior: float, features: int):
+        """One shared slope vector, or one per position drawn around a shared mean.
+
+        Non-centred on purpose. A centred hierarchy with few positions and a
+        small between-position scale is the classic funnel, and this sampler is
+        already run at target_accept 0.92 because the layer is not easy.
+        """
+        if not self.position_varying_slopes:
+            return pm.Normal(f"{name}_beta", 0.0, prior, shape=features)
+        mean = pm.Normal(f"{name}_beta_mu", 0.0, prior, shape=features)
+        scale = pm.HalfNormal(f"{name}_beta_sd", self.position_slope_scale)
+        offset = pm.Normal(
+            f"{name}_beta_z", 0.0, 1.0, shape=(len(self.positions), features)
+        )
+        return pm.Deterministic(f"{name}_beta", mean + scale * offset)
+
+    def _linear(self, pm, matrix, beta, position_index):
+        if not self.position_varying_slopes:
+            return pm.math.sum(matrix * beta, axis=1)
+        return pm.math.sum(matrix * beta[position_index], axis=1)
+
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "SeasonAvailabilityModel":
         import pymc as pm
 
@@ -245,11 +317,9 @@ class SeasonAvailabilityModel:
             any_position_effect = _position_effect(
                 pm, "any_position_effect", 0.40, len(self.positions)
             )
-            any_beta = pm.Normal(
-                "any_beta", 0.0, 0.40, shape=X.shape[1]
-            )
+            any_beta = self._slopes(pm, "any", 0.40, X.shape[1])
             any_eta = any_intercept + any_position_effect[position_index]
-            any_eta = any_eta + pm.math.sum(X * any_beta, axis=1)
+            any_eta = any_eta + self._linear(pm, X, any_beta, position_index)
             pm.Bernoulli(
                 "played_obs", p=pm.math.sigmoid(any_eta), observed=played.astype(int)
             )
@@ -258,9 +328,7 @@ class SeasonAvailabilityModel:
             rate_position_effect = _position_effect(
                 pm, "rate_position_effect", 0.35, len(self.positions)
             )
-            rate_beta = pm.Normal(
-                "rate_beta", 0.0, 0.35, shape=X.shape[1]
-            )
+            rate_beta = self._slopes(pm, "rate", 0.35, X.shape[1])
             concentration_shape = (
                 len(self.positions) if self.position_specific_concentration else None
             )
@@ -273,7 +341,9 @@ class SeasonAvailabilityModel:
             rate_eta = (
                 rate_intercept + rate_position_effect[position_index[conditional]]
             )
-            rate_eta = rate_eta + pm.math.sum(X[conditional] * rate_beta, axis=1)
+            rate_eta = rate_eta + self._linear(
+                pm, X[conditional], rate_beta, position_index[conditional]
+            )
             rate_probability = pm.math.sigmoid(rate_eta)
             conditional_concentration = (
                 rate_concentration[position_index[conditional]]
@@ -337,13 +407,17 @@ class SeasonAvailabilityModel:
             )
         any_eta = _stack(post, "any_intercept")[None, :]
         any_eta = any_eta + _stack(post, "any_position_effect")[position_index, :]
-        any_eta = any_eta + X @ _stack(post, "any_beta")
+        any_eta = any_eta + _apply_slopes(
+            _stack(post, "any_beta"), X, position_index
+        )
         any_probability = 1.0 / (
             1.0 + np.exp(-np.clip(any_eta, -20.0, 20.0))
         )
         rate_eta = _stack(post, "rate_intercept")[None, :]
         rate_eta = rate_eta + _stack(post, "rate_position_effect")[position_index, :]
-        rate_eta = rate_eta + X @ _stack(post, "rate_beta")
+        rate_eta = rate_eta + _apply_slopes(
+            _stack(post, "rate_beta"), X, position_index
+        )
         rate_mean = 1.0 / (
             1.0 + np.exp(-np.clip(rate_eta, -20.0, 20.0))
         )

@@ -110,10 +110,18 @@ def main(argv=None) -> int:
              "-- see _enable_market_adp_features -- so its null result says "
              "nothing about this arm",
     )
+    parser.add_argument(
+        "--position-slopes",
+        action="store_true",
+        help="give each position its own slope vector, drawn around a shared "
+             "mean, instead of one vector for all four",
+    )
     parser.add_argument("--label", default=None)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
-    label = args.label or ("adp" if args.adp else "base")
+    label = args.label or (
+        ("adp" if args.adp else "base") + ("_pos" if args.position_slopes else "")
+    )
     output = args.output or Path(
         f"scripts/validation_runs/availability_bias_{args.holdout}_{label}.json"
     )
@@ -134,6 +142,7 @@ def main(argv=None) -> int:
                 "them with scripts/augment_cache_features.py --feature market-adp"
             )
         model.extra_features = ADP_FEATURES
+    model.position_varying_slopes = args.position_slopes
     model.fit(train, draws=args.draws, tune=args.draws, chains=4)
     print(f"availability layer fitted ({len(model.feature_names)} features)", flush=True)
 

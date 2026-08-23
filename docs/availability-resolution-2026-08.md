@@ -144,3 +144,53 @@ exposure. Adding it a second time restates what is there.
 
 That is consistent rather than contradictory: ADP helped where the information
 was missing and does nothing where it had already entered. The flag stays off.
+
+## Position-varying slopes: the mechanism was right, the fix is a wash (2026-08-23)
+
+The standing explanation for the receiver residual was that the layer carries
+position-specific *intercepts* and one shared *slope vector*, so with receivers
+at 37.9% of training rows and 60.7% undrafted, the shared slope is fitted
+largely on fringe receivers.
+
+Additive position dummies are the obvious encoding and the wrong one — that is
+how the role-layer interaction arm was built, and it lost on every holdout
+because the dummies are collinear with the main effects and a shared feature
+prior cannot hold the opposing coefficients that requires. Instead each
+position gets its own slope vector drawn around a shared mean, non-centred,
+with a half-normal on how far positions may drift. If they do not differ, the
+scale shrinks to zero and the model collapses back to the pooled one.
+
+It has to apply to every slope. `_matrix` projects the design onto its SVD
+basis, so after projection a column is a rotation of all the features and there
+is no "ADP coefficient" to single out.
+
+Holdout 2024, drafted / undrafted bias, shared → per-position:
+
+| position | in sample | held out |
+|---|---|---|
+| **WR** | −5.4%/+4.8% → **−3.2%/+1.9%** | −4.2%/+1.4% → **−1.4%/−1.6%** |
+| RB | −1.4%/+0.5% → −2.6%/+2.8% | −5.6%/−0.4% → −7.3%/+1.4% |
+| TE | −1.4%/−0.4% → −3.3%/+0.6% | −1.7%/−8.0% → −3.4%/−6.8% |
+| QB | −1.5%/+1.2% → −2.0%/+1.7% | −3.6%/+0.9% → −4.2%/−0.2% |
+| **all** | −2.9%/+1.9% → −2.9%/+1.7% | −4.1%/−1.8% → **−4.0%/−2.3%** |
+
+**The hypothesis is confirmed and the change is still not worth making.**
+Receivers do exactly what the mechanism predicted — their shrinkage halves in
+sample and all but disappears held out. Every other position gets worse, by
+about as much. Pooled drafted bias moves −4.1% to −4.0%: nothing.
+
+The reading is that the three other positions were *benefiting* from the pooled
+slope. Borrowing strength across positions costs receivers, who have enough
+rows to stand alone, and helps quarterbacks and tight ends, who do not. Freeing
+all four trades one for the others.
+
+This does not go to the scoring gate. The layer screen is flat on the
+population that matters, and a gate is an hour of sampling to confirm a null a
+three-minute screen already shows. The flag stays off, kept so the negative
+result stays reproducible.
+
+What would actually address it is asymmetric: pooled slopes for the thin
+positions and free ones for receivers. That is a defensible model — it is what
+the hierarchy would produce on its own given enough data — but choosing which
+positions get freed by looking at this table is selecting on the outcome, and
+the honest version needs the choice made on an inner fold.

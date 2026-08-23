@@ -118,3 +118,29 @@ against a target that is about to change.
 ADP is a forecast. A model that reads it is partly following the market, and a
 gain does not mean the model found something the market had not. It means the
 two together beat the history alone.
+
+## The quarterback room: null (2026-08-23)
+
+The same board given to the passing-share softmax, its hurdle, and pass
+attempts per snap, scored against the promoted configuration on 2022–2024 with
+zero divergences:
+
+| population | MAE | CRPS | folds improved |
+|---|---:|---:|---|
+| all rostered | −0.08% | −0.09% | 2/3, 2/3 |
+| drafted | −0.16% | −0.14% | 2/3, 2/3 |
+| undrafted | +0.07% | −0.00% | 1/3, 2/3 |
+
+Nothing clears the 0.25% materiality floor. This was the highest prior of the
+layers the original ADP arm excluded — the room's evidence about who starts is
+`qb_depth_rank` and `qb_listed_starter`, both read off preseason depth charts —
+and the prior was wrong.
+
+The likely reason is that the information now arrives upstream. Availability is
+ADP-informed as of the promotion above, and the workload softmax takes the
+availability draws as its exposure offset while its gate is coupled to the same
+draws. By the time the room is allocated, the board has already spoken through
+exposure. Adding it a second time restates what is there.
+
+That is consistent rather than contradictory: ADP helped where the information
+was missing and does nothing where it had already entered. The flag stays off.

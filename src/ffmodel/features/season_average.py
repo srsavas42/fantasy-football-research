@@ -848,6 +848,16 @@ def player_preseason_rows(
     out = _merge_postseason_features(out, postseason)
     out["prior_availability"] = _divide(out["prior_games"], out["prior_team_games"])
     out["observed_availability"] = _divide(out["games"], out["team_games"])
+    # The same quantity measured off the field instead of the roster sheet.
+    # Capped at the team's own slate: a player traded mid-season can appear in
+    # more games than either of his teams played, and an availability above one
+    # is not a thing the Beta-Binomial can represent.
+    if "snap_games" in out:
+        out["snap_games"] = np.minimum(
+            pd.to_numeric(out["snap_games"], errors="coerce").fillna(0.0),
+            pd.to_numeric(out["team_games"], errors="coerce"),
+        )
+        out["snap_availability"] = _divide(out["snap_games"], out["team_games"])
     out["prior_target_per_snap"] = _divide(
         out["prior_targets"], out["prior_offense_snaps"]
     )
@@ -1266,6 +1276,7 @@ def _replacement_player_rows(
             offense_snaps=0.0,
             snap_share=0.0,
             qb_snap_share=0.0,
+            snap_games=0.0,
             snap_counts_observed=0,
         )
     else:
@@ -1279,6 +1290,11 @@ def _replacement_player_rows(
             offense_snaps=("offense_snaps", "sum"),
             snap_share=("snap_share", "sum"),
             qb_snap_share=("qb_snap_share", "sum"),
+            # The bucket's exposure is the most any one of its members had, not
+            # the sum: a replacement row stands for "whoever filled this slot",
+            # and adding three backups' weeks together would claim a position
+            # played more games than the team did.
+            snap_games=("snap_games", "max"),
             snap_counts_observed=("snap_counts_observed", "max"),
         ).reset_index()
         snap_totals = support.merge(
@@ -1287,7 +1303,13 @@ def _replacement_player_rows(
     counts = counts.merge(snap_totals, on=TEAM_KEYS + ["position"], how="left")
     observed_snap_team = snap_usage[TEAM_KEYS + ["team_offense_snaps"]].drop_duplicates(TEAM_KEYS)
     counts = counts.merge(observed_snap_team, on=TEAM_KEYS, how="left")
-    for column in ("offense_snaps", "snap_share", "qb_snap_share", "snap_counts_observed"):
+    for column in (
+        "offense_snaps",
+        "snap_share",
+        "qb_snap_share",
+        "snap_games",
+        "snap_counts_observed",
+    ):
         counts[column] = counts[column].fillna(0.0)
 
     counts = counts.merge(team_games, on=TEAM_KEYS, how="left")
@@ -1354,6 +1376,7 @@ def _nflverse_season_snap_usage(
         "team_offense_snaps",
         "snap_share",
         "qb_snap_share",
+        "snap_games",
         "snap_counts_observed",
     ]
     if snaps.empty:
@@ -1402,9 +1425,20 @@ def _nflverse_season_snap_usage(
     )
     out["player_id"] = out["gsis_id"]
     out["player_key"] = crossseason.player_key(out)
+    # Weeks with at least one offensive snap, alongside the season snap total.
+    #
+    # This is the exposure the model should be projecting. ``games`` counts
+    # roster-active weeks, which for a drafted player is within about a game of
+    # the truth but for an undrafted one is measuring employment rather than
+    # participation -- a backup quarterback is on the roster 11.3 weeks and
+    # takes an offensive snap in 4.4. See docs/exposure-target-2026-08.md.
+    out["_played_snap"] = out["offense_snaps"].gt(0).astype(float)
     player = (
         out.groupby(PLAYER_KEYS, dropna=False)
-        .agg(offense_snaps=("offense_snaps", "sum"))
+        .agg(
+            offense_snaps=("offense_snaps", "sum"),
+            snap_games=("_played_snap", "sum"),
+        )
         .reset_index()
     )
     team_snaps = (
@@ -1448,6 +1482,10 @@ def _legacy_season_snap_usage(snaps: pd.DataFrame) -> pd.DataFrame:
         "team_offense_snaps",
         "snap_share",
         "qb_snap_share",
+        # Season totals only: this source has no per-week rows, so weeks with a
+        # snap cannot be counted. Left missing rather than zero-filled, because
+        # zero here would read as "played in no games" for every player.
+        "snap_games",
         "snap_counts_observed",
     ]
     if snaps.empty:
@@ -1462,6 +1500,7 @@ def _legacy_season_snap_usage(snaps: pd.DataFrame) -> pd.DataFrame:
     ).fillna(0.0)
     values = out.get("snap_pct", pd.Series(np.nan, index=out.index)).astype(str).str.rstrip("%")
     out["snap_share"] = pd.to_numeric(values, errors="coerce")
+    out["snap_games"] = np.nan
     if out["snap_share"].dropna().gt(1.0).any():
         out["snap_share"] /= 100.0
     implied_team_snaps = np.divide(
@@ -1501,6 +1540,7 @@ def _merge_snap_usage(rows: pd.DataFrame, snaps: pd.DataFrame) -> pd.DataFrame:
         "team_offense_snaps",
         "snap_share",
         "qb_snap_share",
+        "snap_games",
         "snap_counts_observed",
     ]
     out = out.drop(columns=[column for column in labels if column in out], errors="ignore")
@@ -1512,7 +1552,17 @@ def _merge_snap_usage(rows: pd.DataFrame, snaps: pd.DataFrame) -> pd.DataFrame:
     observed_teams = snaps[TEAM_KEYS].drop_duplicates().assign(_snaps_available=1)
     out = out.merge(observed_teams, on=TEAM_KEYS, how="left")
     available = out["_snaps_available"].eq(1)
-    for column in ("offense_snaps", "snap_share", "qb_snap_share"):
+    # Zero, not a fallback to roster games. A player with no row in a covered
+    # team-season is a player who took no offensive snap: across 2015-2025 those
+    # rows average 1.70 roster games and 0.01 games with a stat line, and 3.7%
+    # of them were drafted. Filling them from ``games`` would put the very bias
+    # this column exists to remove back into 14.5% of the frame.
+    for column in ("offense_snaps", "snap_share", "qb_snap_share", "snap_games"):
+        if column == "snap_games" and not snaps[column].notna().any():
+            # A source that cannot count weeks leaves this missing. Filling it
+            # would say every player appeared in no games, which is a far worse
+            # claim than admitting the column is unavailable.
+            continue
         out.loc[available, column] = out.loc[available, column].fillna(0.0)
     out["snap_counts_observed"] = available.astype(int)
     return out.drop(columns="_snaps_available")

@@ -32,10 +32,16 @@ import pandas as pd
 
 from ffmodel.features.market import ADP_FEATURES, add_market_adp_features
 from ffmodel.features.season_efficiency import add_teammate_quality_features
+from ffmodel.features.snaps import SNAP_EXPOSURE_FEATURES, add_snap_exposure
 
 BUILDERS = {
     "market-adp": (add_market_adp_features, ADP_FEATURES),
     "teammate-quality": (add_teammate_quality_features, ("teammate_qb_quality_signal",)),
+    # Unlike the others this one is not a pure function of columns the cache
+    # already has -- it reads the weekly snap feed, so it needs the network.
+    # It still belongs here rather than in a cache rebuild, for the reason at
+    # the top of this file: the point is to change one column and nothing else.
+    "snap-exposure": (add_snap_exposure, SNAP_EXPOSURE_FEATURES),
 }
 
 

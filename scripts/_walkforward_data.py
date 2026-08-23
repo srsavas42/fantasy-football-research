@@ -118,6 +118,17 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
              "paired arm",
     )
     parser.add_argument(
+        "--availability-target",
+        choices=("roster", "snap"),
+        default=None,
+        help="which exposure the availability and snap layers are built on: "
+             "'roster' is games (roster-active weeks, the historical default), "
+             "'snap' is snap_games (weeks with an offensive snap). Unset keeps "
+             "the model's own value. Note that this changes what availability "
+             "*means*, so layer-level availability metrics are not comparable "
+             "across it -- judge it on total season points",
+    )
+    parser.add_argument(
         "--market-adp-qb",
         dest="market_adp_qb",
         action="store_const",

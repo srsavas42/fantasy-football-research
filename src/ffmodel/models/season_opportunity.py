@@ -220,6 +220,10 @@ class SeasonSnapShareModel(_FeatureModel):
     # check meant to rule that out compared only snap MAE -- the one stream that
     # setting does not touch. See docs/snap-prior-2026-08.md.
     feature_prior_scale: float = 3.0
+    # The exposure this model's conditional rate is relative to. Paired with
+    # ``SeasonAvailabilityModel.games_column`` by the volume pipeline; see the
+    # note there for why they cannot be set independently.
+    availability_column: str = "observed_availability"
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "SeasonSnapShareModel":
         import pymc as pm
@@ -233,8 +237,13 @@ class SeasonSnapShareModel(_FeatureModel):
             out.get("snap_share", pd.Series(np.nan, index=out.index)),
             errors="coerce",
         )
+        # Must match whatever ``SeasonAvailabilityModel`` was fitted against:
+        # this divides the season snap share by the exposure to recover a
+        # per-game rate, and at prediction time the pipeline multiplies that
+        # rate back by the availability model's draws. A mismatch would divide
+        # by one exposure and multiply by another.
         availability = pd.to_numeric(
-            out.get("observed_availability", pd.Series(np.nan, index=out.index)),
+            out.get(self.availability_column, pd.Series(np.nan, index=out.index)),
             errors="coerce",
         )
         valid = snap_observed & snap_share.gt(0) & availability.gt(0)

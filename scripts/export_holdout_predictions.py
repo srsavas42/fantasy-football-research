@@ -59,6 +59,57 @@ CARRIED = (
 )
 
 
+def _pipeline_config(pipeline) -> dict[str, object]:
+    """The settings a reader would need to know this export's provenance."""
+    volume = pipeline.volume_model
+    return {
+        "snap_feature_prior": float(volume.snap_model.feature_prior_scale),
+        "market_adp_features": bool(volume.market_adp_features),
+        "market_adp_interactions": bool(volume.market_adp_interactions),
+        "market_adp_availability": bool(volume.market_adp_availability_features),
+        "market_adp_qb": bool(volume.market_adp_qb_features),
+        "postseason_role_features": bool(volume.postseason_role_features),
+        "cold_role_innovation": bool(volume.cold_role_innovation),
+        "cold_role_scale_mode": str(volume.cold_role_scale_mode),
+        "calibrated_innovation": bool(volume.calibrated_innovation),
+    }
+
+
+def _already_exported(args, holdout: int) -> bool:
+    """Is a usable export for this fold and this configuration already here?
+
+    Each fold is a quarter-hour of sampling and this container is reclaimed
+    without warning; three attempts at a four-fold export have now been killed
+    partway. Skipping finished folds makes a restart cheap.
+
+    Three things must line up, because a stale file that merely *looks* right is
+    worse than no file: the fold must carry the exposure draws (they were added
+    after some existing exports were written), it must come from the same cache,
+    and it must come from the same model configuration. The last is the one that
+    matters most here -- the whole point of re-exporting is that a default
+    moved, and a resume that ignored the config would skip exactly the folds it
+    was meant to rebuild.
+    """
+    base = args.out_dir / f"{args.label}_{holdout}"
+    meta_path = base.with_suffix(".meta.json")
+    if not (
+        meta_path.exists()
+        and base.with_suffix(".rows.parquet").exists()
+        and base.with_suffix(".samples.npz").exists()
+    ):
+        return False
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if meta.get("cache_dir") != str(args.cache_dir) or meta.get("scoring") != args.scoring:
+        return False
+    if meta.get("config") != _pipeline_config(SeasonAverageScoringPipeline()):
+        return False
+    with np.load(base.with_suffix(".samples.npz")) as payload:
+        return "games_active" in payload
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--holdouts", type=int, nargs="+", default=[2022, 2023, 2024])
@@ -71,6 +122,13 @@ def main(argv=None) -> int:
     parser.add_argument("--market-adp", action="store_true")
     parser.add_argument("--out-dir", type=Path, default=Path(".cache/holdout-predictions"))
     parser.add_argument("--label", default="shipping")
+    parser.add_argument(
+        "--no-resume",
+        dest="resume",
+        action="store_false",
+        help="re-export every holdout even if a matching one is already on "
+             "disk (the default skips those)",
+    )
     args = parser.parse_args(argv)
 
     player_rows = pd.read_pickle(args.cache_dir / "player_rows.pkl")
@@ -79,6 +137,9 @@ def main(argv=None) -> int:
     sample_kwargs = {"draws": args.draws, "tune": args.draws, "chains": args.chains}
 
     for holdout in args.holdouts:
+        if args.resume and _already_exported(args, holdout):
+            print(f"[{args.label}] {holdout}: already on disk, skipping", flush=True)
+            continue
         started = time.perf_counter()
         train = SeasonAverageData(
             team_rows[team_rows.season < holdout].copy(),
@@ -124,7 +185,6 @@ def main(argv=None) -> int:
             samples=samples.astype(np.float32),
             games_active=games.astype(np.float32),
         )
-        volume = pipeline.volume_model
         meta = {
             "holdout": holdout,
             "scoring": args.scoring,
@@ -132,15 +192,9 @@ def main(argv=None) -> int:
             "draws": int(samples.shape[1]),
             "seconds": round(time.perf_counter() - started, 1),
             "cache_dir": str(args.cache_dir),
-            "config": {
-                "snap_feature_prior": float(volume.snap_model.feature_prior_scale),
-                "market_adp_features": bool(volume.market_adp_features),
-                "market_adp_interactions": bool(volume.market_adp_interactions),
-                "postseason_role_features": bool(volume.postseason_role_features),
-                "cold_role_innovation": bool(volume.cold_role_innovation),
-                "cold_role_scale_mode": str(volume.cold_role_scale_mode),
-                "calibrated_innovation": bool(volume.calibrated_innovation),
-            },
+            # Written by the same function the resume check reads, so the two
+            # cannot drift apart and quietly make every fold look stale.
+            "config": _pipeline_config(pipeline),
         }
         path.with_suffix(".meta.json").write_text(
             json.dumps(meta, indent=2, sort_keys=True), encoding="utf-8"

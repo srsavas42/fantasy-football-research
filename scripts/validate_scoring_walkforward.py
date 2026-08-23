@@ -200,6 +200,8 @@ def main(argv=None) -> None:
             )
         if args.market_adp_qb is not None:
             pipeline.volume_model.market_adp_qb_features = args.market_adp_qb
+        if args.availability_target is not None:
+            pipeline.volume_model.availability_target = args.availability_target
         if args.market_adp_interactions is not None:
             pipeline.volume_model.market_adp_interactions = (
                 args.market_adp_interactions

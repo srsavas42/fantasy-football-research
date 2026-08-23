@@ -1411,6 +1411,22 @@ class SeasonAverageVolumePipeline:
     # Untested at the time of writing. Off, and to stay off until a layer-level
     # screen and then the scoring gate say otherwise.
     market_adp_qb_features: bool = False
+    # Which exposure the availability and snap layers are built on.
+    #
+    # "roster" is ``games``, roster-active weeks, and is what every measurement
+    # in this package was made against. "snap" is ``snap_games``, weeks with at
+    # least one offensive snap.
+    #
+    # The case for changing it is that the roster label means different things
+    # for the two halves of the population -- within a game of the truth for
+    # drafted players, and employment rather than participation for undrafted
+    # ones (an undrafted quarterback: 11.31 roster weeks, 4.36 with a snap).
+    # See ``SeasonAvailabilityModel.games_column``.
+    #
+    # Untested. Off until a paired gate says otherwise, and it changes the
+    # meaning of ``availability`` everywhere downstream, so a comparison across
+    # this setting is not comparing like with like.
+    availability_target: str = "roster"
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1454,6 +1470,7 @@ class SeasonAverageVolumePipeline:
             )
         if self.role_regime_coupling and self.regime_likelihood_features:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
+        self._apply_availability_target(data.player_rows)
         if self.postseason_role_features:
             self._enable_postseason_role_features()
         if self.injury_availability_features:
@@ -1661,6 +1678,64 @@ class SeasonAverageVolumePipeline:
         )
         self.target_model.extra_features = merged(self.target_model.extra_features)
         self.carry_model.extra_features = merged(self.carry_model.extra_features)
+
+    AVAILABILITY_TARGETS = {
+        "roster": ("games", "observed_availability"),
+        "snap": ("snap_games", "snap_availability"),
+    }
+
+    def _apply_availability_target(self, player_rows: pd.DataFrame) -> None:
+        """Point the availability and snap layers at the same exposure.
+
+        These two settings are one decision. The availability model fits a
+        count out of ``team_games``; the snap model divides the observed season
+        snap share by the matching fraction to get a per-game rate; at
+        prediction time the pipeline multiplies that rate back by the
+        availability draws. Setting one without the other divides by one
+        exposure and multiplies by another, and nothing downstream would raise
+        -- the projection would simply be wrong by the ratio between them,
+        which for undrafted quarterbacks is a factor of 2.6.
+        """
+        try:
+            games_column, availability_column = self.AVAILABILITY_TARGETS[
+                self.availability_target
+            ]
+        except KeyError:
+            raise ValueError(
+                f"availability_target must be one of "
+                f"{sorted(self.AVAILABILITY_TARGETS)}, got "
+                f"{self.availability_target!r}"
+            ) from None
+        missing = [
+            name
+            for name in (games_column, availability_column)
+            if name not in player_rows.columns
+        ]
+        if missing:
+            raise ValueError(
+                f"availability_target={self.availability_target!r} needs "
+                f"{missing}, absent from the player rows. These frames predate "
+                "the column -- rebuild the cache rather than fitting against an "
+                "exposure that is not there"
+            )
+        # Present but empty is the legacy snap source, which has season totals
+        # and no per-week rows to count. The column exists so the schema is
+        # stable; it carries nothing, and fitting against it would make every
+        # player unavailable.
+        empty = [
+            name
+            for name in (games_column, availability_column)
+            if not pd.to_numeric(player_rows[name], errors="coerce").notna().any()
+        ]
+        if empty:
+            raise ValueError(
+                f"availability_target={self.availability_target!r} needs "
+                f"{empty}, which are present but wholly missing. The legacy "
+                "snap source cannot count weeks with a snap; build the frames "
+                "from nflverse to use this target"
+            )
+        self.availability_model.games_column = games_column
+        self.snap_model.availability_column = availability_column
 
     def _enable_market_adp_availability(self, player_rows: pd.DataFrame) -> None:
         """Append preseason consensus to the availability regression only.
@@ -2127,6 +2202,10 @@ class SeasonAverageVolumePipeline:
                 "availability": self.market_adp_availability_features,
                 "qb": self.market_adp_qb_features,
             },
+            # Which exposure the availability and snap layers were fitted
+            # against. A restored artifact that silently reverted to roster
+            # games would divide by one exposure and multiply by another.
+            "availability_target": self.availability_target,
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
                 **(
@@ -2340,6 +2419,7 @@ class SeasonAverageVolumePipeline:
             market_adp_qb_features=bool(
                 metadata.get("market_adp", {}).get("qb", False)
             ),
+            availability_target=str(metadata.get("availability_target", "roster")),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level
             # one only has to agree with what was actually restored.

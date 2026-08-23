@@ -117,6 +117,27 @@ class SeasonAvailabilityModel:
     """Hurdle model for playing at all and games active conditional on playing."""
 
     positions: list[str] = field(default_factory=lambda: list(MODEL_POSITIONS))
+    # Which exposure the model is projecting.
+    #
+    # ``games`` is roster-active weeks. For a drafted player that is within
+    # about a game of the truth, but for an undrafted one it measures
+    # employment rather than participation: over 2022-2025 an undrafted
+    # quarterback is on the roster 11.31 weeks and takes an offensive snap in
+    # 4.36. Fitting one regression to a label that means two different things
+    # for two halves of the population is part of why the layer could not tell
+    # the halves apart.
+    #
+    # ``snap_games`` counts weeks with at least one offensive snap. The obvious
+    # third option, ``stat_activity_games``, is worse than either: it counts a
+    # game only if the player recorded a stat, so a blocking tight end
+    # registers nothing -- undrafted tight ends average 6.23 stat-line games
+    # against 10.87 with a snap.
+    #
+    # Changing this alone is incoherent. ``SeasonSnapShareModel`` divides the
+    # observed snap share by this same exposure to get a conditional rate, so
+    # the two must be set together; ``SeasonAverageVolumePipeline`` owns that
+    # pairing and no caller should set one without the other.
+    games_column: str = "games"
     # New covariates remain opt-in until a multi-fold posterior validation
     # clears the model-promotion gate. See ``validate_injury_availability.py``.
     extra_features: tuple[str, ...] = ()
@@ -191,10 +212,13 @@ class SeasonAvailabilityModel:
         import pymc as pm
 
         out = self._prepare(rows)
-        if not {"games", "team_games"} <= set(out.columns):
-            raise ValueError("availability fitting requires games and team_games")
+        if not {self.games_column, "team_games"} <= set(out.columns):
+            raise ValueError(
+                f"availability fitting requires {self.games_column} and "
+                "team_games"
+            )
         games_total = pd.to_numeric(out["team_games"], errors="coerce").fillna(0)
-        games_active = pd.to_numeric(out["games"], errors="coerce").fillna(0)
+        games_active = pd.to_numeric(out[self.games_column], errors="coerce").fillna(0)
         valid = games_total.gt(0)
         out = out[valid].reset_index(drop=True)
         n = games_total[valid].round().astype(int).to_numpy()

@@ -129,6 +129,23 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
              "across it -- judge it on total season points",
     )
     parser.add_argument(
+        "--market-win-totals",
+        dest="market_win_totals",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give the team layer the preseason Vegas win total, as a "
+             "within-season z-score (requires a cache built with "
+             "augment_cache_features.py --feature win-totals)",
+    )
+    parser.add_argument(
+        "--no-market-win-totals",
+        dest="market_win_totals",
+        action="store_const",
+        const=False,
+        help="force the win totals out of the team layer, for the paired arm",
+    )
+    parser.add_argument(
         "--market-adp-qb",
         dest="market_adp_qb",
         action="store_const",

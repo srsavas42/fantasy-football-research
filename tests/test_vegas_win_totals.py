@@ -165,3 +165,71 @@ def test_devig_is_symmetric():
 def test_a_missing_directory_is_refused(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_win_totals(tmp_path / "nope")
+
+
+def _team_rows(seasons=(2022, 2023)):
+    codes = [
+        "ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN",
+        "DET", "GB", "HOU", "IND", "JAX", "KC", "LAC", "LAR", "LV", "MIA",
+        "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB",
+        "TEN", "WAS",
+    ]
+    return pd.DataFrame(
+        [{"season": s, "team": c} for s in seasons for c in codes]
+    )
+
+
+def _totals_dir(tmp_path, seasons=(2022, 2023)):
+    rows = []
+    for season in seasons:
+        for i, code in enumerate(_team_rows((season,)).team):
+            rows.append((season, code, 4.5 + (i % 10), -110, -110))
+    pd.DataFrame(
+        rows, columns=["season", "team", "line", "over_odds", "under_odds"]
+    ).to_csv(tmp_path / "2003_2022_win_totals.csv", index=False)
+    return tmp_path
+
+
+def test_the_team_feature_is_standardized_within_season(tmp_path):
+    """Pooled standardizing would duplicate the era term already in the model.
+
+    The schedule went 16 to 17 games in 2021 and the average line went with it,
+    so the raw number carries a season trend the team model already has an
+    ``era`` coefficient for.
+    """
+    from ffmodel.features.vegas import add_team_win_totals
+
+    directory = _totals_dir(tmp_path)
+    out = add_team_win_totals(_team_rows(), directory)
+
+    by_season = out.groupby("season")["market_win_total"]
+    assert by_season.mean().abs().max() < 1e-9
+    assert (by_season.std() - 1.0).abs().max() < 0.05
+    # And the raw line is gone -- only the encoded form survives.
+    assert "win_total" not in out.columns
+
+
+def test_a_team_season_with_no_line_is_refused(tmp_path):
+    from ffmodel.features.vegas import add_team_win_totals
+
+    directory = _totals_dir(tmp_path, seasons=(2022,))
+    with pytest.raises(ValueError, match="no win total for these team-seasons"):
+        add_team_win_totals(_team_rows(seasons=(2022, 2023)), directory)
+
+
+def test_the_team_model_refuses_the_flag_without_the_column():
+    """A silent zero would fit the baseline and report itself as the candidate."""
+    from ffmodel.models.volume_season_average import TeamSeasonAverageModel
+
+    model = TeamSeasonAverageModel()
+    model.market_features = True
+    with pytest.raises(ValueError, match="market_win_total is absent"):
+        model._market(pd.DataFrame({"season": [2024], "team": ["KC"]}))
+
+
+def test_the_team_model_reads_zeros_when_the_arm_is_off():
+    from ffmodel.models.volume_season_average import TeamSeasonAverageModel
+
+    model = TeamSeasonAverageModel()
+    rows = pd.DataFrame({"season": [2024, 2024], "team": ["KC", "SF"]})
+    assert (model._market(rows) == 0).all()

@@ -242,3 +242,68 @@ def load_win_totals(directory: Path | str = DEFAULT_WIN_TOTAL_DIR) -> pd.DataFra
             "missing data"
         )
     return out
+
+
+TEAM_MARKET_FEATURES = ("market_win_total", "market_over_probability")
+
+
+def add_team_win_totals(
+    team_rows: pd.DataFrame, directory: Path | str = DEFAULT_WIN_TOTAL_DIR
+) -> pd.DataFrame:
+    """Attach the market's preseason opinion to team-season rows.
+
+    Two columns, and the encoding of the first is the load-bearing choice.
+
+    ``market_win_total`` is standardized **within season**, not pooled. The raw
+    line is not comparable across eras: the schedule went from sixteen games to
+    seventeen in 2021 and the average line went with it, 8.15 to 8.56, which
+    leaves the raw number correlated 0.095 with the season index. The team model
+    already carries an ``era`` term for exactly that drift, so a pooled
+    standardization would hand it a second, partly-collinear copy -- the same
+    shape of mistake the rejected ADP interaction arm made, where a feature
+    collinear with terms already present could not be identified against them.
+    Within-season standardizing takes that correlation to 0.000 and leaves the
+    feature saying only what it should: where this team sits against the rest of
+    its own league-year.
+
+    ``market_over_probability`` is the vig-free chance the team clears its line.
+    It is nearly a restatement of the line's fractional part, which is why it is
+    reported separately rather than folded in -- whether it adds anything beyond
+    the level is a question for the gate, not an assumption to bake in here.
+
+    Every input is preseason. Nothing here reads a realized outcome.
+    """
+    out = team_rows.copy()
+    totals = load_win_totals(directory)
+
+    before = len(out)
+    out = out.merge(
+        totals[["season", "team", "win_total", "over_probability"]],
+        on=["season", "team"],
+        how="left",
+    )
+    if len(out) != before:
+        raise AssertionError(
+            f"the win-total join changed the row count {before} -> {len(out)}; "
+            "the table has duplicate season/team pairs"
+        )
+
+    missing = out["win_total"].isna()
+    if missing.any():
+        pairs = sorted(
+            {(int(s), str(t)) for s, t in zip(out.loc[missing, "season"], out.loc[missing, "team"])}
+        )
+        raise ValueError(
+            f"no win total for these team-seasons: {pairs}. A team-level market "
+            "feature with holes becomes a missingness pattern the model reads as "
+            "information about those teams"
+        )
+
+    grouped = out.groupby("season")["win_total"]
+    spread = grouped.transform("std")
+    out["market_win_total"] = (
+        (out["win_total"] - grouped.transform("mean"))
+        / spread.where(spread > 0, 1.0)
+    ).astype(float)
+    out["market_over_probability"] = out["over_probability"].astype(float)
+    return out.drop(columns=["win_total", "over_probability"])

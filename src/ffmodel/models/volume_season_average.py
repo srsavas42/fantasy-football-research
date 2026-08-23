@@ -231,7 +231,44 @@ class TeamSeasonAverageModel:
     # sum to zero removes the direction entirely, which is what
     # ``_position_effect`` already does for position effects elsewhere.
     sum_to_zero_team_effects: bool = True
+    # The market's preseason opinion on each team, as a within-season z-score of
+    # its win total. This layer has never had a non-play-by-play input, and a
+    # win total is the one market signal that is about *teams* rather than
+    # players, so it is the natural place to ask whether the book knows
+    # something the history does not.
+    #
+    # Standardized within season on purpose -- see add_team_win_totals. The raw
+    # line drifts with the schedule expansion and would partly duplicate the
+    # era term already in every stream.
+    #
+    # Off until measured.
+    market_features: bool = False
+    market_feature_scale: float = 0.15
     idata: object = None
+
+    def _market(self, rows: pd.DataFrame) -> np.ndarray:
+        """The market covariate, or zeros when the arm is off.
+
+        Absent columns raise rather than defaulting to zero: a silent zero is a
+        model that fits the baseline while reporting itself as the candidate,
+        which has happened twice on this branch with other features.
+        """
+        if not self.market_features:
+            return np.zeros(len(rows), dtype=float)
+        if "market_win_total" not in rows:
+            raise ValueError(
+                "market_features is on but market_win_total is absent from the "
+                "team rows; rebuild the cache rather than fitting a model that "
+                "would silently drop it and report the baseline as a null"
+            )
+        values = pd.to_numeric(rows["market_win_total"], errors="coerce")
+        if values.isna().any():
+            raise ValueError(
+                "market_win_total has missing values; a hole in a team-level "
+                "covariate becomes a missingness pattern the model reads as "
+                "information about those teams"
+            )
+        return values.to_numpy(dtype=float)
 
     def _team_effect(self, pm, name: str, scale: float):
         size = len(self.teams)
@@ -292,7 +329,10 @@ class TeamSeasonAverageModel:
             errors="coerce",
         ).fillna(1.0 / (1.0 + np.exp(-self.sack_prior_center)))
         sack_prior = logit(prior_sack.to_numpy(dtype=float)) - self.sack_prior_center
-        return d, team_idx, era, play_prior, pass_prior, sack_prior, target_prior
+        market = self._market(d)
+        return (
+            d, team_idx, era, play_prior, pass_prior, sack_prior, target_prior, market
+        )
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "TeamSeasonAverageModel":
         """Fit season totals with prior-season rates as strictly lagged inputs."""
@@ -306,9 +346,8 @@ class TeamSeasonAverageModel:
             pass_prior,
             sack_prior,
             target_prior,
-        ) = self._design(
-            rows, fit=True
-        )
+            market,
+        ) = self._design(rows, fit=True)
         games = d["games"].to_numpy(dtype=int)
         opportunity_plays = d["opportunity_plays"].to_numpy(dtype=int)
         passes = d["pass_attempts"].to_numpy(dtype=int)
@@ -371,6 +410,11 @@ class TeamSeasonAverageModel:
                 + play_era * era
                 + play_team[team_idx]
             )
+            if self.market_features:
+                play_market = pm.Normal(
+                    "play_market", 0.0, self.market_feature_scale
+                )
+                play_eta = play_eta + play_market * market
             if self.models_play_transition:
                 play_transition_sd = pm.HalfNormal("play_transition_sd", 0.12)
                 play_transition_z = pm.Normal(
@@ -401,6 +445,11 @@ class TeamSeasonAverageModel:
                 + pass_team[team_idx]
                 + pass_transition_z * pass_transition_sd
             )
+            if self.market_features:
+                pass_market = pm.Normal(
+                    "pass_market", 0.0, self.market_feature_scale
+                )
+                pass_eta = pass_eta + pass_market * market
             pm.Binomial(
                 "passes_obs",
                 n=opportunity_plays,
@@ -421,6 +470,11 @@ class TeamSeasonAverageModel:
                     + sack_era * era
                     + sack_team[team_idx]
                 )
+                if self.market_features:
+                    sack_market = pm.Normal(
+                        "sack_market", 0.0, self.market_feature_scale
+                    )
+                    sack_eta = sack_eta + sack_market * market
                 pm.Binomial(
                     "sacks_obs",
                     n=dropbacks[valid_sack],
@@ -443,6 +497,11 @@ class TeamSeasonAverageModel:
                 + target_team[team_idx]
                 + target_transition_z * target_transition_sd
             )
+            if self.market_features:
+                target_market = pm.Normal(
+                    "target_market", 0.0, self.market_feature_scale
+                )
+                target_eta = target_eta + target_market * market
             pm.Binomial(
                 "targets_obs",
                 n=target_n[valid_target],
@@ -475,6 +534,7 @@ class TeamSeasonAverageModel:
             pass_prior,
             sack_prior,
             target_prior,
+            market,
         ) = self._design(rows)
         if games is None:
             games = d.get("games", pd.Series(17, index=d.index)).to_numpy(dtype=int)
@@ -493,6 +553,13 @@ class TeamSeasonAverageModel:
         )
         play_eta = play_eta + era[:, None] * _stack(post, "play_era")[None, :]
         play_eta = play_eta + self._known_effect(post, "play_team", team_idx)
+        # Keyed on the posterior actually containing the coefficient, not on the
+        # flag: an artifact fitted without the market term and served with the
+        # flag on would otherwise look for a variable that is not there.
+        if "play_market" in post:
+            play_eta = play_eta + market[:, None] * _stack(
+                post, "play_market"
+            )[None, :]
         if "play_transition_sd" in post:
             play_eta = play_eta + rng.normal(size=play_eta.shape) * _stack(
                 post, "play_transition_sd"
@@ -503,6 +570,13 @@ class TeamSeasonAverageModel:
         )
         pass_eta = pass_eta + era[:, None] * _stack(post, "pass_era")[None, :]
         pass_eta = pass_eta + self._known_effect(post, "pass_team", team_idx)
+        # Keyed on the posterior actually containing the coefficient, not on the
+        # flag: an artifact fitted without the market term and served with the
+        # flag on would otherwise look for a variable that is not there.
+        if "pass_market" in post:
+            pass_eta = pass_eta + market[:, None] * _stack(
+                post, "pass_market"
+            )[None, :]
         pass_eta = pass_eta + rng.normal(size=pass_eta.shape) * _stack(
             post, "pass_transition_sd"
         )[None, :]
@@ -514,12 +588,26 @@ class TeamSeasonAverageModel:
             )
             sack_eta = sack_eta + era[:, None] * _stack(post, "sack_era")[None, :]
             sack_eta = sack_eta + self._known_effect(post, "sack_team", team_idx)
+            # Keyed on the posterior actually containing the coefficient, not on the
+            # flag: an artifact fitted without the market term and served with the
+            # flag on would otherwise look for a variable that is not there.
+            if "sack_market" in post:
+                sack_eta = sack_eta + market[:, None] * _stack(
+                    post, "sack_market"
+                )[None, :]
         target_eta = _stack(post, "target_intercept")[None, :]
         target_eta = target_eta + (
             target_prior[:, None] * _stack(post, "target_persistence")[None, :]
         )
         target_eta = target_eta + era[:, None] * _stack(post, "target_era")[None, :]
         target_eta = target_eta + self._known_effect(post, "target_team", team_idx)
+        # Keyed on the posterior actually containing the coefficient, not on the
+        # flag: an artifact fitted without the market term and served with the
+        # flag on would otherwise look for a variable that is not there.
+        if "target_market" in post:
+            target_eta = target_eta + market[:, None] * _stack(
+                post, "target_market"
+            )[None, :]
         target_eta = target_eta + rng.normal(size=target_eta.shape) * _stack(
             post, "target_transition_sd"
         )[None, :]
@@ -1427,6 +1515,10 @@ class SeasonAverageVolumePipeline:
     # meaning of ``availability`` everywhere downstream, so a comparison across
     # this setting is not comparing like with like.
     availability_target: str = "roster"
+    # Preseason team win totals in the team layer. The only market input that is
+    # about teams rather than players, and the team layer is the one the ADP work
+    # never reached. Off until measured; see docs/vegas-win-totals-2026-08.md.
+    market_win_total_features: bool = False
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1505,6 +1597,15 @@ class SeasonAverageVolumePipeline:
             self._enable_market_adp_availability(data.player_rows)
         if self.market_adp_qb_features:
             self._enable_market_adp_qb(data.player_rows)
+        if self.market_win_total_features:
+            if "market_win_total" not in data.team_rows.columns:
+                raise ValueError(
+                    "market_win_total_features is on but market_win_total is "
+                    "absent from the team rows. Build them with "
+                    "scripts/augment_cache_features.py --feature win-totals "
+                    "rather than fitting a model that would silently drop it"
+                )
+            self.team_model.market_features = True
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
         if self.calibrated_innovation:
@@ -2206,6 +2307,7 @@ class SeasonAverageVolumePipeline:
             # against. A restored artifact that silently reverted to roster
             # games would divide by one exposure and multiply by another.
             "availability_target": self.availability_target,
+            "market_win_total": self.market_win_total_features,
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
                 **(
@@ -2420,6 +2522,7 @@ class SeasonAverageVolumePipeline:
                 metadata.get("market_adp", {}).get("qb", False)
             ),
             availability_target=str(metadata.get("availability_target", "roster")),
+            market_win_total_features=bool(metadata.get("market_win_total", False)),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level
             # one only has to agree with what was actually restored.

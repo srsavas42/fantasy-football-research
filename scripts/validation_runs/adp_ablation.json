@@ -1,21 +1,21 @@
 {
   "adp_columns_fitted": {
-    "availon": [
+    "vegasoff": [
       "adp_drafted",
       "adp_log_rank",
       "adp_position_log_rank"
     ],
-    "qbon": [
+    "vegason": [
       "adp_drafted",
       "adp_log_rank",
       "adp_position_log_rank"
     ]
   },
-  "baseline": "availon",
-  "candidate": "qbon",
+  "baseline": "vegasoff",
+  "candidate": "vegason",
   "frames": {
-    "cache_dir": ".cache/ffmodel-wf-2025-adp2",
-    "digest": "054fd64b0e0489ca",
+    "cache_dir": ".cache/ffmodel-wf-2025-vegas",
+    "digest": "4bcc452abca9606d",
     "player_rows": 7937,
     "seasons": [
       2015,
@@ -29,165 +29,165 @@
     "ADP drafted": {
       "folds": [
         {
-          "adp_coverage_80": 0.8434782608695652,
+          "adp_coverage_80": 0.8521739130434782,
           "adp_coverage_95": 0.9695652173913043,
-          "adp_crps": 43.05814598583152,
-          "adp_mae": 57.383838760869565,
+          "adp_crps": 43.29504606531522,
+          "adp_mae": 57.77984056521739,
           "base_coverage_80": 0.8478260869565217,
           "base_coverage_95": 0.9695652173913043,
           "base_crps": 43.346244439461955,
           "base_mae": 57.91654497826087,
-          "delta_crps": -0.006646445553842509,
-          "delta_mae": -0.009197824517868951,
+          "delta_crps": -0.0011811490201473064,
+          "delta_mae": -0.002360368925577214,
           "holdout": "2022",
           "n": 230
         },
         {
-          "adp_coverage_80": 0.8392857142857143,
+          "adp_coverage_80": 0.8348214285714286,
           "adp_coverage_95": 0.9553571428571429,
-          "adp_crps": 47.80504931803572,
-          "adp_mae": 63.684453392857144,
+          "adp_crps": 47.68388307130022,
+          "adp_mae": 63.374751941964284,
           "base_coverage_80": 0.8392857142857143,
           "base_coverage_95": 0.9553571428571429,
           "base_crps": 47.84130925081473,
           "base_mae": 63.74220892857142,
-          "delta_crps": -0.0007579209964533577,
-          "delta_mae": -0.0009060799223164433,
+          "delta_crps": -0.0032905909553850297,
+          "delta_mae": -0.0057647356874454235,
           "holdout": "2023",
           "n": 224
         },
         {
-          "adp_coverage_80": 0.8340425531914893,
-          "adp_coverage_95": 0.9829787234042553,
-          "adp_crps": 40.882170696414896,
-          "adp_mae": 54.561836,
+          "adp_coverage_80": 0.8425531914893617,
+          "adp_coverage_95": 0.9872340425531915,
+          "adp_crps": 40.62753209179788,
+          "adp_mae": 54.29655468085107,
           "base_coverage_80": 0.8297872340425532,
           "base_coverage_95": 0.9829787234042553,
           "base_crps": 40.743017083765956,
           "base_mae": 54.25188923404255,
-          "delta_crps": 0.003415397842600753,
-          "delta_mae": 0.005713105485052121,
+          "delta_crps": -0.0028344732480327095,
+          "delta_mae": 0.0008232975374521805,
           "holdout": "2024",
           "n": 235
         }
       ],
       "holdouts_improved": {
-        "crps": 2,
+        "crps": 3,
         "mae": 2
       },
       "pooled": {
-        "crps": -0.0013774887018569914,
-        "mae": -0.0015520418757530607
+        "crps": -0.0024513004337299664,
+        "mae": -0.002559119403424737
       },
-      "verdict": "nothing moves beyond 0.25%: consensus adds nothing the play-by-play history does not already carry"
+      "verdict": "ADP helps on mae, but not on every holdout"
     },
     "all rostered": {
       "folds": [
         {
-          "adp_coverage_80": 0.7820267686424475,
-          "adp_coverage_95": 0.9407265774378585,
-          "adp_crps": 29.398187531988526,
-          "adp_mae": 39.46013627151052,
+          "adp_coverage_80": 0.7877629063097514,
+          "adp_coverage_95": 0.9388145315487572,
+          "adp_crps": 29.488088658836045,
+          "adp_mae": 39.60249507648184,
           "base_coverage_80": 0.7858508604206501,
           "base_coverage_95": 0.9407265774378585,
           "base_crps": 29.503744205989484,
           "base_mae": 39.65751118546845,
-          "delta_crps": -0.0035777382444743856,
-          "delta_mae": -0.0049769869075962855,
+          "delta_crps": -0.0005306291650353126,
+          "delta_mae": -0.0013872809296911457,
           "holdout": "2022",
           "n": 523
         },
         {
-          "adp_coverage_80": 0.7889546351084813,
+          "adp_coverage_80": 0.7830374753451677,
           "adp_coverage_95": 0.9329388560157791,
-          "adp_crps": 31.81420989835799,
-          "adp_mae": 43.06776276134122,
+          "adp_crps": 31.779745340320513,
+          "adp_mae": 42.922596923076924,
           "base_coverage_80": 0.7869822485207101,
           "base_coverage_95": 0.9289940828402367,
           "base_crps": 31.847837104511836,
           "base_mae": 43.11352905325444,
-          "delta_crps": -0.0010558709542344796,
-          "delta_mae": -0.0010615297081499964,
+          "delta_crps": -0.002138034176948114,
+          "delta_mae": -0.004428589687976436,
           "holdout": "2023",
           "n": 507
         },
         {
-          "adp_coverage_80": 0.8003992015968064,
-          "adp_coverage_95": 0.9540918163672655,
-          "adp_crps": 28.99360344268463,
-          "adp_mae": 39.43642716566867,
+          "adp_coverage_80": 0.8063872255489022,
+          "adp_coverage_95": 0.9560878243512974,
+          "adp_crps": 28.899146639268963,
+          "adp_mae": 39.3423170758483,
           "base_coverage_80": 0.7964071856287425,
           "base_coverage_95": 0.9560878243512974,
           "base_crps": 28.933053681873755,
           "base_mae": 39.2787273752495,
-          "delta_crps": 0.0020927538958257063,
-          "delta_mae": 0.004014890526176677,
+          "delta_crps": -0.001171913721158103,
+          "delta_mae": 0.001618934849678112,
           "holdout": "2024",
           "n": 501
         }
       ],
       "holdouts_improved": {
-        "crps": 2,
+        "crps": 3,
         "mae": 2
       },
       "pooled": {
-        "crps": -0.0009098585231037008,
-        "mae": -0.0007614716928299796
+        "crps": -0.0012957285175934994,
+        "mae": -0.0015048244102503887
       },
       "verdict": "nothing moves beyond 0.25%: consensus adds nothing the play-by-play history does not already carry"
     },
     "undrafted (derived)": {
       "folds": [
         {
-          "adp_coverage_80": 0.7337883959044369,
-          "adp_coverage_95": 0.9180887372013652,
-          "adp_crps": 18.675353250814837,
-          "adp_mae": 25.390335682593864,
+          "adp_coverage_80": 0.7372013651877133,
+          "adp_coverage_95": 0.9146757679180887,
+          "adp_crps": 18.64986270835751,
+          "adp_mae": 25.333589061433447,
           "base_coverage_80": 0.7372013651877133,
           "base_coverage_95": 0.9180887372013652,
           "base_crps": 18.637617742854097,
           "base_mae": 25.324481245733782,
-          "delta_crps": 0.002024695885567674,
-          "delta_mae": 0.00260042589702311,
+          "delta_crps": 0.0006570027174265885,
+          "delta_mae": 0.00035964470945278607,
           "holdout": "2022",
           "n": 293
         },
         {
-          "adp_coverage_80": 0.7491166077738516,
+          "adp_coverage_80": 0.7420494699646644,
           "adp_coverage_95": 0.9151943462897526,
-          "adp_crps": 19.157149721651948,
-          "adp_mae": 26.74925144876325,
+          "adp_crps": 19.191311235234103,
+          "adp_mae": 26.73431874558304,
           "base_coverage_80": 0.7455830388692579,
           "base_coverage_95": 0.9081272084805654,
           "base_crps": 19.188693073515903,
           "base_mae": 26.785528021201415,
-          "delta_crps": -0.0016438509774014654,
-          "delta_mae": -0.0013543347888998669,
+          "delta_crps": 0.00013644294106789887,
+          "delta_mae": -0.00191182625102043,
           "holdout": "2023",
           "n": 283
         },
         {
-          "adp_coverage_80": 0.7706766917293233,
+          "adp_coverage_80": 0.7744360902255639,
           "adp_coverage_95": 0.9285714285714286,
-          "adp_crps": 18.490545906494358,
-          "adp_mae": 26.073753947368424,
+          "adp_crps": 18.537603100380633,
+          "adp_mae": 26.130866560150366,
           "base_coverage_80": 0.7669172932330827,
           "base_coverage_95": 0.9323308270676691,
           "base_crps": 18.499439398247183,
           "base_mae": 26.050558063909783,
-          "delta_crps": -0.0004807438518200863,
-          "delta_mae": 0.0008904179097328491,
+          "delta_crps": 0.0020629653316448665,
+          "delta_mae": 0.0030827936984521662,
           "holdout": "2024",
           "n": 266
         }
       ],
       "holdouts_improved": {
-        "crps": 2,
+        "crps": 0,
         "mae": 1
       },
       "pooled": {
-        "crps": -1.4921101804886165e-05,
-        "mae": 0.0006930827943263774
+        "crps": 0.0009157723601074776,
+        "mae": 0.00043495215384697737
       },
       "verdict": "nothing moves beyond 0.25%: consensus adds nothing the play-by-play history does not already carry"
     }

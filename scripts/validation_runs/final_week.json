@@ -1,0 +1,76 @@
+{
+  "final_week_extra_error": 0.043535166530011216,
+  "final_week_share_of_season": {
+    "points_mean": 4.877635889798958,
+    "points_sd": 7.149031653277034,
+    "share": 0.05849870675168628
+  },
+  "predictability": [
+    {
+      "mae_from_own_average": 5.05001538088162,
+      "mean_points": 8.956018249688926,
+      "n": 2411,
+      "week_group": "final week"
+    },
+    {
+      "mae_from_own_average": 4.8393341622343735,
+      "mean_points": 9.11698955111187,
+      "n": 41057,
+      "week_group": "weeks 1 to n-1"
+    }
+  ],
+  "relative_error_change": -0.002645807845970405,
+  "rest_by_stakes": [
+    {
+      "band": "11+ wins (seed likely settled)",
+      "n": 240,
+      "rested_share": 0.1125
+    },
+    {
+      "band": "6 to 10 wins (still alive)",
+      "n": 654,
+      "rested_share": 0.05963302752293578
+    },
+    {
+      "band": "5 or fewer wins (eliminated)",
+      "n": 261,
+      "rested_share": 0.06130268199233716
+    }
+  ],
+  "scoring": "ppr",
+  "seasons": [
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "starters": {
+    "mean_points_normal": 12.29213768115942,
+    "mean_points_rested": 4.3723809523809525,
+    "mean_usual_points": 12.196510255947757,
+    "n": 1188,
+    "rested_or_out_share": 0.0707070707070707
+  },
+  "target_length": [
+    {
+      "mae": 15.293081975206558,
+      "mae_pct": 0.11607920084083093,
+      "n": 2942,
+      "observed_mean": 131.74696125084975,
+      "target": "full season (as shipped)"
+    },
+    {
+      "mae": 14.151404149180605,
+      "mae_pct": 0.11343339299486052,
+      "n": 2942,
+      "observed_mean": 124.75518694765466,
+      "target": "without the final week"
+    }
+  ]
+}

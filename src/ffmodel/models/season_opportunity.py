@@ -194,6 +194,36 @@ class SeasonSnapShareModel(_FeatureModel):
     """Conditional offensive-snap share, gated by projected active games."""
 
     extra_features: tuple[str, ...] = SNAP_HISTORY_FEATURES
+    # Width of the prior on the projected feature coefficients. It has to be one
+    # number rather than one per feature: ``_matrix`` rotates the standardized
+    # features onto their principal directions before the likelihood sees them,
+    # so a coefficient belongs to a combination of features and there is nothing
+    # feature-specific to widen.
+    #
+    # 0.35 was the historical value. Under it, the implied effects on
+    # depth_rank and is_replacement_player sit 4.4 and 5.5 prior standard
+    # deviations from zero with posterior widths below the prior's own -- the
+    # data has moved them far and the prior is still pulling back. Both are
+    # features that separate backups, and backup quarterback conditional snap
+    # share was over-predicted by 21% (0.253 against 0.209 observed) while
+    # starters landed almost exactly (0.856 against 0.867).
+    #
+    # Promoted to 3.0 on 2026-08-20. Selected by a plateau rule on held-out snap
+    # MAE, then confirmed on the shipping configuration and accepted by the
+    # gate on every stream: snap MAE -3.37% and CRPS -3.18%, target MAE -2.38%
+    # and CRPS -1.39%, carry MAE -1.94% and CRPS -0.94%, each winning three
+    # holdouts of three, with coverage negligible everywhere and no metric
+    # regressing.
+    #
+    # The intermediate verdict said the opposite. It compared this candidate
+    # against a baseline fitted under a different cold_role_scale_mode, and the
+    # check meant to rule that out compared only snap MAE -- the one stream that
+    # setting does not touch. See docs/snap-prior-2026-08.md.
+    feature_prior_scale: float = 3.0
+    # The exposure this model's conditional rate is relative to. Paired with
+    # ``SeasonAvailabilityModel.games_column`` by the volume pipeline; see the
+    # note there for why they cannot be set independently.
+    availability_column: str = "observed_availability"
 
     def fit(self, rows: pd.DataFrame, **sample_kwargs) -> "SeasonSnapShareModel":
         import pymc as pm
@@ -207,8 +237,13 @@ class SeasonSnapShareModel(_FeatureModel):
             out.get("snap_share", pd.Series(np.nan, index=out.index)),
             errors="coerce",
         )
+        # Must match whatever ``SeasonAvailabilityModel`` was fitted against:
+        # this divides the season snap share by the exposure to recover a
+        # per-game rate, and at prediction time the pipeline multiplies that
+        # rate back by the availability model's draws. A mismatch would divide
+        # by one exposure and multiply by another.
         availability = pd.to_numeric(
-            out.get("observed_availability", pd.Series(np.nan, index=out.index)),
+            out.get(self.availability_column, pd.Series(np.nan, index=out.index)),
             errors="coerce",
         )
         valid = snap_observed & snap_share.gt(0) & availability.gt(0)
@@ -229,7 +264,9 @@ class SeasonSnapShareModel(_FeatureModel):
             position_effect = _position_effect(
                 pm, "position_effect", 0.40, len(self.positions)
             )
-            beta = pm.Normal("beta", 0.0, 0.35, shape=X.shape[1])
+            beta = pm.Normal(
+                "beta", 0.0, float(self.feature_prior_scale), shape=X.shape[1]
+            )
             concentration = pm.Gamma("concentration", alpha=3.0, beta=0.08)
             eta = intercept + position_effect[position_index]
             eta = eta + pm.math.sum(X * beta, axis=1)

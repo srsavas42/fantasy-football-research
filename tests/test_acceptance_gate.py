@@ -493,3 +493,28 @@ def test_a_version_change_is_reported_as_method_not_data():
     assert problem is not None
     assert "different versions of the hash" in problem
     assert "Re-fingerprint" in problem
+
+
+def test_a_per_position_breakdown_is_not_scored_as_a_stream():
+    """It reports the same rows the snap stream already reports, split up.
+
+    Scoring both would count snap against itself, and the pooled verdict would
+    inherit whatever the split happened to say.
+    """
+    from ffmodel.evaluation.acceptance import compare_runs
+
+    def run(mae):
+        return {
+            "_frames": {"version": 2, "digest": "aaaa", "cache_dir": "a"},
+            "2023": {
+                "snap": {"n": 500, "mae": mae},
+                "snap_by_position": {
+                    "QB": {"n": 80, "mae": mae * 2},
+                    "RB": {"n": 150, "mae": mae},
+                },
+            },
+        }
+
+    report = compare_runs(run(0.15), run(0.14))
+
+    assert {c.stream for c in report.metrics} == {"snap"}

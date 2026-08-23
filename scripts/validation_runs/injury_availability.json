@@ -1,0 +1,266 @@
+{
+  "seasons": [
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+  ],
+  "holdouts": [
+    2022,
+    2023,
+    2024
+  ],
+  "fit": {
+    "draws": 1000,
+    "tune": 1000,
+    "chains": 4,
+    "nuts_sampler": "pymc"
+  },
+  "injury_feature_contract": [
+    "injury_history_available",
+    "prior_injury_report_weeks_3yr",
+    "prior_injury_out_weeks_3yr",
+    "prior_injury_episode_count_3yr",
+    "prior_injury_mean_recovery_weeks_3yr",
+    "prior_injury_weeks_since_last",
+    "current_injury_snapshot_available",
+    "current_injury_reported",
+    "current_injury_severity",
+    "current_injury_practice_severity",
+    "current_injury_expected_recovery_weeks"
+  ],
+  "folds": {
+    "2022": {
+      "baseline": {
+        "metrics": {
+          "mae": 0.22105213593851,
+          "rmse": 0.28499034328453454,
+          "crps": 0.15287879114976818,
+          "coverage_80": 0.9093406593406593
+        },
+        "feature_names": [
+          "prior_availability",
+          "age",
+          "experience",
+          "team_change",
+          "cold_start",
+          "roster_active",
+          "roster_reserve",
+          "depth_rank",
+          "qb_listed_starter",
+          "is_replacement_player"
+        ],
+        "n_players": 728,
+        "n_injury_exposed": 371,
+        "injury_exposed_metrics": {
+          "mae": 0.22812460361503092,
+          "rmse": 0.2924972420082901,
+          "crps": 0.16396794092253644,
+          "coverage_80": 0.9083557951482479
+        }
+      },
+      "injury_challenger": {
+        "metrics": {
+          "mae": 0.21721325928207819,
+          "rmse": 0.277378021583009,
+          "crps": 0.14752748092041804,
+          "coverage_80": 0.9148351648351648
+        },
+        "feature_names": [
+          "prior_availability",
+          "age",
+          "experience",
+          "team_change",
+          "cold_start",
+          "roster_active",
+          "roster_reserve",
+          "depth_rank",
+          "qb_listed_starter",
+          "is_replacement_player",
+          "prior_injury_report_weeks_3yr",
+          "prior_injury_out_weeks_3yr",
+          "prior_injury_episode_count_3yr",
+          "prior_injury_mean_recovery_weeks_3yr",
+          "prior_injury_weeks_since_last",
+          "current_injury_reported",
+          "current_injury_severity",
+          "current_injury_practice_severity",
+          "current_injury_expected_recovery_weeks"
+        ],
+        "n_players": 728,
+        "n_injury_exposed": 371,
+        "injury_exposed_metrics": {
+          "mae": 0.21951288498890123,
+          "rmse": 0.2754559772808324,
+          "crps": 0.15196565593475006,
+          "coverage_80": 0.9272237196765498
+        }
+      },
+      "delta_challenger_minus_baseline": {
+        "mae": -0.0038388766564318166,
+        "rmse": -0.007612321701525537,
+        "crps": -0.005351310229350148,
+        "coverage_80": 0.005494505494505475
+      }
+    },
+    "2023": {
+      "baseline": {
+        "metrics": {
+          "mae": 0.2050618967081924,
+          "rmse": 0.25793793331150705,
+          "crps": 0.12937183186721393,
+          "coverage_80": 0.9438990182328191
+        },
+        "feature_names": [
+          "prior_availability",
+          "age",
+          "experience",
+          "team_change",
+          "cold_start",
+          "roster_active",
+          "roster_reserve",
+          "depth_rank",
+          "qb_listed_starter",
+          "is_replacement_player"
+        ],
+        "n_players": 713,
+        "n_injury_exposed": 362,
+        "injury_exposed_metrics": {
+          "mae": 0.19865160870978227,
+          "rmse": 0.2576502328541935,
+          "crps": 0.1311852971035099,
+          "coverage_80": 0.9530386740331491
+        }
+      },
+      "injury_challenger": {
+        "metrics": {
+          "mae": 0.20428180430657536,
+          "rmse": 0.2534369808641674,
+          "crps": 0.12660939863150728,
+          "coverage_80": 0.94109396914446
+        },
+        "feature_names": [
+          "prior_availability",
+          "age",
+          "experience",
+          "team_change",
+          "cold_start",
+          "roster_active",
+          "roster_reserve",
+          "depth_rank",
+          "qb_listed_starter",
+          "is_replacement_player",
+          "prior_injury_report_weeks_3yr",
+          "prior_injury_out_weeks_3yr",
+          "prior_injury_episode_count_3yr",
+          "prior_injury_mean_recovery_weeks_3yr",
+          "prior_injury_weeks_since_last",
+          "current_injury_reported",
+          "current_injury_severity",
+          "current_injury_practice_severity",
+          "current_injury_expected_recovery_weeks"
+        ],
+        "n_players": 713,
+        "n_injury_exposed": 362,
+        "injury_exposed_metrics": {
+          "mae": 0.19764514949626258,
+          "rmse": 0.24724470846584137,
+          "crps": 0.12474867306832953,
+          "coverage_80": 0.9585635359116023
+        }
+      },
+      "delta_challenger_minus_baseline": {
+        "mae": -0.0007800924016170274,
+        "rmse": -0.004500952447339668,
+        "crps": -0.0027624332357066572,
+        "coverage_80": -0.0028050490883591017
+      }
+    },
+    "2024": {
+      "baseline": {
+        "metrics": {
+          "mae": 0.20081452021267618,
+          "rmse": 0.25239468006741217,
+          "crps": 0.12780992860684445,
+          "coverage_80": 0.9583931133428981
+        },
+        "feature_names": [
+          "prior_availability",
+          "age",
+          "experience",
+          "team_change",
+          "cold_start",
+          "roster_active",
+          "roster_reserve",
+          "depth_rank",
+          "qb_listed_starter",
+          "is_replacement_player"
+        ],
+        "n_players": 697,
+        "n_injury_exposed": 363,
+        "injury_exposed_metrics": {
+          "mae": 0.2035443607194944,
+          "rmse": 0.2556866530329401,
+          "crps": 0.13510448787676224,
+          "coverage_80": 0.953168044077135
+        }
+      },
+      "injury_challenger": {
+        "metrics": {
+          "mae": 0.20145790784032405,
+          "rmse": 0.2506560022869798,
+          "crps": 0.12619732041206008,
+          "coverage_80": 0.9612625538020086
+        },
+        "feature_names": [
+          "prior_availability",
+          "age",
+          "experience",
+          "team_change",
+          "cold_start",
+          "roster_active",
+          "roster_reserve",
+          "depth_rank",
+          "qb_listed_starter",
+          "is_replacement_player",
+          "prior_injury_report_weeks_3yr",
+          "prior_injury_out_weeks_3yr",
+          "prior_injury_episode_count_3yr",
+          "prior_injury_mean_recovery_weeks_3yr",
+          "prior_injury_weeks_since_last",
+          "current_injury_reported",
+          "current_injury_severity",
+          "current_injury_practice_severity",
+          "current_injury_expected_recovery_weeks"
+        ],
+        "n_players": 697,
+        "n_injury_exposed": 363,
+        "injury_exposed_metrics": {
+          "mae": 0.20515139361529733,
+          "rmse": 0.2515634314062747,
+          "crps": 0.13148260074339654,
+          "coverage_80": 0.9669421487603306
+        }
+      },
+      "delta_challenger_minus_baseline": {
+        "mae": 0.0006433876276478734,
+        "rmse": -0.0017386777804323517,
+        "crps": -0.0016126081947843707,
+        "coverage_80": 0.0028694404591105283
+      }
+    }
+  },
+  "mean_delta_challenger_minus_baseline": {
+    "mae": -0.0013251938101336569,
+    "rmse": -0.004617317309765852,
+    "crps": -0.0032421172199470585,
+    "coverage_80": 0.0018529656217523005
+  }
+}

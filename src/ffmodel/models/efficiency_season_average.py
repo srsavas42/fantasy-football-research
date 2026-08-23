@@ -256,6 +256,12 @@ BASE_EFFICIENCY_FEATURES = (
     "cold_start",
 )
 
+# The receiving responses, which are the ones a quarterback plausibly moves.
+# Rushing is left out on purpose: the mechanism by which a passer changes yards
+# per carry is indirect at best, and testing where there is no story to tell is
+# how a feature earns a fold win by chance.
+TEAMMATE_QUALITY_TARGETS = ("rec_catch_rate", "rec_yards_per_target", "rec_td_rate")
+
 # Production mean gate after the 2022-2024 posterior screen. The posterior
 # challenger improved receiving yards/target by 1.22% with two fold wins. Every
 # other flexible mean failed either pooled accuracy or the two-of-three
@@ -273,6 +279,46 @@ POSTERIOR_MEAN_MODE = {
     "rush_td_rate": "prior",
     "fumble_lost_rate": "prior",
 }
+
+
+
+# Width of the prior on the Beta-Binomial overdispersion, in log space.
+#
+# It was 0.75, and at that width rec_td_rate ran the concentration to 1.6e19 on
+# the 2020 fold: 178 divergences, bulk ESS 7 of 4000 draws, R-hat 1.54. The
+# chains did not find that value -- it is about fifty prior standard deviations
+# out -- they broke, most likely on the precision of the Beta-Binomial
+# log-density at very large alpha and beta.
+#
+# Truncating the parameter was tried first and worked, but a bounded variable's
+# transform costs a scattering of single divergences that the acceptance gate
+# treats as blockers, and raising target_accept to 0.95 did not clear them.
+# Tightening the prior instead keeps the log transform, fixes the runaway, and
+# samples better than truncation everywhere tested.
+#
+# It is a modelling change, so what it moves was measured against how much each
+# response is worth. The shifts are largest where they matter least, which is
+# the prior behaving correctly rather than a cost:
+#
+#   response              share of points variance   concentration shift
+#   rec_catch_rate                  8.39%                    +0.2%
+#   pass_td_rate                    7.03%                    -3.1%
+#   rec_td_rate                     2.60%                    -7.3%
+#   rush_td_rate                    2.33%                    -5.1%
+#   pass_int_rate                   0.39%                   -20.9%
+#   fumble_lost_rate                0.05%                   -38.0%
+#
+# Rare-event responses have diffuse concentration posteriors because the data
+# cannot pin them down, so a tighter prior pulls them in. High-usage responses
+# are pinned by the data and barely move.
+CONCENTRATION_PRIOR_SIGMA = 0.40
+
+
+def _concentration(pm, prior: float):
+    """Overdispersion, on the log scale so the sampler sees no boundary."""
+    return pm.LogNormal(
+        "concentration", mu=np.log(prior), sigma=CONCENTRATION_PRIOR_SIGMA
+    )
 
 
 @dataclass
@@ -796,10 +842,8 @@ class PosteriorSeasonEfficiencyModel:
                 )
                 if self.spec.likelihood == "beta_binomial":
                     mean = np.clip(mean, 1e-5, 1.0 - 1e-5)
-                    concentration = pm.LogNormal(
-                        "concentration",
-                        mu=np.log(self.spec.prior_concentration),
-                        sigma=0.75,
+                    concentration = _concentration(
+                        pm, self.spec.prior_concentration
                     )
                     pm.BetaBinomial(
                         "efficiency_obs",
@@ -853,10 +897,8 @@ class PosteriorSeasonEfficiencyModel:
 
                 if self.spec.likelihood == "beta_binomial":
                     mean = pm.math.sigmoid(eta)
-                    concentration = pm.LogNormal(
-                        "concentration",
-                        mu=np.log(self.spec.prior_concentration),
-                        sigma=0.75,
+                    concentration = _concentration(
+                        pm, self.spec.prior_concentration
                     )
                     pm.BetaBinomial(
                         "efficiency_obs",
@@ -1069,6 +1111,11 @@ class SeasonAveragePosteriorEfficiencyPipeline:
 
     use_volume: bool = True
     use_advanced: bool = True
+    # Cross-positional teammate quality on the receiving responses. Off
+    # until gated: every efficiency spec has run with an empty feature list
+    # since the pipeline was written, so this is the first thing any of them
+    # learns about a player's teammates. See docs/teammate-quality-2026-08.md.
+    teammate_quality_features: bool = False
     ridge_alpha: float = 500.0
     # Each response is fitted only on rows clearing its ``min_exposure`` but is
     # then scored on every row, and the gap is large: on the nflverse frame 57%
@@ -1110,6 +1157,22 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             if targets is None
             else set(map(str, targets))
         )
+        if (
+            self.teammate_quality_features
+            and "teammate_qb_quality_signal" not in rows
+        ):
+            # ``_matrix`` keeps only features present in the frame, so an absent
+            # one is dropped without a word and the model fits as though the
+            # flag were off. That is how this feature's first walk-forward came
+            # back identical to its baseline to five decimal places on every
+            # metric: the cached frames predated the column. A flag that asks
+            # for a feature and silently gets none has to fail instead.
+            raise ValueError(
+                "teammate_quality_features is on but teammate_qb_quality_signal "
+                "is not in the rows; rebuild the frames with "
+                "add_teammate_quality_features rather than fitting a model that "
+                "quietly ignores the flag"
+            )
         unknown = selected - set(EFFICIENCY_MODEL_BY_TARGET)
         if unknown:
             raise ValueError(f"unknown efficiency targets: {sorted(unknown)}")
@@ -1122,6 +1185,14 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             if self.exposure_floor is not None:
                 spec = replace(
                     spec, min_exposure=min(spec.min_exposure, int(self.exposure_floor))
+                )
+            if self.teammate_quality_features and spec.target in TEAMMATE_QUALITY_TARGETS:
+                spec = replace(
+                    spec,
+                    advanced_features=(
+                        *spec.advanced_features,
+                        "teammate_qb_quality_signal",
+                    ),
                 )
             model = PosteriorSeasonEfficiencyModel(
                 spec,

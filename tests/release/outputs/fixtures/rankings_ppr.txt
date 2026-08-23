@@ -1,0 +1,8 @@
+Target season: 2026
+Attempt: attempt-01
+Package digest: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+Scoring format: ppr
+Ranking basis: mean
+
+1. Álvaro Passer [QB, DAL; id-a; provenance=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] — mean=250.125, p10=240.125, p50=248.125, p90=260.125
+2. Zoë Runner [RB, NYJ; id-b; cold-start; provenance=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] — mean=250.125, p10=240.125, p50=248.125, p90=260.125

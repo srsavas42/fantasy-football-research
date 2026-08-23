@@ -64,6 +64,20 @@ def main(argv=None) -> None:
     report: dict[str, object] = {
         "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir)
     }
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    path = args.output_dir / f"wf_{args.label}.json"
+
+    def flush() -> None:
+        """Persist after every holdout, as the scoring walk-forward does.
+
+        This script has lost a run to a container restart three times, each
+        time discarding folds that had already finished, because the file was
+        only written on completion. A partial file is readable -- every reader
+        here keys on holdout -- and says plainly which folds it has.
+        """
+        path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+
+    flush()
     for holdout in args.holdouts:
         started = time.perf_counter()
         train = SeasonAverageData(
@@ -81,13 +95,28 @@ def main(argv=None) -> None:
                 else args.mean_preserving_innovation
             ),
             calibrated_innovation=args.calibrated_innovation,
-            cold_role_scale_mode=args.cold_role_scale_mode,
             innovation_cap=args.innovation_cap,
         )
         if args.postseason is not None:
             pipeline.postseason_role_features = args.postseason
+        if args.injury_availability is not None:
+            pipeline.injury_availability_features = args.injury_availability
+        if args.market_adp is not None:
+            pipeline.market_adp_features = args.market_adp
+        if args.market_adp_availability is not None:
+            pipeline.market_adp_availability_features = args.market_adp_availability
+        if args.market_adp_qb is not None:
+            pipeline.market_adp_qb_features = args.market_adp_qb
+        if args.availability_target is not None:
+            pipeline.availability_target = args.availability_target
+        if args.market_adp_interactions is not None:
+            pipeline.market_adp_interactions = args.market_adp_interactions
         if args.cold_role_innovation is not None:
             pipeline.cold_role_innovation = args.cold_role_innovation
+        if args.cold_role_scale_mode is not None:
+            pipeline.cold_role_scale_mode = args.cold_role_scale_mode
+        if args.snap_feature_prior is not None:
+            pipeline.snap_model.feature_prior_scale = args.snap_feature_prior
         pipeline.team_model.models_play_transition = args.play_transition
         if coupling is not None:
             pipeline.workload_model.couple_gate_to_availability = coupling
@@ -153,6 +182,20 @@ def main(argv=None) -> None:
             .gt(0)
             .to_numpy(float)
         )
+        # Snap broken out by position. The pooled stream mixes quarterbacks with
+        # skill positions, and a change can move them opposite ways -- widening
+        # the snap model's feature prior buys running backs and receivers about
+        # 6% of held-out MAE while costing backup quarterbacks. A pooled average
+        # reports the net and hides that entirely.
+        fold["snap_by_position"] = {}
+        for position in ("QB", "RB", "WR", "TE"):
+            at = snaps_seen & named & rows["position"].eq(position).to_numpy()
+            if at.sum() < 5:
+                continue
+            fold["snap_by_position"][position] = distribution(
+                pd.to_numeric(rows.loc[at, "snap_share"], errors="coerce").to_numpy(float),
+                prediction.snap_share[at],
+            )
         fold["carry_eligibility_brier"] = float(
             np.mean(
                 (
@@ -172,11 +215,9 @@ def main(argv=None) -> None:
             for name, result in pipeline.diagnostics().items()
         }
         report[str(holdout)] = fold
+        flush()
         print(f"[{args.label}] holdout {holdout} done in {fold['seconds']}s", flush=True)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    path = args.output_dir / f"wf_{args.label}.json"
-    path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     print(f"[{args.label}] wrote {path}")
 
 

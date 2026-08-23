@@ -69,6 +69,98 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the lagged postseason role features off, for ablations",
     )
     parser.add_argument(
+        "--injury-availability",
+        dest="injury_availability",
+        action="store_const",
+        const=True,
+        default=None,
+        help="let the availability regression read injury history and the "
+             "preseason injury snapshot",
+    )
+    parser.add_argument(
+        "--no-injury-availability",
+        dest="injury_availability",
+        action="store_const",
+        const=False,
+        help="force the injury features out, for the paired arm",
+    )
+    parser.add_argument(
+        "--market-adp",
+        dest="market_adp",
+        action="store_const",
+        const=True,
+        default=None,
+        help="force preseason ADP into the role and playing-time regressions",
+    )
+    parser.add_argument(
+        "--no-market-adp",
+        dest="market_adp",
+        action="store_const",
+        const=False,
+        help="force preseason ADP out, for the paired arm of the ablation",
+    )
+    parser.add_argument(
+        "--market-adp-availability",
+        dest="market_adp_availability",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give the availability regression the preseason draft board. The "
+             "--market-adp arm deliberately excludes this layer, so its result "
+             "says nothing about this one",
+    )
+    parser.add_argument(
+        "--no-market-adp-availability",
+        dest="market_adp_availability",
+        action="store_const",
+        const=False,
+        help="force the board out of the availability regression, for the "
+             "paired arm",
+    )
+    parser.add_argument(
+        "--availability-target",
+        choices=("roster", "snap"),
+        default=None,
+        help="which exposure the availability and snap layers are built on: "
+             "'roster' is games (roster-active weeks, the historical default), "
+             "'snap' is snap_games (weeks with an offensive snap). Unset keeps "
+             "the model's own value. Note that this changes what availability "
+             "*means*, so layer-level availability metrics are not comparable "
+             "across it -- judge it on total season points",
+    )
+    parser.add_argument(
+        "--market-adp-qb",
+        dest="market_adp_qb",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give the quarterback room the preseason draft board: the passing "
+             "share softmax, its hurdle, and pass attempts per snap",
+    )
+    parser.add_argument(
+        "--no-market-adp-qb",
+        dest="market_adp_qb",
+        action="store_const",
+        const=False,
+        help="force the board out of the quarterback room, for the paired arm",
+    )
+    parser.add_argument(
+        "--market-adp-interactions",
+        dest="market_adp_interactions",
+        action="store_const",
+        const=True,
+        default=None,
+        help="give each position its own ADP rank slope and drafted effect "
+             "(requires --market-adp)",
+    )
+    parser.add_argument(
+        "--no-market-adp-interactions",
+        dest="market_adp_interactions",
+        action="store_const",
+        const=False,
+        help="force the per-position ADP terms off",
+    )
+    parser.add_argument(
         "--innovation-cap",
         type=float,
         default=None,
@@ -98,12 +190,30 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--teammate-quality",
+        action="store_true",
+        help="let the receiving efficiency responses read the projected "
+             "starting quarterback's prior passing quality (scoring runs only)",
+    )
+    parser.add_argument(
+        "--snap-feature-prior",
+        type=float,
+        default=None,
+        help="width of the snap model's projected-feature prior. 0.35 is the "
+             "historical value; wider lets depth_rank and is_replacement_player "
+             "off the leash, which buys held-out snap MAE on RB and WR and "
+             "costs backup quarterbacks",
+    )
+    parser.add_argument(
         "--cold-role-scale-mode",
         choices=("relative", "measured"),
-        default="relative",
+        default=None,
         help="how the cold rows' scale is derived: 'relative' keeps the cold-"
              "to-warm dispersion ratio and inherits the cap's compression, "
-             "'measured' targets the cold population's own dispersion",
+             "'measured' targets the cold population's own dispersion. Unset "
+             "keeps the model's own value, which is 'measured' and promoted. A "
+             "default here silently overrides it, which is exactly what "
+             "--postseason did before it was made tri-state",
     )
     parser.add_argument(
         "--mean-preserving-innovation",

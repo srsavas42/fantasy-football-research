@@ -42,6 +42,10 @@ class SeasonAverageScoringPipeline:
     volume_feature_sample_kwargs: dict[str, object] | None = None
     # Passed through to the efficiency pipeline; see its ``exposure_floor``.
     efficiency_exposure_floor: int | None = None
+    teammate_quality_features: bool | None = None
+    # ``None`` keeps the volume pipeline's own default rather than overriding a
+    # promoted setting from a caller that never meant to express an opinion.
+    market_adp_features: bool | None = None
 
     def fit_efficiency(
         self,
@@ -58,6 +62,10 @@ class SeasonAverageScoringPipeline:
         )
         if self.efficiency_exposure_floor is not None:
             self.efficiency_model.exposure_floor = self.efficiency_exposure_floor
+        if self.teammate_quality_features is not None:
+            self.efficiency_model.teammate_quality_features = (
+                self.teammate_quality_features
+            )
         self.efficiency_model.fit(rows, **sample_kwargs)
         missing = set(REQUIRED_EFFICIENCY_TARGETS) - set(self.efficiency_model.models)
         if missing:
@@ -74,6 +82,8 @@ class SeasonAverageScoringPipeline:
         efficiency_sample_kwargs: dict[str, object] | None = None,
     ) -> "SeasonAverageScoringPipeline":
         """Fit both layers while keeping their sampler controls independent."""
+        if self.market_adp_features is not None:
+            self.volume_model.market_adp_features = self.market_adp_features
         self.volume_model.fit(data, **(volume_sample_kwargs or {}))
         return self.fit_efficiency(data, **(efficiency_sample_kwargs or {}))
 

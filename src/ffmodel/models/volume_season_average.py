@@ -22,6 +22,8 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 
+from ffmodel.features.market import ADP_FEATURES, ADP_INTERACTION_FEATURES
+from ffmodel.features.season_injury import INJURY_AVAILABILITY_FEATURES
 from ffmodel.features.season_average import (
     POSTSEASON_FEATURES,
     SeasonAverageData,
@@ -765,7 +767,16 @@ class SeasonRosterShareModel:
         cold_rms, _ = self._cold_and_warm_dispersion(d)
         if not np.isfinite(cold_rms) or self.role_innovation_scale <= 1e-8:
             return 1.0
-        if allocation is not None and mask is not None:
+        # Keyed on the model's own configuration, not on whether the caller
+        # happened to pass rooms in. Those come apart: ``_fit_metadata`` only
+        # supplies them when calibration is on, so in the pipeline the two
+        # agree, but a caller holding this model directly could calibrate the
+        # cold scale while the base scale it is divided by was not calibrated.
+        # The ratio between a calibrated numerator and an uncalibrated
+        # denominator is not a widening factor, and nothing would have said so.
+        if self.calibrated_innovation:
+            if allocation is None or mask is None:
+                allocation, mask = self._innovation_rooms(d)
             cold_scale = calibrate_innovation_scale(
                 allocation, mask, cold_rms, seed=self.innovation_calibration_seed
             )
@@ -1339,6 +1350,83 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
+    # Preseason market consensus in the role and playing-time regressions. Off
+    # until measured: it is the one input not derived from play-by-play, so a
+    # gain would be real new information and a loss would say the market adds
+    # nothing the history does not already carry. See
+    # ``_enable_market_adp_features`` and ffmodel.features.market.
+    # Leakage-safe injury history and preseason injury snapshot in the
+    # availability regression. Screened at the availability layer first
+    # (docs/injury-availability-2026-08.md): CRPS -2.39% pooled and 3/3 folds,
+    # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
+    # because availability feeds exposure and a gain there is not a gain here.
+    injury_availability_features: bool = False
+    market_adp_features: bool = False
+    # Per-position rank slopes and drafted effects. Measured and rejected:
+    # worse on three drafted-pool holdouts of three at double the fit time,
+    # because the encoding is collinear with the main effects and the shared
+    # feature prior cannot hold the opposing coefficients it needs. The terms
+    # themselves are redundant with the usage history. Left in place so the
+    # negative result stays reproducible; see ffmodel.features.market and
+    # docs/adp-ablation-2026-08.md before turning it on.
+    market_adp_interactions: bool = False
+    # The draft board in the *availability* regression, which the arm above
+    # deliberately excludes.
+    #
+    # The exclusion was reasonable when written -- adding a feature everywhere
+    # at once makes a null uninterpretable -- but it meant the ADP ablation's
+    # null result never tested this layer, and this layer is where the defect
+    # is. Fitting availability alone and scoring it on the rows it was trained
+    # on shows the model reproducing the drafted/undrafted split *in sample*:
+    # -6.7% on drafted and +5.3% on undrafted against a pooled -0.2%. A model
+    # unbiased overall while missing in opposite directions on two halves of
+    # its own training data is not mis-levelled, it is unable to tell the
+    # halves apart, and no intercept correction can fix that.
+    #
+    # The board can. On 2024, held out, drafted-pool bias falls from -8.5% to
+    # -4.1% and the in-sample flip largely collapses (running backs from
+    # -5.6%/+5.3% to -1.4%/+0.5%). Receivers keep about half of theirs, so this
+    # narrows the resolution failure rather than closing it.
+    #
+    # Kept a separate flag from ``market_adp_features`` so that arm's measured
+    # result stays exactly reproducible.
+    #
+    # Promoted 2026-08-22 on the paired 2022-2024 scoring gate, zero divergences
+    # in both arms: pooled MAE -0.93% and CRPS -1.11% winning every holdout,
+    # drafted-pool CRPS -1.44% winning every holdout, undrafted MAE -1.83%
+    # winning every holdout. Drafted-pool MAE is +0.36%/-0.72%/-0.94%, so it
+    # wins two of three rather than all three -- the one exception, and it meets
+    # the two-of-three stability rule rather than needing a waiver.
+    market_adp_availability_features: bool = True
+    # The draft board in the quarterback room -- the passing-share softmax, its
+    # hurdle, and pass attempts per snap.
+    #
+    # Also excluded from the measured ADP arm, and with a clearer story than
+    # most: the room's existing evidence about who starts is ``qb_depth_rank``
+    # and ``qb_listed_starter``, both read off preseason depth charts, which
+    # nflverse itself re-shaped in 2025 and which teams publish without meaning
+    # them. The market's opinion on a starting quarterback is the thing it is
+    # most confident about and least likely to be wrong on.
+    #
+    # Untested at the time of writing. Off, and to stay off until a layer-level
+    # screen and then the scoring gate say otherwise.
+    market_adp_qb_features: bool = False
+    # Which exposure the availability and snap layers are built on.
+    #
+    # "roster" is ``games``, roster-active weeks, and is what every measurement
+    # in this package was made against. "snap" is ``snap_games``, weeks with at
+    # least one offensive snap.
+    #
+    # The case for changing it is that the roster label means different things
+    # for the two halves of the population -- within a game of the truth for
+    # drafted players, and employment rather than participation for undrafted
+    # ones (an undrafted quarterback: 11.31 roster weeks, 4.36 with a snap).
+    # See ``SeasonAvailabilityModel.games_column``.
+    #
+    # Untested. Off until a paired gate says otherwise, and it changes the
+    # meaning of ``availability`` everywhere downstream, so a comparison across
+    # this setting is not comparing like with like.
+    availability_target: str = "roster"
     # Correct the softmax renormalization bias the role innovation introduces.
     # ``True`` enables every allocation layer; a tuple names a subset, because
     # the layers were measured to disagree — see
@@ -1366,10 +1454,57 @@ class SeasonAverageVolumePipeline:
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
     def fit(self, data: SeasonAverageData, **sample_kwargs) -> "SeasonAverageVolumePipeline":
+        # Input preflight first, before any feature enablement.
+        #
+        # The enablement guards below raise on a frame missing their columns,
+        # which is right, but they were running first: a frame with no usable
+        # volume inputs *and* no ADP columns reported the ADP problem, sending
+        # the reader to rebuild a market feature when the real fault was that
+        # the frame could not be fitted at all. Preflight reports every input
+        # problem at once and should be what a caller sees first.
+        problems = volume_input_problems(data)
+        if problems:
+            raise ValueError(
+                "season-average volume inputs are not fittable:\n  - "
+                + "\n  - ".join(problems)
+            )
         if self.role_regime_coupling and self.regime_likelihood_features:
             raise ValueError("choose either post-hoc or upstream regime coupling, not both")
+        self._apply_availability_target(data.player_rows)
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.injury_availability_features:
+            missing = [
+                name
+                for name in INJURY_AVAILABILITY_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                raise ValueError(
+                    f"injury_availability_features is on but {missing} are "
+                    "absent from the player rows; rebuild the cache rather than "
+                    "fitting a model that would silently drop them"
+                )
+            self.availability_model.extra_features = tuple(
+                dict.fromkeys(
+                    (
+                        *self.availability_model.extra_features,
+                        *INJURY_AVAILABILITY_FEATURES,
+                    )
+                )
+            )
+        if self.market_adp_interactions and not self.market_adp_features:
+            raise ValueError(
+                "market_adp_interactions needs market_adp_features: an "
+                "interaction without its main effects is not a model anyone "
+                "meant to fit"
+            )
+        if self.market_adp_features:
+            self._enable_market_adp_features(data.player_rows)
+        if self.market_adp_availability_features:
+            self._enable_market_adp_availability(data.player_rows)
+        if self.market_adp_qb_features:
+            self._enable_market_adp_qb(data.player_rows)
         if self.mean_preserving_innovation:
             self._enable_mean_preserving_innovation()
         if self.calibrated_innovation:
@@ -1381,12 +1516,6 @@ class SeasonAverageVolumePipeline:
         if self.innovation_cap is not None:
             self.target_model.innovation_cap = float(self.innovation_cap)
             self.carry_model.innovation_cap = float(self.innovation_cap)
-        problems = volume_input_problems(data)
-        if problems:
-            raise ValueError(
-                "season-average volume inputs are not fittable:\n  - "
-                + "\n  - ".join(problems)
-            )
         player_rows = data.player_rows
         if self.regime_likelihood_features:
             started = perf_counter()
@@ -1508,6 +1637,156 @@ class SeasonAverageVolumePipeline:
         )
         self.target_model.extra_features = merged(self.target_model.extra_features)
         self.carry_model.extra_features = merged(self.carry_model.extra_features)
+
+    def _enable_market_adp_features(self, player_rows: pd.DataFrame) -> None:
+        """Append preseason consensus to the role and playing-time regressions.
+
+        The same rooms the postseason features go to, and for the same reason:
+        these are the layers that decide who holds a role, which is what a draft
+        board is an opinion about. Availability, the team layer and the
+        efficiency layer are left alone in this arm -- ADP plausibly informs all
+        three, but adding it everywhere at once would make a null result
+        uninterpretable and a gain unattributable.
+
+        The absent-column check is not defensive noise. A cache built before
+        this feature existed has none of these columns, ``_matrix`` silently
+        drops names it cannot find, and the arm would fit exactly the baseline
+        and report a clean +0.00% null. That has already happened twice on this
+        branch with other features, so it fails here instead.
+        """
+        wanted = ADP_FEATURES + (
+            ADP_INTERACTION_FEATURES if self.market_adp_interactions else ()
+        )
+        missing = [name for name in wanted if name not in player_rows.columns]
+        if missing:
+            raise ValueError(
+                f"market_adp_features is on but {missing} are absent from the "
+                "player rows. These frames predate the feature -- rebuild the "
+                "cache rather than fitting a model that would silently drop it "
+                "and report the baseline as a null result"
+            )
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *wanted)))
+
+        self.snap_model.extra_features = merged(self.snap_model.extra_features)
+        self.target_role_model.extra_features = merged(
+            self.target_role_model.extra_features
+        )
+        self.carry_eligibility_model.extra_features = merged(
+            self.carry_eligibility_model.extra_features
+        )
+        self.target_model.extra_features = merged(self.target_model.extra_features)
+        self.carry_model.extra_features = merged(self.carry_model.extra_features)
+
+    AVAILABILITY_TARGETS = {
+        "roster": ("games", "observed_availability"),
+        "snap": ("snap_games", "snap_availability"),
+    }
+
+    def _apply_availability_target(self, player_rows: pd.DataFrame) -> None:
+        """Point the availability and snap layers at the same exposure.
+
+        These two settings are one decision. The availability model fits a
+        count out of ``team_games``; the snap model divides the observed season
+        snap share by the matching fraction to get a per-game rate; at
+        prediction time the pipeline multiplies that rate back by the
+        availability draws. Setting one without the other divides by one
+        exposure and multiplies by another, and nothing downstream would raise
+        -- the projection would simply be wrong by the ratio between them,
+        which for undrafted quarterbacks is a factor of 2.6.
+        """
+        try:
+            games_column, availability_column = self.AVAILABILITY_TARGETS[
+                self.availability_target
+            ]
+        except KeyError:
+            raise ValueError(
+                f"availability_target must be one of "
+                f"{sorted(self.AVAILABILITY_TARGETS)}, got "
+                f"{self.availability_target!r}"
+            ) from None
+        missing = [
+            name
+            for name in (games_column, availability_column)
+            if name not in player_rows.columns
+        ]
+        if missing:
+            raise ValueError(
+                f"availability_target={self.availability_target!r} needs "
+                f"{missing}, absent from the player rows. These frames predate "
+                "the column -- rebuild the cache rather than fitting against an "
+                "exposure that is not there"
+            )
+        # Present but empty is the legacy snap source, which has season totals
+        # and no per-week rows to count. The column exists so the schema is
+        # stable; it carries nothing, and fitting against it would make every
+        # player unavailable.
+        empty = [
+            name
+            for name in (games_column, availability_column)
+            if not pd.to_numeric(player_rows[name], errors="coerce").notna().any()
+        ]
+        if empty:
+            raise ValueError(
+                f"availability_target={self.availability_target!r} needs "
+                f"{empty}, which are present but wholly missing. The legacy "
+                "snap source cannot count weeks with a snap; build the frames "
+                "from nflverse to use this target"
+            )
+        self.availability_model.games_column = games_column
+        self.snap_model.availability_column = availability_column
+
+    def _enable_market_adp_availability(self, player_rows: pd.DataFrame) -> None:
+        """Append preseason consensus to the availability regression only.
+
+        Separate from ``_enable_market_adp_features`` because the two answer
+        different questions. That one asks whether the board knows something
+        about *roles* the usage history does not; this asks whether it knows
+        something about *who stays on the field*.
+
+        The same absent-column check, for the same reason: ``_matrix`` drops
+        names it cannot find, so a cache built before these columns existed
+        would fit the baseline and report a clean null.
+        """
+        missing = [name for name in ADP_FEATURES if name not in player_rows.columns]
+        if missing:
+            raise ValueError(
+                f"market_adp_availability_features is on but {missing} are "
+                "absent from the player rows. These frames predate the feature "
+                "-- rebuild the cache rather than fitting a model that would "
+                "silently drop it and report the baseline as a null result"
+            )
+        self.availability_model.extra_features = tuple(
+            dict.fromkeys((*self.availability_model.extra_features, *ADP_FEATURES))
+        )
+
+    def _enable_market_adp_qb(self, player_rows: pd.DataFrame) -> None:
+        """Append preseason consensus to the quarterback room.
+
+        ``QBStarterModel`` is deliberately left out. It reads a fixed feature
+        list with no ``extra_features`` hook, and more to the point it is a
+        within-room categorical over who starts -- the same question the
+        workload softmax already answers continuously, from the same inputs.
+        Adding the board to both would put the same evidence in twice and make
+        an attributable result unattributable.
+        """
+        missing = [name for name in ADP_FEATURES if name not in player_rows.columns]
+        if missing:
+            raise ValueError(
+                f"market_adp_qb_features is on but {missing} are absent from "
+                "the player rows. These frames predate the feature -- rebuild "
+                "the cache rather than fitting a model that would silently "
+                "drop it and report the baseline as a null result"
+            )
+
+        def merged(existing: tuple[str, ...]) -> tuple[str, ...]:
+            return tuple(dict.fromkeys((*existing, *ADP_FEATURES)))
+
+        self.workload_model.extra_features = merged(self.workload_model.extra_features)
+        self.qb_propensity_model.extra_features = merged(
+            self.qb_propensity_model.extra_features
+        )
 
     def _enable_regime_likelihood_features(self) -> None:
         """Append the leakage-safe regime contract to upstream submodels."""
@@ -1913,6 +2192,20 @@ class SeasonAverageVolumePipeline:
                     else {}
                 ),
             },
+            # Recorded so a served artifact says which inputs it was fitted on.
+            # Prediction does not need it -- the fitted feature names, fills and
+            # projection round-trip on each submodel -- but an artifact that
+            # reads the market and does not say so is one nobody can audit.
+            "market_adp": {
+                "enabled": self.market_adp_features,
+                "interactions": self.market_adp_interactions,
+                "availability": self.market_adp_availability_features,
+                "qb": self.market_adp_qb_features,
+            },
+            # Which exposure the availability and snap layers were fitted
+            # against. A restored artifact that silently reverted to roster
+            # games would divide by one exposure and multiply by another.
+            "availability_target": self.availability_target,
             "regime_likelihood": {
                 "enabled": self.regime_likelihood_features,
                 **(
@@ -2114,6 +2407,19 @@ class SeasonAverageVolumePipeline:
             target_role_model=optional["target_role"],
             carry_eligibility_model=optional["carry_eligibility"],
             role_regime_coupling=role_regime_coupling,
+            market_adp_features=bool(
+                metadata.get("market_adp", {}).get("enabled", False)
+            ),
+            market_adp_interactions=bool(
+                metadata.get("market_adp", {}).get("interactions", False)
+            ),
+            market_adp_availability_features=bool(
+                metadata.get("market_adp", {}).get("availability", False)
+            ),
+            market_adp_qb_features=bool(
+                metadata.get("market_adp", {}).get("qb", False)
+            ),
+            availability_target=str(metadata.get("availability_target", "roster")),
             regime_likelihood_features=regime_likelihood_features,
             # Each allocation layer carries its own flag, so the pipeline-level
             # one only has to agree with what was actually restored.

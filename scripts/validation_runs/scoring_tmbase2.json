@@ -1,0 +1,379 @@
+{
+  "2022": {
+    "diagnostics": {
+      "efficiency/fumble_lost_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0006750142569476,
+        "min_ess": 1361.6282687660669
+      },
+      "efficiency/pass_completion_rate": {
+        "divergences": 0,
+        "max_rhat": 1.001223430791291,
+        "min_ess": 1431.3828003473773
+      },
+      "efficiency/pass_int_rate": {
+        "divergences": 0,
+        "max_rhat": 1.002180491051689,
+        "min_ess": 1377.082381162077
+      },
+      "efficiency/pass_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0036629864325248,
+        "min_ess": 1418.6001024210045
+      },
+      "efficiency/pass_yards_per_attempt": {
+        "divergences": 0,
+        "max_rhat": 1.0025648991990121,
+        "min_ess": 1005.0220217843396
+      },
+      "efficiency/rec_catch_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0046137139316953,
+        "min_ess": 1334.6544045699943
+      },
+      "efficiency/rec_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0005882687266203,
+        "min_ess": 1391.973933011064
+      },
+      "efficiency/rec_yards_per_target": {
+        "divergences": 0,
+        "max_rhat": 1.0058761153336966,
+        "min_ess": 786.2353759503823
+      },
+      "efficiency/rush_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.003258367550744,
+        "min_ess": 1356.1330102296533
+      },
+      "efficiency/rush_yards_per_carry": {
+        "divergences": 0,
+        "max_rhat": 1.003272598890811,
+        "min_ess": 666.1281102034181
+      },
+      "volume/availability": {
+        "divergences": 0,
+        "max_rhat": 1.0034568409831615,
+        "min_ess": 2211.8549195519427
+      },
+      "volume/carry": {
+        "divergences": 0,
+        "max_rhat": 1.0036317775571477,
+        "min_ess": 3082.64387178798
+      },
+      "volume/carry_eligibility": {
+        "divergences": 0,
+        "max_rhat": 1.0029873765513198,
+        "min_ess": 2214.3520488460363
+      },
+      "volume/qb_propensity": {
+        "divergences": 0,
+        "max_rhat": 1.0028170172348083,
+        "min_ess": 6043.910982868328
+      },
+      "volume/snap": {
+        "divergences": 0,
+        "max_rhat": 1.0047777872847217,
+        "min_ess": 1528.709993667392
+      },
+      "volume/target": {
+        "divergences": 0,
+        "max_rhat": 1.0021060530445736,
+        "min_ess": 3154.5177280401595
+      },
+      "volume/team": {
+        "divergences": 0,
+        "max_rhat": 1.0026294928763033,
+        "min_ess": 1476.4947663196615
+      },
+      "volume/workload": {
+        "divergences": 0,
+        "max_rhat": 1.0031200770810709,
+        "min_ess": 2788.0574804843254
+      }
+    },
+    "half_ppr": {
+      "coverage_80": 0.7896749521988528,
+      "coverage_95": 0.9407265774378585,
+      "crps": 26.299174140320268,
+      "mae": 35.57426110898662,
+      "n": 523,
+      "rmse": 49.05194253079839,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.7934990439770554,
+      "coverage_95": 0.9426386233269598,
+      "crps": 30.02858174848231,
+      "mae": 40.439851787762905,
+      "n": 523,
+      "rmse": 55.193493267494866,
+      "scoring": "ppr"
+    },
+    "seconds": 899.9,
+    "standard": {
+      "coverage_80": 0.780114722753346,
+      "coverage_95": 0.9369024856596558,
+      "crps": 22.693991833138146,
+      "mae": 30.935029703632885,
+      "n": 523,
+      "rmse": 43.56096810203072,
+      "scoring": "standard"
+    }
+  },
+  "2023": {
+    "diagnostics": {
+      "efficiency/fumble_lost_rate": {
+        "divergences": 0,
+        "max_rhat": 1.002762871664668,
+        "min_ess": 1538.6936776760117
+      },
+      "efficiency/pass_completion_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0019896019777021,
+        "min_ess": 1514.3491856253956
+      },
+      "efficiency/pass_int_rate": {
+        "divergences": 0,
+        "max_rhat": 1.002708995170277,
+        "min_ess": 1351.1724162451205
+      },
+      "efficiency/pass_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0022553251773547,
+        "min_ess": 1649.710294560176
+      },
+      "efficiency/pass_yards_per_attempt": {
+        "divergences": 0,
+        "max_rhat": 1.002624768727761,
+        "min_ess": 1236.0089193791555
+      },
+      "efficiency/rec_catch_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0042767099613914,
+        "min_ess": 1600.6576550580944
+      },
+      "efficiency/rec_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0039940370738443,
+        "min_ess": 1481.1996860022837
+      },
+      "efficiency/rec_yards_per_target": {
+        "divergences": 0,
+        "max_rhat": 1.0037520957141854,
+        "min_ess": 621.2744111749815
+      },
+      "efficiency/rush_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.002666385938647,
+        "min_ess": 1492.558038563247
+      },
+      "efficiency/rush_yards_per_carry": {
+        "divergences": 0,
+        "max_rhat": 1.0033177548360448,
+        "min_ess": 677.9297825726987
+      },
+      "volume/availability": {
+        "divergences": 0,
+        "max_rhat": 1.0034437459450631,
+        "min_ess": 2418.5911731921665
+      },
+      "volume/carry": {
+        "divergences": 0,
+        "max_rhat": 1.003513238743343,
+        "min_ess": 3051.5434091630887
+      },
+      "volume/carry_eligibility": {
+        "divergences": 0,
+        "max_rhat": 1.0021261595191995,
+        "min_ess": 2192.2154469421116
+      },
+      "volume/qb_propensity": {
+        "divergences": 0,
+        "max_rhat": 1.0022811639136815,
+        "min_ess": 6198.894875834626
+      },
+      "volume/snap": {
+        "divergences": 0,
+        "max_rhat": 1.0032871257054563,
+        "min_ess": 1884.5866118364738
+      },
+      "volume/target": {
+        "divergences": 0,
+        "max_rhat": 1.00213408865984,
+        "min_ess": 3097.269331457757
+      },
+      "volume/team": {
+        "divergences": 0,
+        "max_rhat": 1.0106674541355736,
+        "min_ess": 1109.7363329474936
+      },
+      "volume/workload": {
+        "divergences": 0,
+        "max_rhat": 1.0032197597431631,
+        "min_ess": 2337.4668308880678
+      }
+    },
+    "half_ppr": {
+      "coverage_80": 0.7692307692307693,
+      "coverage_95": 0.9428007889546351,
+      "crps": 28.49873774107002,
+      "mae": 38.78049047337278,
+      "n": 507,
+      "rmse": 54.63346240106828,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.7751479289940828,
+      "coverage_95": 0.9428007889546351,
+      "crps": 32.525097651782545,
+      "mae": 44.2059833234714,
+      "n": 507,
+      "rmse": 61.02586016038504,
+      "scoring": "ppr"
+    },
+    "seconds": 1025.3,
+    "standard": {
+      "coverage_80": 0.7790927021696252,
+      "coverage_95": 0.9349112426035503,
+      "crps": 24.59245565052515,
+      "mae": 33.63646507889546,
+      "n": 507,
+      "rmse": 48.942100543357164,
+      "scoring": "standard"
+    }
+  },
+  "2024": {
+    "diagnostics": {
+      "efficiency/fumble_lost_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0043885095681975,
+        "min_ess": 1377.612938478804
+      },
+      "efficiency/pass_completion_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0039043516432318,
+        "min_ess": 1402.4835098868746
+      },
+      "efficiency/pass_int_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0022979545549349,
+        "min_ess": 1549.5702562676438
+      },
+      "efficiency/pass_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.000024031531504,
+        "min_ess": 1216.82290825807
+      },
+      "efficiency/pass_yards_per_attempt": {
+        "divergences": 0,
+        "max_rhat": 1.0043118924855725,
+        "min_ess": 1089.666839139536
+      },
+      "efficiency/rec_catch_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0015322742194819,
+        "min_ess": 1458.6899877244934
+      },
+      "efficiency/rec_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0027068364536822,
+        "min_ess": 1451.7824821332088
+      },
+      "efficiency/rec_yards_per_target": {
+        "divergences": 0,
+        "max_rhat": 1.0059348611116545,
+        "min_ess": 816.3821257042194
+      },
+      "efficiency/rush_td_rate": {
+        "divergences": 0,
+        "max_rhat": 1.0017659574714244,
+        "min_ess": 1544.6521600732635
+      },
+      "efficiency/rush_yards_per_carry": {
+        "divergences": 0,
+        "max_rhat": 1.0061029437391495,
+        "min_ess": 654.9602165563058
+      },
+      "volume/availability": {
+        "divergences": 0,
+        "max_rhat": 1.002432744913985,
+        "min_ess": 2469.713942299164
+      },
+      "volume/carry": {
+        "divergences": 0,
+        "max_rhat": 1.0027757935012147,
+        "min_ess": 3174.684282472236
+      },
+      "volume/carry_eligibility": {
+        "divergences": 0,
+        "max_rhat": 1.0029411583135441,
+        "min_ess": 1754.3927595852226
+      },
+      "volume/qb_propensity": {
+        "divergences": 0,
+        "max_rhat": 1.00360296411226,
+        "min_ess": 7016.589220606968
+      },
+      "volume/snap": {
+        "divergences": 0,
+        "max_rhat": 1.0020707700032185,
+        "min_ess": 1890.1054990088846
+      },
+      "volume/target": {
+        "divergences": 0,
+        "max_rhat": 1.0008325989866527,
+        "min_ess": 2933.7321640974433
+      },
+      "volume/team": {
+        "divergences": 0,
+        "max_rhat": 1.0034116141802574,
+        "min_ess": 1296.946118158655
+      },
+      "volume/workload": {
+        "divergences": 0,
+        "max_rhat": 1.000614609961897,
+        "min_ess": 2165.8036332911697
+      }
+    },
+    "half_ppr": {
+      "coverage_80": 0.8083832335329342,
+      "coverage_95": 0.9600798403193613,
+      "crps": 26.268555024496013,
+      "mae": 36.044050938123746,
+      "n": 501,
+      "rmse": 50.14488473037677,
+      "scoring": "half_ppr"
+    },
+    "ppr": {
+      "coverage_80": 0.8143712574850299,
+      "coverage_95": 0.9620758483033932,
+      "crps": 29.74069963664671,
+      "mae": 40.744155728542914,
+      "n": 501,
+      "rmse": 55.51037840034349,
+      "scoring": "ppr"
+    },
+    "seconds": 768.1,
+    "standard": {
+      "coverage_80": 0.8003992015968064,
+      "coverage_95": 0.9600798403193613,
+      "crps": 22.901220311621756,
+      "mae": 31.426338862275454,
+      "n": 501,
+      "rmse": 45.398225763571524,
+      "scoring": "standard"
+    }
+  },
+  "_frames": {
+    "cache_dir": ".cache/ffmodel-wf-2025-tm",
+    "digest": "f74368f5d0655e65",
+    "player_rows": 7937,
+    "seasons": [
+      2015,
+      2025
+    ],
+    "team_rows": 352,
+    "version": 2
+  }
+}

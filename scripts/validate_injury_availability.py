@@ -7,7 +7,7 @@ layer first, before it is allowed to change the accepted volume pipeline.
 Example:
 
     python scripts/validate_injury_availability.py --draws 300 --tune 300 \
-        --chains 2 --nuts-sampler nutpie --report-json reports/injury.json
+        --chains 2 --report-json reports/injury.json
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
 
 import numpy as np
@@ -97,8 +98,17 @@ def main(argv=None) -> int:
     parser.add_argument("--draws", type=int, default=300)
     parser.add_argument("--tune", type=int, default=300)
     parser.add_argument("--chains", type=int, default=2)
-    parser.add_argument("--nuts-sampler", choices=("pymc", "nutpie"), default="nutpie")
+    # Defaulted to nutpie, which is not installed here and is not a declared
+    # dependency, so every invocation of this script has died on an ImportError
+    # before reaching a fit. That is the most likely reason it has no output in
+    # validation_runs despite being written to produce some. pymc is the sampler
+    # every other validation on this branch uses.
+    parser.add_argument("--nuts-sampler", choices=("pymc", "nutpie"), default="pymc")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--cache-dir", type=Path, default=None,
+                        help="use prebuilt walk-forward frames instead of a fresh "
+                             "nflverse pull, so the result lines up with every "
+                             "other run on this branch")
     parser.add_argument("--report-json", type=Path)
     args = parser.parse_args(argv)
 
@@ -107,11 +117,28 @@ def main(argv=None) -> int:
         cache.mkdir(parents=True, exist_ok=True)
         os.environ["NUMBA_CACHE_DIR"] = str(cache)
 
-    data = build_season_average_data(
-        args.seasons,
-        source="nflverse",
-        roster_mode="point_in_time",
-    )
+    if args.cache_dir is not None:
+        # Use the frames every other comparison on this branch uses. A fresh
+        # pull differs from the cache in more than the passage of time --
+        # sixty-nine of two hundred eighty-nine columns differed between two
+        # caches here with identical row counts -- so a result measured on its
+        # own private build cannot be lined up against anything else.
+        player_rows = pd.read_pickle(Path(args.cache_dir) / "player_rows.pkl")
+        team_rows = pd.read_pickle(Path(args.cache_dir) / "team_rows.pkl")
+        missing = [c for c in INJURY_AVAILABILITY_FEATURES if c not in player_rows]
+        if missing:
+            raise SystemExit(
+                f"{args.cache_dir} is missing {missing}; these frames predate "
+                "the injury features and the challenger would silently fit the "
+                "baseline"
+            )
+        data = SimpleNamespace(player_rows=player_rows, team_rows=team_rows)
+    else:
+        data = build_season_average_data(
+            args.seasons,
+            source="nflverse",
+            roster_mode="point_in_time",
+        )
     rows = data.player_rows.copy()
     fit_kwargs = {
         "draws": args.draws,

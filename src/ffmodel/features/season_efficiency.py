@@ -393,6 +393,76 @@ def add_volume_efficiency_features(rows: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def add_teammate_quality_features(rows: pd.DataFrame) -> pd.DataFrame:
+    """Cross-positional teammate quality: who is throwing the ball.
+
+    Every efficiency spec in this package has an empty feature list, so a
+    receiver's yards per target is modelled from his own history, a position
+    effect and his projected target volume. Nothing tells the model who throws
+    to him, and a receiver moving between a replacement-level and an elite
+    quarterback has no mechanism to move.
+
+    ``prior_rec_team_quality_signal`` does not fill that gap despite the name.
+    It ranks a player's *own* quality within his team, so it measures relative
+    standing among teammates rather than the quality of those teammates.
+
+    This attaches the projected starter's own prior-season passing quality to
+    every skill-position row on his team. Everything it reads is available
+    before the season starts: last season's quality, and a preseason depth
+    chart.
+
+    The confound is worth naming rather than burying. A receiver who kept his
+    quarterback contributed to that quarterback's prior composite, so part of
+    any measured effect is a player predicting himself. ``team_change`` splits
+    that: for a player who moved, the new quarterback's prior quality is
+    genuinely exogenous, and an effect that exists only for players who stayed
+    is circularity rather than signal.
+    """
+    required = {"season", "team", "position"}
+    missing = required - set(rows.columns)
+    if missing:
+        raise ValueError(
+            f"teammate-quality rows are missing columns: {sorted(missing)}"
+        )
+    out = rows.copy()
+    if "prior_pass_quality_signal" not in out:
+        raise ValueError(
+            "teammate quality needs prior_pass_quality_signal; run "
+            "add_volume_efficiency_features first"
+        )
+
+    quarterback = out["position"].astype(str).str.upper().eq("QB")
+    listed = pd.to_numeric(
+        out.get("qb_listed_starter", pd.Series(np.nan, index=out.index)),
+        errors="coerce",
+    ).fillna(0)
+    depth = pd.to_numeric(
+        out.get("qb_depth_rank", pd.Series(np.nan, index=out.index)), errors="coerce"
+    )
+    # The listed starter, falling back to the shallowest depth chart entry when
+    # a team lists nobody. Both are preseason artifacts; ``primary_qb`` is not,
+    # because it is derived from what actually happened.
+    rank = np.where(listed.to_numpy() == 1, 0.0, depth.fillna(99).to_numpy() + 1.0)
+    order = pd.Series(np.where(quarterback.to_numpy(), rank, np.inf), index=out.index)
+    signal = pd.to_numeric(out["prior_pass_quality_signal"], errors="coerce")
+
+    chosen = (
+        pd.DataFrame({"order": order, "signal": signal, "qb": quarterback})
+        .assign(season=out["season"], team=out["team"])
+        .sort_values("order")
+        .groupby(["season", "team"], dropna=False)
+        .first()
+    )
+    starter_signal = chosen["signal"].where(chosen["qb"])
+    keys = pd.MultiIndex.from_frame(out[["season", "team"]])
+    out["teammate_qb_quality_signal"] = starter_signal.reindex(keys).to_numpy()
+    # A quarterback's own row keeps this empty: his passing quality is already
+    # his own feature, and feeding it back as "teammate quality" would let the
+    # model read one signal twice under two names.
+    out.loc[quarterback, "teammate_qb_quality_signal"] = np.nan
+    return out
+
+
 def add_conditional_volume_efficiency_features(rows: pd.DataFrame) -> pd.DataFrame:
     """Interact lagged efficiency with preseason role context.
 

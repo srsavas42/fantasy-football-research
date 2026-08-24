@@ -1,0 +1,14 @@
+{
+  "blend_weight": 0.316,
+  "config": {
+    "availability_target": "roster",
+    "market_adp_availability": true,
+    "market_adp_features": false,
+    "market_adp_qb": false,
+    "market_win_total": false
+  },
+  "rows": 907,
+  "scoring": "ppr",
+  "season": 2026,
+  "seconds": 2371.2
+}

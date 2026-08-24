@@ -914,19 +914,31 @@ def player_preseason_rows(
     )
     out = _mark_primary_qb(out)
 
-    rookie_claims = out.apply(
-        lambda row: expected_rookie_claim(row.get("overall_pick"), row["position"]),
-        axis=1,
-        result_type="expand",
-    )
-    out["draft_target_prior"] = rookie_claims[0].to_numpy(dtype=float)
-    out["draft_carry_prior"] = rookie_claims[1].to_numpy(dtype=float)
-    out["draft_pass_prior"] = out.apply(
-        lambda row: expected_rookie_pass_claim(
-            row.get("overall_pick"), row["position"]
-        ),
-        axis=1,
-    ).to_numpy(dtype=float)
+    # ``result_type="expand"`` splits each returned tuple into positional
+    # columns 0 and 1 -- but only when there is at least one row. On an empty
+    # frame pandas has nothing to expand and hands back the *input* columns
+    # instead, so indexing [0] raises KeyError rather than producing an empty
+    # column. That is reachable: the projection path builds a history helper
+    # for observed seasons the snapshot already covers, which is legitimately
+    # empty, and the whole build aborted on it.
+    if out.empty:
+        out["draft_target_prior"] = np.zeros(0, dtype=float)
+        out["draft_carry_prior"] = np.zeros(0, dtype=float)
+        out["draft_pass_prior"] = np.zeros(0, dtype=float)
+    else:
+        rookie_claims = out.apply(
+            lambda row: expected_rookie_claim(row.get("overall_pick"), row["position"]),
+            axis=1,
+            result_type="expand",
+        )
+        out["draft_target_prior"] = rookie_claims[0].to_numpy(dtype=float)
+        out["draft_carry_prior"] = rookie_claims[1].to_numpy(dtype=float)
+        out["draft_pass_prior"] = out.apply(
+            lambda row: expected_rookie_pass_claim(
+                row.get("overall_pick"), row["position"]
+            ),
+            axis=1,
+        ).to_numpy(dtype=float)
     out = add_teammate_quality_features(out)
     out = add_market_adp_features(out)
     out = add_conditional_volume_efficiency_features(out)
@@ -1087,6 +1099,18 @@ def _pathway_features_with_history(
     """
     present = set(pd.to_numeric(player_rows["season"], errors="coerce").dropna().astype(int))
     missing = [season for season in observed if season not in present]
+    # A season is absent from ``player_rows`` for two different reasons, and only
+    # one of them is fixable here. Seasons the snapshot did not cover can be
+    # rebuilt from usage. The *earliest* observed season cannot: every row it
+    # would produce needs a prior season to lag from, so it yields nothing, and
+    # asking for it sends an empty frame down a builder that fails on it three
+    # separate ways -- an expand that returns input columns, an ADP concat with
+    # no objects, and a merge on an absent key. None of those name the cause.
+    #
+    # Only the projection path reaches any of this; the backtest path returns
+    # above on ``not projection``.
+    window = set(observed)
+    missing = [season for season in missing if (season - 1) in window]
     if not projection or not missing:
         return add_player_pathway_features(player_rows)
 
@@ -1101,6 +1125,11 @@ def _pathway_features_with_history(
         roster_snapshot=None,
         postseason=postseason,
     )
+    if helper.empty:
+        # Belt and braces: the filter above removes the known cause, but a
+        # season with a prior that still yields nothing would land here rather
+        # than corrupting the concat.
+        return add_player_pathway_features(player_rows)
     helper["_pathway_helper"] = 1
     combined = pd.concat([helper, player_rows], ignore_index=True, sort=False)
     combined["_pathway_helper"] = (

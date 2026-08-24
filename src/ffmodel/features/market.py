@@ -130,6 +130,11 @@ def load_adp(seasons, directory: Path | str = DEFAULT_ADP_DIR) -> pd.DataFrame:
         block = read_adp_file(path)
         block["season"] = season
         frames.append(block)
+    if not frames:
+        # No seasons asked for. Reachable from the projection path, whose
+        # history helper is legitimately empty, and distinct from a season whose
+        # file is missing -- that case raises above and must keep raising.
+        return pd.DataFrame(columns=["player_name", "position", "team", "rank", "season"])
     return pd.concat(frames, ignore_index=True)
 
 

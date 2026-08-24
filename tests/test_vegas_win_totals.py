@@ -233,3 +233,11 @@ def test_the_team_model_reads_zeros_when_the_arm_is_off():
     model = TeamSeasonAverageModel()
     rows = pd.DataFrame({"season": [2024, 2024], "team": ["KC", "SF"]})
     assert (model._market(rows) == 0).all()
+
+
+def test_the_season_roster_feeds_arizona_code_resolves():
+    """nflverse season rosters say AZ where the weekly feeds say ARI."""
+    from ffmodel.data.wikipedia_coaching import team_identity
+
+    for code in ("ARI", "ARZ", "AZ"):
+        assert team_identity(code, 2026).franchise_code == "ARI"

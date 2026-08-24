@@ -167,6 +167,15 @@ def add_market_adp_features(
     seasons = pd.to_numeric(out.get("season"), errors="coerce").dropna().unique()
     adp = load_adp(seasons, directory)
 
+    if out.empty:
+        # Nothing to join. Reachable from the projection path's history helper,
+        # whose frame is empty when the earliest season rebuilds to no rows; the
+        # merge below would otherwise fail looking for "key" on an empty ADP
+        # frame, naming a column rather than the cause.
+        for name in ADP_FEATURES:
+            out[name] = np.zeros(0, dtype=float)
+        return out
+
     key = _name_key(out["player_name"])
     frame = pd.DataFrame({"season": pd.to_numeric(out["season"], errors="coerce"), "key": key})
     frame["position"] = out["position"].astype(str).str.upper()

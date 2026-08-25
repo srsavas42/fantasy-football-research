@@ -128,7 +128,12 @@ def team_identity(team_code: str, season: int) -> TeamIdentity:
     if code in _STATIC_TEAMS:
         franchise, name = _STATIC_TEAMS[code]
         return TeamIdentity(code, franchise, name)
-    if code in {"ARI", "ARZ", "PHO", "CRD"}:
+    # "AZ" is what the nflverse season-roster feed calls Arizona, distinct from
+    # the "ARI" the weekly feeds use. Added when the 2026 projection build hit
+    # it: one unresolved code aborts the whole frame, which is the right
+    # behaviour and worth keeping, so the fix belongs in the resolver rather
+    # than at the call site where it would drift from the player frame.
+    if code in {"ARI", "ARZ", "AZ", "PHO", "CRD"}:
         name = "Phoenix Cardinals" if season <= 1993 else "Arizona Cardinals"
         return TeamIdentity(code, "ARI", name)
     if code == "STL" and season <= 1987:

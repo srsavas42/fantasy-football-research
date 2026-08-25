@@ -33,6 +33,16 @@ import pandas as pd
 from ffmodel.features.market import ADP_FEATURES, add_market_adp_features
 from ffmodel.features.season_efficiency import add_teammate_quality_features
 from ffmodel.features.snaps import SNAP_EXPOSURE_FEATURES, add_snap_exposure
+from ffmodel.features.vegas import TEAM_MARKET_FEATURES, add_team_win_totals
+
+# Features that belong on the *team* frame rather than the player frame. The
+# script was written when every feature was a player column and copied
+# team_rows through untouched; a team feature added to the player builder would
+# have been written to the wrong frame and then silently dropped by a model
+# that reads team rows.
+TEAM_BUILDERS = {
+    "win-totals": (add_team_win_totals, TEAM_MARKET_FEATURES),
+}
 
 BUILDERS = {
     "market-adp": (add_market_adp_features, ADP_FEATURES),
@@ -49,7 +59,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path(".cache/ffmodel-wf-2025"))
     parser.add_argument("--dest", type=Path, required=True)
-    parser.add_argument("--feature", choices=sorted(BUILDERS), required=True)
+    parser.add_argument(
+        "--feature", choices=sorted(set(BUILDERS) | set(TEAM_BUILDERS)), required=True
+    )
     parser.add_argument(
         "--force",
         action="store_true",
@@ -57,7 +69,8 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    build, expected = BUILDERS[args.feature]
+    on_team = args.feature in TEAM_BUILDERS
+    build, expected = (TEAM_BUILDERS if on_team else BUILDERS)[args.feature]
     player_path = args.source / "player_rows.pkl"
     team_path = args.source / "team_rows.pkl"
     for path in (player_path, team_path):
@@ -70,9 +83,10 @@ def main(argv=None) -> int:
             "what you mean"
         )
 
-    player_rows = pd.read_pickle(player_path)
-    before = set(player_rows.columns)
-    augmented = build(player_rows)
+    source_frame = pd.read_pickle(team_path if on_team else player_path)
+    before = set(source_frame.columns)
+    augmented = build(source_frame)
+    player_rows = source_frame
 
     missing = [name for name in expected if name not in augmented.columns]
     if missing:
@@ -87,12 +101,17 @@ def main(argv=None) -> int:
         )
 
     args.dest.mkdir(parents=True, exist_ok=True)
-    augmented.to_pickle(args.dest / "player_rows.pkl")
-    shutil.copyfile(team_path, args.dest / "team_rows.pkl")
+    if on_team:
+        augmented.to_pickle(args.dest / "team_rows.pkl")
+        shutil.copyfile(player_path, args.dest / "player_rows.pkl")
+    else:
+        augmented.to_pickle(args.dest / "player_rows.pkl")
+        shutil.copyfile(team_path, args.dest / "team_rows.pkl")
 
     added = sorted(set(augmented.columns) - before)
     print(f"{args.source} -> {args.dest}")
-    print(f"  {len(augmented)} player rows, {len(added)} column(s) added: {added}")
+    grain = "team rows" if on_team else "player rows"
+    print(f"  {len(augmented)} {grain}, {len(added)} column(s) added: {added}")
     for name in expected:
         values = pd.to_numeric(augmented[name], errors="coerce")
         print(

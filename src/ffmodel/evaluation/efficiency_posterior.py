@@ -5,7 +5,17 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import (
+    crps_decomposition,
+    empirical_crps,
+    interval_coverage,
+    ordering_metrics,
+    pit_calibration,
+)
+
+# Twelve is one starter per team in a standard league, so the projected top
+# twelve at a position is exactly the set a drafter is trying to identify.
+TOP_K = 12
 from ffmodel.models.efficiency_season_average import (
     EfficiencyModelSpec,
     ExposureWeightedEfficiencyModel,
@@ -230,6 +240,24 @@ def score_fantasy_points_posterior(
     crps = empirical_crps(observed[valid], samples[valid])
     coverage80 = interval_coverage(observed[valid], samples[valid], 0.80)
     coverage95 = interval_coverage(observed[valid], samples[valid], 0.95)
+    # MAE, RMSE and CRPS are one quantity -- distance from truth in points --
+    # read at the centre, in the tails, and over the whole distribution. Two
+    # things they cannot see are added here.
+    #
+    # The decomposition separates *calibration* from *information*. A change
+    # that widens the posterior moves reliability; a change that tells players
+    # apart better moves resolution. CRPS alone mixes them, so a feature that
+    # adds real signal and a prior that was merely too tight look the same.
+    #
+    # Ordering is scored because the product is a ranked list. Nothing else
+    # here knows that: a projection can improve its MAE while putting players
+    # in a worse order, and the gate would call that a win.
+    parts = crps_decomposition(observed[valid], samples[valid])
+    positions = rows.get("position", pd.Series("", index=rows.index)).to_numpy()
+    ordering = ordering_metrics(
+        mean[valid], observed[valid], positions[valid], k=TOP_K
+    )
+    calibration = pit_calibration(observed[valid], samples[valid])
     return {
         "scoring": scoring,
         "n": int(valid.sum()),
@@ -238,4 +266,15 @@ def score_fantasy_points_posterior(
         "crps": float(crps.mean()),
         "coverage_80": float(coverage80["coverage"]),
         "coverage_95": float(coverage95["coverage"]),
+        "reliability": parts["reliability"],
+        "resolution": parts["resolution"],
+        "uncertainty": parts["uncertainty"],
+        "spearman": ordering.get("within_group_spearman", ordering["spearman"]),
+        "concordance": ordering.get(
+            "within_group_concordance", ordering["concordance"]
+        ),
+        "top_k": ordering.get("within_group_top_k", ordering["top_k"]),
+        "pit_deviation": calibration["deviation"],
+        "pit_shape": calibration["shape"],
+        "pit_mean": calibration["mean_pit"],
     }

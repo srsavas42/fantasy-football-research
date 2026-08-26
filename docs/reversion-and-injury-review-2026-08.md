@@ -1,6 +1,6 @@
 # Mean reversion, injury games, and the availability checkpoint (2026-08-26)
 
-Five questions, asked of the pipeline end to end. Every number below was
+Six questions, asked of the pipeline end to end. Every number below was
 measured on this checkout against nflverse 1999–2025 and is reproducible with
 `scripts/measure_efficiency_reversion.py`,
 `scripts/measure_post_injury_efficiency.py`,
@@ -35,11 +35,20 @@ Short answers:
    inconsistency is undocumented.** One layer — the snap model — carries a career
    EWMA and a one-season trend. Availability, the role allocators and every
    efficiency response read exactly one lagged season. Measured, the missing
-   depth is worth **−2.19% availability MAE on 5 folds of 5** from a column
-   (`prior_availability_3yr`) that is already built and populated in every frame
-   and simply not listed in `AVAILABILITY_FEATURES`. For efficiency it is worth
-   almost nothing.
-5. **Prior-season injury and recovery time add essentially nothing** beyond
+   depth is worth **−0.38% MAE and −0.35% CRPS, 3/3 folds each**, in a paired
+   fit of the real availability layer, from a column
+   (`prior_availability_3yr`) that was already built and populated in every
+   frame and simply not listed in `AVAILABILITY_FEATURES`. Now wired on. For
+   efficiency, more history is worth almost nothing.
+5. **Start-of-season injury status is already in the model — as `roster_reserve`,
+   not as the injury feed.** The `current_injury_*` features fire on 4.57% of
+   rows and move the mean about a game; `roster_reserve` fires on 35.3% and
+   predicts 3.44 games against 13.35. The two halves of the injury block were
+   never screened apart, and separating them explains the standing null rather
+   than overturning it. One real defect found: the expected-recovery estimator
+   drops censored episodes, so it is fitted only on injuries people came back
+   from and tops out at 2.05 weeks.
+6. **Prior-season injury and recovery time add essentially nothing** beyond
    `prior_availability`, which the layer already carries — this repo measured
    that expensively and inconclusively, and the mechanism is now visible.
    **Current** injury state is a different matter, and it is where the
@@ -224,6 +233,31 @@ over-covered at the 80% level in the v2 table (0.899 and 0.917 against a nominal
 rushing touchdown rate are 2.6% and 2.3% of points variance. A pooled MAE gate on
 total points is nearly blind to them. A drafter reading position ranks is not:
 the players in Q5 are exactly the ones near the top of the board.
+
+### A data fault found while validating this, and where it does not reach
+
+Measuring the fitted slope on a frame built back to 2006 produced a persistence
+posterior of 0.077 [0.050, 0.108] — a claim that the lagged feature is almost
+worthless, which is not credible for catch rate. It was not a modelling result.
+The nflverse weekly feed under-reports targets before 2009: 2003–2008 contain
+player-seasons with fifty receptions on one target, so `rec_catch_rate` reaches
+**112.0** and `shrunk_rec_catch_rate` reaches **69.0**. `_prior_signal` links
+those to +8.5 on the logit scale, and a slope fitted through them collapses.
+
+| response | rows above 1.0 | last affected season |
+|---|---:|---:|
+| rec_catch_rate | 53 | 2008 |
+| rec_td_rate | 28 | 2008 |
+| fumble_lost_rate | 13 | 2008 |
+| pass_completion_rate, pass_td_rate, rush_td_rate | 0 | — |
+
+**Nothing at or after 2014 is affected**, and `_walkforward_data.DEFAULT_SEASONS`
+starts at 2014, so no shipped fit has ever seen these rows. It is a latent
+hazard for anyone who widens the season range, not a live defect — but
+`player_season_efficiency` computes a ratio of season totals and does not bound
+a proportion by its own definition, so nothing would stop it recurring.
+`scripts/validate_persistence_mean.py` asserts the bound rather than trusting
+it.
 
 ### One standing claim needs qualifying
 
@@ -520,12 +554,60 @@ model already has — −3.15% and −5.42% there against −0.07% and −0.87% 
 binding constraint on the efficiency layer is not how much history it reads. It
 is what it does with the season it has.
 
+### A correction, and then the measurement that settles it
+
+The −2.19% above is measured against a baseline of `prior_availability` alone,
+and that is not the layer. The shipping availability regression fits **ten**
+features, several of which — `age`, `experience`, `depth_rank`,
+`roster_reserve`, `is_replacement_player` — carry a good deal of what a career
+mean carries. Widening the linear baseline to the full design collapses it:
+
+| linear baseline | + `prior_availability_3yr` | change | folds |
+|---|---:|---:|---|
+| `prior_availability` alone (0.25836) | 0.25271 | −2.19% | 5/5 |
+| full `AVAILABILITY_FEATURES` (0.19623) | 0.19609 | −0.07% | 3/5 |
+
+Neither linear number is the answer either, because the layer is not a linear
+regression. It is a hurdle — Bernoulli for playing at all, Beta-Binomial for
+games conditional on playing — with position-specific intercepts and an
+SVD-projected design. The only honest measurement is to fit it both ways.
+
+`scripts/validate_availability_history.py` does that: the same
+`SeasonAvailabilityModel`, the same frames, the same seeds, differing only in
+`extra_features`, holding out 2022, 2023 and 2024. It asserts per fold that the
+history arm actually fitted the extra column, because the design's variance
+filter would otherwise drop it silently and the comparison would be a null
+against itself.
+
+| metric | base | + history | change | folds |
+|---|---:|---:|---:|---|
+| MAE (games active) | 3.56929 | 3.55561 | **−0.38%** | **3/3** |
+| CRPS | 2.20347 | 2.19579 | **−0.35%** | **3/3** |
+| 80% coverage | 0.91721 | 0.91815 | +0.0009 | unmoved |
+
+Max R-hat 1.01 and **zero divergences** in both arms, all six fits.
+
+Both accuracy metrics clear the 0.25% materiality floor, both are unanimous
+across folds, and coverage does not move — so the gain is not bought by
+narrowing honest intervals. The linear proxies bracketed the truth without
+containing it, which is the lesson: measure a feature in the model that will
+serve it.
+
 ### Recommendation
 
-1. **Add `prior_availability_3yr` to `AVAILABILITY_FEATURES`.** One line, a
-   column that already exists, −2.19% MAE unanimous on five folds. This is the
-   cheapest well-evidenced change in this document and it should go to the
-   scoring gate first.
+1. **`prior_availability_3yr` is wired into `AVAILABILITY_FEATURES` via
+   `availability_history_features`, on by default.** One column that already
+   existed, −0.38% MAE and −0.35% CRPS, 3/3 folds each, coverage unmoved, zero
+   divergences.
+
+   The honest label is **layer-gated, scoring gate pending**. This package has
+   a precedent that says exactly why that distinction matters: the injury
+   feature block passed its availability-layer screen at −2.39% CRPS on 3/3
+   folds and then went flat on total fantasy points. Availability feeds
+   exposure, exposure feeds every volume stream, and a gain in projected games
+   is not yet a gain in projected points. The flag exists so the paired arm
+   stays reproducible and so this can be turned off in one keyword if the
+   scoring gate disagrees.
 2. **Consider `prior_rush_yards_per_carry` and `prior_rush_td_rate` career
    EWMAs**, but only after the fitted-mean change in section 1, and measured
    against it rather than against today's baseline. Both are RB-only responses
@@ -536,6 +618,96 @@ is what it does with the season it has.
    design.** A key the design computes, carries and never reads is either a
    missing player random effect or dead weight, and the code does not say which
    was intended.
+
+---
+
+## 2d. Start-of-season injury status, on its own
+
+Asked separately from prior-season history, because the two were only ever
+tested together and they are not the same claim.
+
+### It exists, and it was never screened alone
+
+Five of the eleven contracted injury features describe the player's state at the
+projection cutoff rather than his past: `current_injury_snapshot_available`,
+`current_injury_reported`, `current_injury_severity`,
+`current_injury_practice_severity` and
+`current_injury_expected_recovery_weeks`. The other six are the three-year
+burden. `scripts/validate_injury_availability.py` screens
+`INJURY_AVAILABILITY_FEATURES` as one block, so every result on record —
+the favourable three-fold screen, the flat 2025 confirmation, the inconclusive
+six holdouts — is about the bundle. Nothing separated the halves.
+
+Section 4 gives a reason to expect the halves to behave differently: the
+three-year burden is competing with `prior_availability`, which already has the
+signal. If that half contributes nothing, it is diluting whatever the current
+half contributes.
+
+### Why the current half cannot carry much either
+
+| signal | fires on | mean games that season | never played |
+|---|---:|---:|---:|
+| nothing at all | 62.3% of rows | 13.35 | 0.0% |
+| Week-1 injury report, not on reserve | 2.4% (n=102) | 12.41 | 0.0% |
+| report severity 3 (out/IR/PUP), not on reserve | 0.4% (n=15) | 8.73 | 0.0% |
+| **`roster_reserve` = 1** | **35.3%** | **3.44** | **47.9%** |
+
+Two things fall out of that table.
+
+**The injury report is nearly empty.** `current_injury_reported` is non-zero on
+**4.57%** of rows. It is the official Week-1 game-status report, which by
+definition is about that one game — a player who lost his season in August is
+not on it, he is on reserve. So the feature named "current injury status" fires
+on one row in twenty-two and moves the mean by about a game when it does.
+
+**The column that carries this is already in the model.** `roster_reserve`
+fires on 35.3% of rows, predicts 3.44 games against 13.35, and is in
+`AVAILABILITY_FEATURES` today. Start-of-season injury status *is* represented in
+the shipping model — through roster status, not through the injury feed, and
+roughly ten times more strongly.
+
+Walk-forward on availability, over a base of `prior_availability` plus roster
+status:
+
+| arm | MAE | change | folds |
+|---|---:|---:|---|
+| base (`prior_availability` + roster status) | 0.20928 | — | — |
+| + three-year injury burden | 0.20941 | +0.06% | 2/5 |
+| + start-of-season status | 0.20890 | −0.18% | 3/5 |
+| + both halves | 0.20897 | −0.15% | 3/5 |
+
+Splitting the bundle does change the picture — the current half is the half with
+the right sign, and the burden half is the one that regresses — but neither
+clears the 0.25% materiality floor, and the split arm does not beat the bundle
+by enough to matter. **This is not a rescue of the injury block.** It is an
+explanation of why the block kept coming back inconclusive: one half competes
+with a feature that already has the signal, and the other is 95% zeros next to a
+roster column that says the same thing louder.
+
+### One defect worth fixing regardless
+
+`current_injury_expected_recovery_weeks` maxes out at **2.05 weeks** across the
+whole 2018–2024 frame, and averages 0.54 weeks where it fires at all. That is
+not a property of football injuries; it is a property of the estimator.
+`_expected_recovery` pools only episodes with `recovery_censored == 0`, and an
+episode is censored precisely when the player never returned that season. The
+estimator is therefore fitted exclusively on injuries people came back from
+within the year, so it cannot learn a long recovery — the long recoveries are
+the censored ones it drops.
+
+A feature intended to say "this player will miss a long time" is structurally
+incapable of saying so. Fixing it means treating the censored episodes as
+censored — a survival estimate rather than a mean over completers — rather than
+excluding them. Whether that makes the feature useful is a separate question,
+and on the evidence above the honest prior is that it will not, because
+`roster_reserve` is already saying the same thing.
+
+### Recommendation
+
+Leave `injury_availability_features` off, as before. If it is ever revisited,
+screen the two halves separately and fix the censoring first — the bundled
+screen cannot tell which half is doing what, and the recovery feature is not
+currently measuring what its name says.
 
 ---
 

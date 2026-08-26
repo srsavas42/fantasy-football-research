@@ -14,7 +14,10 @@ single lagged season:
 
 - the availability regression's `AVAILABILITY_FEATURES` carries
   `prior_availability` and no history term, though `prior_availability_3yr` is
-  sitting in the same frame;
+  sitting in the same frame. Both baselines are reported for that layer: against
+  `prior_availability` alone the career mean is worth -1.51%, against the full
+  ten-feature design it is worth -0.10%, and only the second is the question the
+  layer actually poses;
 - the role allocators put `log(role_prior)` in as an offset built from the
   previous season alone;
 - `lagged_efficiency_rows` shifts `Y` onto `Y+1` and there is no `prior2_*`
@@ -47,6 +50,15 @@ warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
+
+from ffmodel.data import load_player_weeks
+from ffmodel.features import crossseason
+from ffmodel.features.season_efficiency import player_season_efficiency
+from ffmodel.features.volume import MODEL_POSITIONS, normalize_model_positions
+from ffmodel.models.season_availability import (
+    AVAILABILITY_FEATURES,
+    AVAILABILITY_HISTORY_FEATURES,
+)
 
 # Matches features/season_pathways.HISTORY_ALPHA, so the challenger here is the
 # same quantity the package already builds rather than a new invention.
@@ -194,20 +206,39 @@ def main(argv=None) -> int:
 
         print("=== AVAILABILITY: the column is in the frame and unread ===")
         print("prior_availability_3yr is built for every row. AVAILABILITY_FEATURES")
-        print("does not list it, so the shipping availability model never sees it.\n")
+        print("does not list it, so the shipping availability model never sees it.")
+        print("Both baselines are reported on purpose. The thin one answers 'does a")
+        print("career mean beat last season alone', which is not the question the")
+        print("layer poses; the full one answers 'does it add to what the layer")
+        print("already has', which is, and gives a much smaller answer.\n")
         available = player_rows[
             player_rows["position"].isin(("QB", "RB", "WR", "TE"))
             & player_rows["prior_availability"].notna()
             & player_rows["observed_availability"].notna()
-        ]
-        arms = {
+        ].copy()
+        for name in AVAILABILITY_FEATURES:
+            if name not in available:
+                available[name] = np.nan
+        thin = {
             "lag-1 only": ["prior_availability"],
-            "+ career ewma": ["prior_availability", "prior_availability_3yr"],
+            "+ career ewma": ["prior_availability", *AVAILABILITY_HISTORY_FEATURES],
         }
         folds = walk_forward(
-            available, "observed_availability", arms, weight=None, min_train=400
+            available, "observed_availability", thin, weight=None, min_train=400
         )
-        results["availability"] = report(folds, arms, "AVAILABILITY (games / team games)")
+        results["availability_thin_baseline"] = report(
+            folds, thin, "AVAILABILITY vs prior_availability alone (the wrong baseline)"
+        )
+        full = {
+            "full design": list(AVAILABILITY_FEATURES),
+            "+ career ewma": [*AVAILABILITY_FEATURES, *AVAILABILITY_HISTORY_FEATURES],
+        }
+        folds = walk_forward(
+            available, "observed_availability", full, weight=None, min_train=400
+        )
+        results["availability"] = report(
+            folds, full, "AVAILABILITY vs the full shipping design (the right one)"
+        )
 
         print("=== SNAP SHARE: the one layer that already reads history ===")
         skill = player_rows[

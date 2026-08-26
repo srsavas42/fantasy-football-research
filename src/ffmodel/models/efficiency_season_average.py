@@ -280,6 +280,52 @@ POSTERIOR_MEAN_MODE = {
     "fumble_lost_rate": "prior",
 }
 
+# The ``prior`` responses, with the one thing the mean gate never offered them.
+#
+# ``prior`` mode is an identity map: ``_prior_signal`` links the lagged feature
+# and subtracts a centre, ``_prior_mean`` re-adds that centre and inverts the
+# link, so the conditional mean handed to the simulator *is*
+# ``prior_<response>`` exactly. Its implied persistence coefficient on the
+# shrunk feature is 1.000, and the whole of the layer's regression to the mean
+# is therefore the pseudo-count ``K`` in ``EFFICIENCY_SPECS``.
+#
+# Measured by ``scripts/measure_efficiency_reversion.py`` over nflverse
+# 1999-2025, walk-forward, scored in touchdowns at realized next-season
+# exposure so the volume layer is held out of it:
+#
+#   response          K     effective persistence   slope the data wants   held-out MAE
+#   rec_td_rate       120           0.413                   0.591          -3.15%, 12/15
+#   rush_td_rate      120           0.572                   0.441          -5.42%, 12/18
+#   rec_catch_rate     40           0.671                   0.795          -2.38%, 13/15
+#
+# The error is a location bias that changes sign across the distribution, which
+# is why a pooled metric could not see it: by quintile of the lagged feature,
+# the top fifth is projected +5.1 PPR points high at receiver and +8.0 at
+# running back, the bottom fifth the same distance low, with the sign flipping
+# at the median on 15 and 18 folds.
+#
+# The efficiency-v2 gate is not evidence against this. Its challenger was the
+# full posterior regression -- fitted persistence *plus* the base-feature block,
+# the advanced-efficiency block and the projected-volume covariate, all admitted
+# at once on roughly 2,000 rows -- and it lost 0/3 folds on receiving touchdown
+# rate. There was no mode between "use the feature raw" and "regress on
+# everything". This is that mode: an intercept, sum-to-zero position offsets,
+# and a slope. Position offsets are not optional -- the shrinkage pools toward a
+# season-and-position mean, so a single shared intercept would pull three
+# positions with genuinely different touchdown rates toward one grand mean.
+#
+# It is a strict generalisation of ``prior``: slope 1, intercept at the prior
+# centre and zero position offsets reproduce today's behaviour exactly, so the
+# arm cannot lose by more than sampling noise.
+#
+# ``fumble_lost_rate`` stays on ``prior``. It is 0.05% of points variance and
+# was not measured; there is no reason to widen the surface for it.
+PERSISTENCE_MEAN_MODE = {
+    "rec_td_rate": "persistence",
+    "rush_td_rate": "persistence",
+    "rec_catch_rate": "persistence",
+}
+
 
 
 # Width of the prior on the Beta-Binomial overdispersion, in log space.
@@ -582,14 +628,30 @@ class PosteriorSeasonEfficiencyModel:
             mode = "prior" if self.prior_only else "posterior"
         else:
             mode = POSTERIOR_MEAN_MODE[self.spec.target]
-        if mode not in {"prior", "ridge", "posterior"}:
+        if mode not in {"prior", "ridge", "posterior", "persistence"}:
             raise ValueError(f"unsupported posterior mean mode: {mode}")
         return mode
 
     def _uses_prior_only(self) -> bool:
         return self._mean_mode() == "prior"
 
+    def _fits_the_mean(self) -> bool:
+        """Whether the likelihood estimates the location as well as the spread.
+
+        ``prior`` and ``ridge`` hand the likelihood a fixed mean computed
+        outside it. ``posterior`` and ``persistence`` both build a linear
+        predictor the sampler fits; they differ only in whether the covariate
+        block is admitted, and ``_candidates`` is what decides that.
+        """
+        return self._mean_mode() in {"posterior", "persistence"}
+
     def _candidates(self) -> tuple[str, ...]:
+        # ``persistence`` is the shrunk prior with a fitted intercept, position
+        # offsets and a slope, and nothing else -- an empty design is the
+        # point of it, not an oversight. Its own exposure already entered
+        # through the ``den / (den + K)`` weight in the feature.
+        if self._mean_mode() == "persistence":
+            return ()
         names = [self.spec.prior_exposure]
         if self._mean_mode() == "posterior":
             names.extend(BASE_EFFICIENCY_FEATURES)
@@ -834,7 +896,7 @@ class PosteriorSeasonEfficiencyModel:
             raise ValueError(f"unsupported efficiency likelihood: {self.spec.likelihood}")
 
         with pm.Model() as model:
-            if mode != "posterior":
+            if not self._fits_the_mean():
                 # Preserve the point forecast that survived the walk-forward
                 # mean gate and estimate only the dispersion needed downstream.
                 mean = np.clip(
@@ -874,12 +936,16 @@ class PosteriorSeasonEfficiencyModel:
                 prior_persistence = pm.Normal(
                     "prior_persistence", mu=0.80, sigma=0.25
                 )
-                beta = pm.Normal("beta", 0.0, 0.30, shape=X.shape[1])
-                eta = (
-                    intercept
-                    + prior_persistence * prior_signal
-                    + pm.math.dot(X, beta)
-                )
+                eta = intercept + prior_persistence * prior_signal
+                # ``persistence`` mode has no covariates by construction, and a
+                # zero-length Normal is not a random variable the sampler can
+                # be asked for. Guarding here rather than materialising an
+                # empty ``beta`` also keeps it out of the posterior, so
+                # ``diagnostics`` does not look for a variable that is not
+                # there.
+                if X.shape[1]:
+                    beta = pm.Normal("beta", 0.0, 0.30, shape=X.shape[1])
+                    eta = eta + pm.math.dot(X, beta)
                 if len(self.spec.positions) > 1:
                     raw = pm.Normal(
                         "position_effect_raw",
@@ -985,7 +1051,7 @@ class PosteriorSeasonEfficiencyModel:
         available = int(posterior.sizes["chain"] * posterior.sizes["draw"])
         draws = available if draws is None else int(draws)
         indices = _sample_indices(available, draws, seed)
-        if self._mean_mode() != "posterior":
+        if not self._fits_the_mean():
             if (
                 self._mean_mode() == "ridge"
                 and volume_feature_samples is not None
@@ -1142,6 +1208,11 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     # everywhere. Taking the per-fold winner instead would be fitting the noise
     # this procedure exists to avoid.
     exposure_floor: int | None = 5
+    # Give the ``prior``-mode responses a fitted intercept, position offsets and
+    # a persistence slope instead of asserting a slope of 1.000. See
+    # ``PERSISTENCE_MEAN_MODE`` for what it replaces and what it is worth. Kept
+    # as its own flag so the single-season identity-map arm stays reproducible.
+    fitted_persistence_means: bool = True
     models: dict[str, PosteriorSeasonEfficiencyModel] = field(default_factory=dict)
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
@@ -1194,8 +1265,14 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                         "teammate_qb_quality_signal",
                     ),
                 )
+            mean_mode = (
+                PERSISTENCE_MEAN_MODE.get(spec.target)
+                if self.fitted_persistence_means
+                else None
+            )
             model = PosteriorSeasonEfficiencyModel(
                 spec,
+                mean_mode=mean_mode,
                 use_volume=self.use_volume,
                 use_advanced=self.use_advanced,
                 ridge_alpha=self.ridge_alpha,
@@ -1260,14 +1337,16 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     def diagnostics(self, *, min_bulk_ess: float = 100.0) -> dict[str, object]:
         results = {}
         for target, model in self.models.items():
-            if model._mean_mode() != "posterior":
+            if not model._fits_the_mean():
                 variables = (
                     ["concentration"]
                     if model.spec.likelihood == "beta_binomial"
                     else ["season_sigma", "opportunity_sigma"]
                 )
             else:
-                variables = ["intercept", "prior_persistence", "beta"]
+                variables = ["intercept", "prior_persistence"]
+                if model.feature_names:
+                    variables.append("beta")
                 if len(model.spec.positions) > 1:
                     variables.append("position_effect")
                 if model.spec.likelihood == "beta_binomial":

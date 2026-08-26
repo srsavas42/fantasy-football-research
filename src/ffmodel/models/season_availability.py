@@ -40,6 +40,26 @@ AVAILABILITY_FEATURES = (
     "is_replacement_player",
 )
 
+# A player's own availability history, beyond the single season the layer has
+# always read.
+#
+# ``features/season_pathways.py`` has built this for every row since the
+# pathway work: a career exponentially-weighted mean at alpha 0.50, grouped by
+# ``player_key`` so it follows a trade, over inputs that are already lagged.
+# ``build_season_average_data`` attaches it to every frame. Nothing read it.
+#
+# One lagged season is a poor estimate of a durability trait -- pooled
+# year-over-year availability correlation is 0.365 -- and averaging three is a
+# better one. Measured by ``scripts/measure_history_depth.py`` on a 2018-2024
+# build: held-out availability MAE 0.25836 -> 0.25271, **-2.19% on five folds of
+# five**, against the package's 0.25% materiality floor.
+#
+# The trend term is deliberately not here. It exists (``prior_availability_trend``)
+# but it needs two *consecutive* prior seasons and is missing on roughly half the
+# rows, and a half-missing feature in a design that median-fills is a different
+# and larger change than adding a mean.
+AVAILABILITY_HISTORY_FEATURES = ("prior_availability_3yr",)
+
 STARTER_FEATURES = (
     "prior_availability",
     "age",

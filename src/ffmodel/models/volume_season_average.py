@@ -41,6 +41,7 @@ from ffmodel.models.base import (
     simplex_shares,
 )
 from ffmodel.models.season_availability import (
+    AVAILABILITY_HISTORY_FEATURES,
     AvailabilityPrediction,
     QBWorkloadShareModel,
     SeasonAvailabilityModel,
@@ -1449,6 +1450,13 @@ class SeasonAverageVolumePipeline:
     # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
     # because availability feeds exposure and a gain there is not a gain here.
     injury_availability_features: bool = False
+    # Let the availability regression read the player's own availability
+    # history, not only last season. See ``AVAILABILITY_HISTORY_FEATURES``:
+    # -2.19% held-out MAE on five folds of five, from a column the frame has
+    # carried all along. Kept as its own flag so the arm without it stays
+    # reproducible, and so a frame built before the pathway features can still
+    # be fitted by turning it off.
+    availability_history_features: bool = True
     market_adp_features: bool = False
     # Per-position rank slopes and drafted effects. Measured and rejected:
     # worse on three drafted-pool holdouts of three at double the fit time,
@@ -1565,6 +1573,8 @@ class SeasonAverageVolumePipeline:
         self._apply_availability_target(data.player_rows)
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.availability_history_features:
+            self._enable_availability_history(data.player_rows)
         if self.injury_availability_features:
             missing = [
                 name
@@ -1837,6 +1847,34 @@ class SeasonAverageVolumePipeline:
             )
         self.availability_model.games_column = games_column
         self.snap_model.availability_column = availability_column
+
+    def _enable_availability_history(self, player_rows: pd.DataFrame) -> None:
+        """Append the career availability mean to the availability regression.
+
+        Raises rather than dropping silently. ``_matrix`` keeps only features
+        present in the frame, so a cache built before the pathway features
+        would fit a model nobody chose and report nothing about it.
+        """
+        missing = [
+            name
+            for name in AVAILABILITY_HISTORY_FEATURES
+            if name not in player_rows.columns
+        ]
+        if missing:
+            raise ValueError(
+                f"availability_history_features is on but {missing} are absent "
+                "from the player rows. Rebuild the cache, or set "
+                "availability_history_features=False to fit the single-season "
+                "layer deliberately rather than by accident"
+            )
+        self.availability_model.extra_features = tuple(
+            dict.fromkeys(
+                (
+                    *self.availability_model.extra_features,
+                    *AVAILABILITY_HISTORY_FEATURES,
+                )
+            )
+        )
 
     def _enable_market_adp_availability(self, player_rows: pd.DataFrame) -> None:
         """Append preseason consensus to the availability regression only.

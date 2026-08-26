@@ -82,7 +82,12 @@ def fold(
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--player-rows", type=Path, default=Path(".cache/player_rows_probe.pkl")
+        "--player-rows",
+        type=Path,
+        default=Path(".cache/player_rows_2014_2025.pkl"),
+        help="a built player_rows frame. Default is the shipping window, which "
+        "is also what validate_persistence_mean.py reads, so the two "
+        "validations in this branch are on the same data",
     )
     parser.add_argument("--draws", type=int, default=800)
     parser.add_argument("--chains", type=int, default=4)

@@ -1,9 +1,10 @@
 # Mean reversion, injury games, and the availability checkpoint (2026-08-26)
 
-Four questions, asked of the pipeline end to end. Every number below was
+Five questions, asked of the pipeline end to end. Every number below was
 measured on this checkout against nflverse 1999–2025 and is reproducible with
 `scripts/measure_efficiency_reversion.py`,
-`scripts/measure_post_injury_efficiency.py` and
+`scripts/measure_post_injury_efficiency.py`,
+`scripts/measure_history_depth.py` and
 `scripts/measure_availability_signal.py`.
 
 Short answers:
@@ -30,7 +31,15 @@ Short answers:
    only 22.9% of players who lose a season hold a real role two years later,
    against 51.3% of healthy peers. The real
    post-injury effect is on availability and role, not on efficiency.
-4. **Prior-season injury and recovery time add essentially nothing** beyond
+4. **The pipeline is not uniform about how many prior seasons it reads, and the
+   inconsistency is undocumented.** One layer — the snap model — carries a career
+   EWMA and a one-season trend. Availability, the role allocators and every
+   efficiency response read exactly one lagged season. Measured, the missing
+   depth is worth **−2.19% availability MAE on 5 folds of 5** from a column
+   (`prior_availability_3yr`) that is already built and populated in every frame
+   and simply not listed in `AVAILABILITY_FEATURES`. For efficiency it is worth
+   almost nothing.
+5. **Prior-season injury and recovery time add essentially nothing** beyond
    `prior_availability`, which the layer already carries — this repo measured
    that expensively and inconclusively, and the mechanism is now visible.
    **Current** injury state is a different matter, and it is where the
@@ -430,6 +439,103 @@ Two cheaper things are worth doing instead:
    prior-season injury adding nothing *conditional on prior availability*, and
    these two facts are consistent — the attrition is visible in the availability
    number itself, which is why a separate injury feature keeps coming back null.
+
+---
+
+## 2c. How many prior seasons does each layer actually read?
+
+Not a uniform answer, and the inconsistency is not written down anywhere.
+
+### What exists, and who reads it
+
+`features/season_pathways.py` builds a real multi-season state for every player:
+a career exponentially-weighted mean at `HISTORY_ALPHA = 0.50` — last season
+half the weight, the one before a quarter — plus a one-season `_trend`
+difference, over eight production inputs and five efficiency ones, grouped by
+`player_key` so the history follows a player through a trade.
+`build_season_average_data` attaches all of them to every frame. Verified on a
+2018–2024 build: `prior_snap_share_3yr` is populated on 3,384 of 4,268 rows and
+`prior_snap_share_trend` on 2,176, which is every row whose player has two
+consecutive prior seasons.
+
+Exactly one model reads any of it.
+
+| layer | history depth in the shipping configuration |
+|---|---|
+| snap share | **career EWMA + trend** — `SeasonSnapShareModel.extra_features` defaults to `SNAP_HISTORY_FEATURES` |
+| availability | one lagged season. `prior_availability_3yr` is in the frame and absent from `AVAILABILITY_FEATURES` |
+| role allocators | one lagged season, as the `log(role_prior)` offset |
+| efficiency, all ten responses | one lagged season. No `prior2_*` column exists anywhere in the package |
+| team layer | one lagged season **plus** a per-team intercept pooled across every training season, and a linear era term |
+| injury features (off) | three-year windows — `prior_injury_*_3yr` — the only other multi-year contract in the codebase |
+
+Two structural notes worth separating from the feature question. The team layer's
+franchise intercept is genuine multi-season information, but it is a constant per
+team, not a trajectory. And `SeasonRosterShareModel._design` computes a
+`player_idx` and returns it in the design dictionary, but `fit` never uses it —
+there is no player-level random effect in the role allocators, so nothing pools a
+player's own seasons there either.
+
+### What the missing depth is worth
+
+Walk-forward ridge, one fold per season, each fitted only on earlier ones.
+Challengers are the cheapest available: the same lag-1 feature plus a career
+EWMA, plus a trend, or plus an explicit second lag. Folds whose training rows
+cannot support an arm are dropped from every arm rather than scored — a silently
+NaN arm reads as a large improvement once the weighted mean skips it.
+
+| layer / response | lag-1 MAE | best challenger | change | folds |
+|---|---:|---|---:|---|
+| **availability** | 0.25836 | + career EWMA | **−2.19%** | **5/5** |
+| **snap share** | 0.15618 | + EWMA + trend | −1.22% | 3/4 |
+| rush_yards_per_carry | 0.50520 | + career EWMA | −1.10% | 10/15 |
+| rush_td_rate | 0.01274 | + explicit lag-2 | −0.87% | 11/15 |
+| rec_td_rate | 0.02159 | + explicit lag-2 | −0.07% | 13/15 |
+| rec_catch_rate | 0.05577 | + explicit lag-2 | −0.01% | 8/15 |
+| rec_yards_per_target | 1.11858 | + explicit lag-2 | +0.00% | 2/15 |
+
+### Reading it
+
+**Availability is the finding.** −2.19% on five folds of five, from a column that
+already exists, is already populated, is already leakage-safe, and is one entry
+short of being read. It is nearly nine times the package's 0.25% materiality
+floor and unanimous. It also fits what section 4 establishes independently:
+availability is the layer with a documented resolution problem and the weakest
+year-over-year signal, so it is exactly where a longer window should help most —
+a single noisy season is a poor estimate of a durability trait, and averaging
+three of them is a better one.
+
+**The snap layer's −1.22% is a validation, not a proposal.** That arm already
+ships. It is here because it demonstrates the mechanism works on this frame,
+which is what makes the availability row worth acting on.
+
+**Efficiency barely moves, and that is the honest answer to "would sequential
+input help".** The two rushing responses clear the floor; the three receiving
+ones do not, and receiving yards per target is worse with more history on 13 of
+15 folds. Part of this is by construction: the lag-1 efficiency feature is
+already `shrunk_*`, partially pooled toward the position mean, so it has absorbed
+some of what an EWMA would do. Whatever the reason, the numbers are an order of
+magnitude below what section 1 found by fixing the *slope* on the one season the
+model already has — −3.15% and −5.42% there against −0.07% and −0.87% here. The
+binding constraint on the efficiency layer is not how much history it reads. It
+is what it does with the season it has.
+
+### Recommendation
+
+1. **Add `prior_availability_3yr` to `AVAILABILITY_FEATURES`.** One line, a
+   column that already exists, −2.19% MAE unanimous on five folds. This is the
+   cheapest well-evidenced change in this document and it should go to the
+   scoring gate first.
+2. **Consider `prior_rush_yards_per_carry` and `prior_rush_td_rate` career
+   EWMAs**, but only after the fitted-mean change in section 1, and measured
+   against it rather than against today's baseline. Both are RB-only responses
+   on the smallest samples here, and a −1% arm measured against a mean that is
+   itself mis-specified is not a clean read.
+3. **Leave the receiving responses at lag 1.** More history makes them worse.
+4. **Either use `player_idx` in the role allocators or drop it from the
+   design.** A key the design computes, carries and never reads is either a
+   missing player random effect or dead weight, and the code does not say which
+   was intended.
 
 ---
 

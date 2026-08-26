@@ -39,7 +39,7 @@ Short answers:
    inconsistency is undocumented.** One layer — the snap model — carries a career
    EWMA and a one-season trend. Availability, the role allocators and every
    efficiency response read exactly one lagged season. Measured, the missing
-   depth is worth **−0.38% MAE and −0.35% CRPS, 3/3 folds each**, in a paired
+   depth is worth **−0.44% MAE and −0.34% CRPS, 3/3 folds each**, in a paired
    fit of the real availability layer, from a column
    (`prior_availability_3yr`) that was already built and populated in every
    frame and simply not listed in `AVAILABILITY_FEATURES`. Now wired on. For
@@ -629,13 +629,16 @@ history arm actually fitted the extra column, because the design's variance
 filter would otherwise drop it silently and the comparison would be a null
 against itself.
 
+On the 2015–2025 shipping-window frame, 800 draws, four chains:
+
 | metric | base | + history | change | folds |
 |---|---:|---:|---:|---|
-| MAE (games active) | 3.56929 | 3.55561 | **−0.38%** | **3/3** |
-| CRPS | 2.20347 | 2.19579 | **−0.35%** | **3/3** |
-| 80% coverage | 0.91721 | 0.91815 | +0.0009 | unmoved |
+| MAE (games active) | 3.55013 | 3.53438 | **−0.44%** | **3/3** |
+| CRPS | 2.32339 | 2.31560 | **−0.34%** | **3/3** |
+| 80% coverage | 0.93265 | 0.93639 | +0.0037 | unmoved |
 
-Max R-hat 1.01 and **zero divergences** in both arms, all six fits.
+Max R-hat 1.01 and **zero divergences** in both arms, all six fits. Per fold the
+MAE moves −0.19%, −0.76%, −0.41%.
 
 Both accuracy metrics clear the 0.25% materiality floor, both are unanimous
 across folds, and coverage does not move — so the gain is not bought by
@@ -643,11 +646,18 @@ narrowing honest intervals. The linear proxies bracketed the truth without
 containing it, which is the lesson: measure a feature in the model that will
 serve it.
 
+One thing the coverage column shows that is not about this change: both arms sit
+at **0.93 against a nominal 0.80**. The availability layer over-covers by
+thirteen points, in the base arm as much as the challenger. That is a
+pre-existing calibration observation, not a consequence of adding a column, and
+it is the opposite failure from the efficiency layer's — worth its own look
+rather than a claim here.
+
 ### Recommendation
 
 1. **`prior_availability_3yr` is wired into `AVAILABILITY_FEATURES` via
    `availability_history_features`, on by default.** One column that already
-   existed, −0.38% MAE and −0.35% CRPS, 3/3 folds each, coverage unmoved, zero
+   existed, −0.44% MAE and −0.34% CRPS, 3/3 folds each, coverage unmoved, zero
    divergences.
 
    The honest label is **layer-gated, scoring gate pending**. This package has

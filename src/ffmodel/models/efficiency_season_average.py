@@ -343,18 +343,31 @@ POSTERIOR_MEAN_MODE = {
 # heterogeneity that no covariate in this arm explains. Sharpening the location
 # leaves nothing holding that variance open, and CRPS charges for it.
 #
-# So the two halves are not separable for touchdown rate, and only the responses
-# whose CRPS does not regress are promoted:
+# CRPS was first reported against the *latent* rate draws, and that is the wrong
+# target. The response is an observed season rate and carries binomial sampling
+# noise at the player's exposure; the latent draws do not. Scoring one against
+# the other penalises whichever arm has the tighter latent distribution -- and
+# fitting the mean is exactly what tightens it, so the better arm took the
+# larger penalty. Re-scored against the posterior predictive at realized
+# exposure, on the same fits:
 #
-# - ``rec_catch_rate`` improves both metrics on three folds of three. In.
-# - ``rush_td_rate`` clears the efficiency-v2 mean gate (pooled MAE improved,
-#   two of three folds) with CRPS a wash inside the 0.25% materiality floor. In.
-# - ``rec_td_rate`` clears the same mean gate and regresses 2.00% on CRPS with
-#   one fold of three. Out, pending a dispersion component to hold the variance
-#   the sharpened mean stops absorbing. Its measured bias is unchanged and still
-#   documented; what is not yet established is a fix that does not cost more
-#   distributionally than it buys.
+#   response          CRPS vs latent draws    CRPS vs posterior predictive
+#   rec_catch_rate    -1.45%  3/3             -2.08%  3/3
+#   rush_td_rate      -0.26%  1/3             -2.31%  3/3
+#   rec_td_rate       +2.00%  1/3             -0.31%  1/3
+#
+# Nothing regresses on the correct target. Two responses improve materially and
+# unanimously; ``rec_td_rate`` is immaterial either way but no longer negative,
+# and it clears the efficiency-v2 mean gate on MAE (-1.10%, two folds of three).
+# All three are promoted.
+#
+# 80% coverage of the predictive, against a nominal 0.80: catch rate 0.870 ->
+# 0.872, rushing TD 0.918 -> 0.918, receiving TD 0.899 -> 0.908. The layer
+# over-covers, in the base arm as much as the challenger, and this change does
+# not move it. That reproduces the efficiency-v2 table (0.899 and 0.917) closely
+# enough to be a useful check on the harness.
 PERSISTENCE_MEAN_MODE = {
+    "rec_td_rate": "persistence",
     "rush_td_rate": "persistence",
     "rec_catch_rate": "persistence",
 }
@@ -772,6 +785,29 @@ class PosteriorSeasonEfficiencyModel:
             else:
                 numerator = target * exposure
             valid &= numerator.notna() & np.isfinite(numerator)
+            # A numerator larger than its own exposure is not a rate, and it is
+            # not rare enough to ignore: 71 rows of 7,937 on the 2015-2025
+            # frame, in every season of the shipping window.
+            #
+            # The cause is a scope mismatch rather than bad source data.
+            # ``player_preseason_rows`` merges the efficiency labels on
+            # ``(season, player_key)`` while the frame is keyed by
+            # ``(season, team, player_key)``, so the numerator (``eff_*``) is
+            # the player's season total across every team he played for while
+            # the exposure stays team-scoped to his Week-1 roster snapshot. A
+            # mid-season move therefore pairs one team's targets with the whole
+            # season's receptions -- Shaun Draughn in 2015 arrives as 27
+            # receptions on 3 targets.
+            #
+            # ``fit`` clips success to exposure, so before this filter those
+            # rows trained as a rate of exactly 1.000: a fabricated label, not a
+            # dropped one. Excluding them is the conservative half of the fix
+            # and is obviously right on its own. The other half is larger and
+            # deliberately not done here: roughly 3.9% of rows (7.8% of
+            # team-changers) carry the same mismatch without tripping the
+            # inequality, and correcting those means changing the exposure the
+            # whole layer trains on, which needs its own gate.
+            valid &= numerator.le(exposure)
         replacement = pd.to_numeric(
             out.get("is_replacement_player", pd.Series(0, index=out.index)),
             errors="coerce",

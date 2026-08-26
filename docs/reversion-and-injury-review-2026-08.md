@@ -1,20 +1,23 @@
 # Mean reversion, injury games, and the availability checkpoint (2026-08-26)
 
-Six questions, asked of the pipeline end to end. Every number below was
+Seven questions, asked of the pipeline end to end. Every number below was
 measured on this checkout against nflverse 1999–2025 and is reproducible with
 `scripts/measure_efficiency_reversion.py`,
 `scripts/measure_post_injury_efficiency.py`,
-`scripts/measure_history_depth.py` and
-`scripts/measure_availability_signal.py`.
+`scripts/measure_history_depth.py`,
+`scripts/measure_availability_signal.py`,
+`scripts/validate_persistence_mean.py`,
+`scripts/measure_dispersion_link.py` and
+`scripts/validate_availability_history.py`.
 
 Short answers:
 
 1. **Touchdown reversion is applied, but by a hand-set constant that is roughly
-   half of what the data asks for.** *(Validated: fitted persistence is 0.31–0.55
-   against a shipped 1.000 on every fold of every response. Catch rate and
-   rushing TD rate are fixed and shipping; receiving TD rate is held, because
-   sharpening its mean costs 2.00% CRPS — the concentration had been absorbing
-   the mean's error and the two need fixing together.)* Receiving and rushing touchdown rate ship a
+   half of what the data asks for.** *(Validated and fixed. Fitted persistence
+   is 0.31–0.55 against a shipped 1.000 on every fold of every response; all
+   three now ship. An earlier version of this document held one back on a CRPS
+   regression that turned out to be my scoring target, not the model — see the
+   correction in section 1.)* Receiving and rushing touchdown rate ship a
    conditional mean equal to the lagged feature itself. The data wants a slope
    of 0.59 and 0.44 on that feature. The cost is a monotone bias across the
    board — the top quintile of last year's touchdown rate is projected about 5
@@ -44,7 +47,17 @@ Short answers:
    (`prior_availability_3yr`) that was already built and populated in every
    frame and simply not listed in `AVAILABILITY_FEATURES`. Now wired on. For
    efficiency, more history is worth almost nothing.
-5. **Start-of-season injury status is already in the model — as `roster_reserve`,
+5. **The Beta-Binomial is not the wrong family, but its mean–variance link is
+   violated for touchdown rate.** Backing the implied concentration out of the
+   data, it varies 9.7× and 15.4× across the mean's range for receiving and
+   rushing TD rate, against 1.7× for catch rate. Latent heterogeneity shrinks as
+   the mean rises until, in the top quintile, observed spread is pure binomial
+   noise. The cheap fix is a concentration that varies rather than a different
+   likelihood. Found alongside it: a **live data fault** — the efficiency
+   numerator is season-scoped while its exposure is team-scoped, so 71 rows
+   trained as a rate of exactly 1.000, and 3.9% carry the same mismatch
+   silently.
+6. **Start-of-season injury status is already in the model — as `roster_reserve`,
    not as the injury feed.** The `current_injury_*` features fire on 4.57% of
    rows and move the mean about a game; `roster_reserve` fires on 35.3% and
    predicts 3.44 games against 13.35. The two halves of the injury block were
@@ -52,7 +65,7 @@ Short answers:
    than overturning it. One real defect found: the expected-recovery estimator
    drops censored episodes, so it is fitted only on injuries people came back
    from and tops out at 2.05 weeks.
-6. **Prior-season injury and recovery time add essentially nothing** beyond
+7. **Prior-season injury and recovery time add essentially nothing** beyond
    `prior_availability`, which the layer already carries — this repo measured
    that expensively and inconclusively, and the mechanism is now visible.
    **Current** injury state is a different matter, and it is where the
@@ -273,7 +286,7 @@ and on the two responses xFP is usually invoked for it applies about half the
 correction the data supports. The xFP result stands — expected points was not a
 better route — but "the correction is already applied" is not why it failed.
 
-### Built, validated, and only half promoted
+### Built, validated, promoted
 
 The fourth mode exists: `persistence`, the shrunk prior with a fitted intercept,
 sum-to-zero position offsets and a slope, and no covariates. Position offsets
@@ -281,53 +294,134 @@ are not optional — the shrinkage pools toward a season-*and-position* mean, so
 single shared intercept would pull three positions with genuinely different
 touchdown rates toward one grand mean. It is a strict generalisation of `prior`:
 slope 1, intercept at the prior centre, zero offsets reproduces today's model.
-`fitted_persistence_means` on `SeasonAveragePosteriorEfficiencyPipeline` selects
-it, so the paired arm stays reproducible.
 
 `scripts/validate_persistence_mean.py` fits both arms of the real model on the
 2015–2025 frame, holding out 2022, 2023 and 2024, at 600 draws and four chains.
 Zero divergences and max R-hat 1.01 throughout.
 
-| response | fitted slope, across folds | MAE | folds | CRPS | folds | shipped? |
-|---|---|---:|---|---:|---|---|
-| rec_catch_rate | 0.537 – 0.545 | **−1.00%** | **3/3** | **−1.45%** | **3/3** | **yes** |
-| rush_td_rate | 0.327 – 0.361 | **−2.48%** | 2/3 | −0.26% | 1/3 | **yes** |
-| rec_td_rate | 0.310 – 0.342 | −1.10% | 2/3 | **+2.00%** | 1/3 | held |
+| response | fitted slope, across folds | MAE | folds | CRPS | folds |
+|---|---|---:|---|---:|---|
+| rec_catch_rate | 0.537 – 0.545 | **−1.00%** | **3/3** | **−2.08%** | **3/3** |
+| rush_td_rate | 0.327 – 0.361 | **−2.48%** | 2/3 | **−2.31%** | **3/3** |
+| rec_td_rate | 0.310 – 0.342 | −1.10% | 2/3 | −0.31% | 1/3 |
 
-**The finding is confirmed on every response.** The fitted persistence excludes
-1.000 on every fold of every response — 0.31 to 0.55 on the logit scale against
-a shipped assertion of 1.000. The layer really was keeping about twice as much
-of last season as the next one repays.
+The fitted persistence excludes 1.000 on every fold of every response — 0.31 to
+0.55 on the logit scale against a shipped assertion of 1.000. The layer really
+was keeping about twice as much of last season as the next one repays. All three
+are promoted.
 
-**The remedy only half works, and the likelihood says why.** A Beta-Binomial has
-one location and one dispersion. With the mean pinned to an identity map that is
-wrong at the tails, the only free parameter left to explain the residual is the
-concentration — so it is fitted small and the predictive comes out wide. Fit the
-mean, the residual shrinks, the concentration is fitted larger, and the
-predictive narrows. That is correct for a model whose only source of spread is
-Beta-Binomial noise, and wrong here, because much of the true season-to-season
-spread in touchdown rate is player-season heterogeneity that no covariate in
-this arm explains. Sharpening the location leaves nothing holding that variance
-open, and CRPS charges for it.
+### A correction: the CRPS regression was my metric, not the model
 
-So for touchdown rate the two halves are not separable, and only the responses
-whose CRPS does not regress are promoted. `rec_td_rate` is held: it clears the
-efficiency-v2 mean gate on MAE and regresses 2.00% on CRPS, and it needs a
-dispersion component alongside the mean — a larger change that wants its own
+This section first reported CRPS *regressing* 2.00% on `rec_td_rate` and
+concluded that the mean and the dispersion could not be fixed separately. That
+was wrong, and the fault was in the harness.
+
+The response is an observed season rate, and it carries binomial sampling noise
+at the player's exposure. The latent rate draws do not. Scoring one against the
+other penalises whichever arm has the tighter latent distribution — and fitting
+the mean is exactly what tightens it, so the better arm took the larger penalty.
+Re-scored against the posterior predictive at realized exposure, on the same
+fits:
+
+| response | CRPS vs latent draws | CRPS vs posterior predictive |
+|---|---:|---:|
+| rec_catch_rate | −1.45% 3/3 | **−2.08% 3/3** |
+| rush_td_rate | −0.26% 1/3 | **−2.31% 3/3** |
+| rec_td_rate | **+2.00% 1/3** | **−0.31% 1/3** |
+
+Nothing regresses on the correct target. `rush_td_rate` moves from a
+one-fold wash to a three-fold material gain, and `rec_td_rate` — held back in
+the first version of this document — stops being negative and clears the
+efficiency-v2 mean gate on MAE. The validator now scores the predictive and
+keeps `crps_latent` per fold so the difference stays visible.
+
+Coverage of the predictive against a nominal 0.80: catch rate 0.870 → 0.872,
+rushing TD 0.918 → 0.918, receiving TD 0.899 → 0.908. The layer **over**-covers,
+in the base arm as much as the challenger, and this change does not move it.
+That reproduces the efficiency-v2 table's 0.899 and 0.917 closely enough to be a
+useful check on the harness.
+
+### Is the Beta-Binomial the wrong likelihood?
+
+The question the regression prompted, now that the regression turns out not to
+exist. The answer has two parts.
+
+**Not for the reason that motivated asking.** The Beta-Binomial handled the
+sharpened mean without complaint; the apparent cost was a scoring error.
+
+**But its mean–variance link is genuinely rigid, and for touchdown rate it is
+violated.** `BetaBinomial(n, μ, c)` implies a latent rate variance of
+`μ(1−μ)/(c+1)` — a fixed fraction of `μ(1−μ)`, the same fraction for every
+player. Backing out the implied `c` per quintile of the lagged mean, on the
+2015–2025 frame, after excluding the rows described below:
+
+| response | latent share of variance, low μ → high μ | implied `c` | spread |
+|---|---|---|---:|
+| rec_catch_rate | 43% → 26% | 66 – 112 | **1.7×** |
+| rec_td_rate | 23% → −2% | 85 – 826 (one bucket infinite) | 9.7× |
+| rush_td_rate | 37% → 3% | 108 – 1667 | **15.4×** |
+
+Catch rate fits the link well — 1.7× across the whole range is close enough to
+constant that one global `c` is defensible, which is presumably why that
+response has always looked well behaved.
+
+The touchdown rates do not, and the violation has a clear shape: **latent
+heterogeneity is a shrinking share of the variance as the mean rises, until at
+the top it vanishes.** In the top quintile of receiving touchdown rate the total
+variance is *below* the binomial part — the observed spread among high-rate
+receivers is what coin-flipping at a higher `p` produces, with no room left for
+talent. That is the same story the reversion measurement tells, arriving from
+the variance instead of the mean: there is much less durable touchdown-rate
+skill than a season of box scores suggests.
+
+**What to do about it, in order of cost.** The cheapest fix is not a different
+family at all — it is letting the concentration vary, `log c = a + b·logit(μ)`,
+or one `c` per position. That stays inside the existing Beta-Binomial machinery,
+adds one or two parameters, and addresses the measured defect directly. Only if
+that fails is a different family worth the disruption, and the candidates then
+are a Poisson-lognormal or Negative-Binomial on touchdown *counts* with a log
+exposure offset, or a logit-normal-Binomial — all of which decouple location
+from dispersion more freely than the Beta does.
+
+One caution about which direction to move. The layer currently **over**-covers
+at every response measured (0.87 to 0.92 against 0.80), so it is already too
+wide, not too narrow. A flexible `c` would most likely *tighten* the buckets
+where latent variance is near zero, which is precisely where over-coverage comes
+from. That is a coherent hypothesis and it is not yet a result.
+
+### A live data fault in the training labels
+
+Found while building the variance table above, and worth separating from
+everything else because it is not a modelling question.
+
+`player_preseason_rows` merges the efficiency labels on `(season, player_key)`
+while the frame is keyed by `(season, team, player_key)`. So the numerator
+columns (`eff_*`) are the player's **season total across every team he played
+for**, while the exposure stays **team-scoped to his Week-1 roster snapshot**. A
+mid-season move pairs one team's targets with the whole season's receptions.
+
+| | |
+|---|---|
+| rows where the numerator exceeds its own exposure | **71 of 7,937**, in every season 2015–2025 |
+| rows where exposure disagrees with the season total | 3.9% overall, **7.8% of team-changers** |
+| what `fit` did with them | `np.clip(success, 0, exposure)` — trained them as a rate of exactly **1.000** |
+
+Shaun Draughn's 2015 arrives as 27 receptions on 3 targets; Chris Givens' as 20
+on 1. Clipped, both become perfect catch-rate seasons. This is worse than a
+crash or a dropped row, because nothing downstream looks wrong.
+
+`_eligible` now rejects any row whose numerator exceeds its exposure, with
+`tests/test_efficiency_label_scope.py` pinning both the filter and the clip it
+replaces. That is the conservative half of the fix and is right on its own. The
+other half is larger and deliberately not done here: the 3.9% that carry the
+same mismatch without tripping the inequality need the exposure itself corrected
+to season scope, which changes what the whole layer trains on and wants its own
 gate.
 
-Worth stating plainly rather than burying: **the largest single bias in this
-document — the +5.1 PPR points on top-quintile receivers — is identified,
-reproduced, understood, and not yet fixed.** What ships is the two responses
-where the same fix pays for itself.
-
-One caveat on why coverage is not in that table. The harness scores the realized
-season rate against the latent rate draws, which do not carry the binomial
-observation noise a player's actual exposure adds, so the absolute level
-under-covers in *both* arms and is not the layer's calibration —
-`validate_efficiency_posteriors.py` measures that properly. The arm-to-arm move
-(−0.028 catch rate, −0.016 rushing TD, −0.043 receiving TD) is the readable
-part, and it is the same narrowing the CRPS column reports.
+Note this is a *different* fault from the pre-2009 target under-reporting above.
+That one stops at 2008 and no shipped fit has seen it. This one is live, is
+inside the shipping window, and every efficiency fit in this package has trained
+on it.
 
 The same architectural pattern appears one layer up and deserves its own look
 rather than a claim here: `SeasonRosterShareModel.fit` puts `log(role_prior)` in

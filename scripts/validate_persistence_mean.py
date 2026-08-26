@@ -27,13 +27,16 @@ asserts it on every run rather than trusting it.
 that the shipped value is 1.000 and the data disagrees; a posterior that
 straddles 1.0 would mean the change is not worth making, whatever the MAE says.
 
-One caveat on the coverage column. It scores the realized season rate against
-the latent rate draws, which do not carry the binomial observation noise the
-player's actual exposure adds, so the absolute level under-covers in *both*
-arms and is not the layer's calibration -- ``validate_efficiency_posteriors.py``
-measures that properly. The arm-to-arm difference is still the thing to read: a
-better mean shrinks the residual the concentration has to absorb, which narrows
-the intervals, and that is a cost worth seeing next to the accuracy gain.
+**It scores the posterior predictive, not the latent rate.** The response is an
+observed season rate and carries binomial sampling noise at the player's
+exposure; the latent rate draws do not. Scoring one against the other penalises
+whichever arm has the tighter latent distribution, and fitting the mean is
+exactly what tightens it -- so the better arm takes the larger penalty. An
+earlier version of this script scored the latent draws and reported CRPS
+*regressing* 2.00% on ``rec_td_rate``; on the predictive the same fits give
+-0.31%, and ``rush_td_rate`` moves from -0.26% on one fold of three to -2.31% on
+three of three. ``crps_latent`` is retained per fold so the difference stays
+visible rather than being a claim in a comment.
 """
 
 from __future__ import annotations
@@ -103,17 +106,26 @@ def fold(
     if held.empty:
         return None
     prediction = model.predict_samples(held, draws=1000, seed=seed - 2)
+    # Score the posterior predictive at the player's realized exposure, not the
+    # latent rate draws. The response is an observed season rate and carries
+    # binomial sampling noise at n; the latent draws do not. Scoring one against
+    # the other penalises whichever arm has the tighter latent distribution --
+    # and fitting the mean is exactly what tightens it, so the better arm takes
+    # the larger penalty. Measured, that reversed the sign on rec_td_rate: CRPS
+    # +2.00% against the latent draws, -0.31% against the predictive.
+    observed = model.predict_observed_samples(held, draws=1000, seed=seed - 2)
     actual = pd.to_numeric(held[target], errors="coerce").to_numpy(float)
     exposure = pd.to_numeric(held[spec.exposure], errors="coerce").to_numpy(float)
     weights = exposure / exposure.mean()
-    low, high = np.quantile(prediction.rate, [0.10, 0.90], axis=1)
+    low, high = np.quantile(observed, [0.10, 0.90], axis=1)
     summary = az.summary(model.idata)
     out = {
         "n": int(len(held)),
         "mae": float(
             np.average(np.abs(np.nanmean(prediction.mean, axis=1) - actual), weights=weights)
         ),
-        "crps": crps(prediction.rate, actual),
+        "crps": crps(observed, actual),
+        "crps_latent": crps(prediction.rate, actual),
         "cov80": float(((actual >= low) & (actual <= high)).mean()),
         "max_rhat": float(summary["r_hat"].max()),
         "divergences": int(model.idata.sample_stats.diverging.values.sum()),

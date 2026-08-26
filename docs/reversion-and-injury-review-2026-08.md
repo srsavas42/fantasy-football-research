@@ -1,8 +1,9 @@
 # Mean reversion, injury games, and the availability checkpoint (2026-08-26)
 
-Three questions, asked of the pipeline end to end. Every number below was
+Four questions, asked of the pipeline end to end. Every number below was
 measured on this checkout against nflverse 1999–2025 and is reproducible with
-`scripts/measure_efficiency_reversion.py` and
+`scripts/measure_efficiency_reversion.py`,
+`scripts/measure_post_injury_efficiency.py` and
 `scripts/measure_availability_signal.py`.
 
 Short answers:
@@ -19,7 +20,17 @@ Short answers:
    efficiency prior's residual bias and its dispersion are both flat across
    prior-season availability. The one channel it does not close is playing
    hurt, which is untested rather than ruled out.
-3. **Prior-season injury and recovery time add essentially nothing** beyond
+3. **A post-injury recovery curve is not a feature the model is missing, it is a
+   shape the feature contract cannot express.** Efficiency is lag-1 throughout —
+   there is no `prior2_*` anywhere in the package — so "worse in year one, better
+   in year two" has nowhere to live. Measured, though, the year-one penalty is
+   −1.3% of points per touch with a 95% interval of [−5.7%, +3.0%], and on a
+   balanced panel the year-two rebound does not exist — its point estimate is
+   negative. Most of the apparent rebound in the folk version is survivorship:
+   only 22.9% of players who lose a season hold a real role two years later,
+   against 51.3% of healthy peers. The real
+   post-injury effect is on availability and role, not on efficiency.
+4. **Prior-season injury and recovery time add essentially nothing** beyond
    `prior_availability`, which the layer already carries — this repo measured
    that expensively and inconclusively, and the mechanism is now visible.
    **Current** injury state is a different matter, and it is where the
@@ -297,6 +308,131 @@ it does not say anything about the five-target rows.
 
 ---
 
+## 2b. Post-injury recovery curves
+
+A separate question from the one above, and a sharper one: the claim is not that
+an injury season's rate is mismeasured, it is that the *next* season's rate is
+genuinely depressed and then recovers.
+
+### The model cannot represent this, and the reason is structural
+
+`lagged_efficiency_rows` shifts season `Y` onto `Y+1`. There is no `prior2_*`
+column anywhere in the package. Every efficiency feature is exactly one season
+deep, so the model has no way to know a player was hurt two years ago, and no way
+to see his pre-injury level once the injury season becomes his prior. A two-year
+recovery curve needs a two-year window; the feature contract has a one-year one.
+
+What does exist is thinner than it looks. `prior_availability` sits in
+`BASE_EFFICIENCY_FEATURES`, so five responses carry a linear "how much did he
+play last year" term through their ridge mean, and `rec_yards_per_target` carries
+it through its posterior regression. The four `prior`-mode responses —
+receiving TD, rushing TD, catch rate, fumble rate — carry **no covariates at
+all**, so for those the model does not know whether last season was sixteen games
+or four. Nothing anywhere is conditioned on injury *type*.
+
+### Measured, the penalty is small and the rebound is absent
+
+Event study on a balanced panel: healthy baseline in `Y-1` (85%+ availability,
+50+ opportunities), season `Y` classified lost (65% availability or less) or a
+healthy control, and **both** `Y+1` and `Y+2` required to qualify, so the two
+columns describe the same players. Outcome is PPR points per opportunity over
+targets plus carries; the figure is a difference in differences against the
+control, which nets out the ageing and mean-reversion drift both groups share.
+
+| group | n | availability in Y | career year | baseline | year 1 | year 2 |
+|---|---:|---:|---:|---:|---:|---:|
+| healthy control | 554 | 0.926 | 4.83 | 1.384 | 1.359 | 1.341 |
+| lost season | 116 | 0.469 | 4.67 | 1.310 | 1.268 | 1.231 |
+
+| | difference in differences | 95% bootstrap | as % of baseline |
+|---|---:|---|---:|
+| year 1 after | −0.0179 | [−0.0781, +0.0416] | **−1.29%** [−5.65%, +3.00%] |
+| year 2 after | −0.0364 | [−0.0965, +0.0272] | **−2.63%** [−6.97%, +1.96%] |
+| the rebound (year 2 − year 1, same players) | −0.0185 | [−0.0701, +0.0346] | wrong sign |
+
+Both halves of the claim come back weak. The year-one penalty is the right sign
+and about a point and a half of per-touch efficiency, with an interval that
+comfortably contains zero at n = 116. The rebound is not merely absent, its point
+estimate is negative: on the players who survive to be measured twice, year two
+is slightly *worse* than year one, not better. The two groups are matched on
+career year (4.67 against 4.83), so this is not an ageing artifact, and the lost
+group starts from a slightly lower baseline, which if anything should pull it up
+rather than down.
+
+### Where the recovery story actually comes from
+
+| from a healthy baseline into season Y | n | back with a real role in year 1 | still there in year 2 |
+|---|---:|---:|---:|
+| healthy control | 1079 | 71.3% | 51.3% |
+| lost season | 506 | **41.7%** | **22.9%** |
+
+A player who loses a season is barely more than half as likely to hold a 50+
+opportunity role two years later. Score year two on whoever is still playing and
+you have selected for the players who recovered — which is exactly how "they
+bounce back in year two" gets manufactured. The balanced panel above exists to
+avoid that, and once you avoid it the rebound goes away.
+
+This is the real answer to the question, and it is not an efficiency finding: the
+post-injury effect is overwhelmingly about **availability and role**, both of
+which the pipeline already models, rather than about per-touch efficiency, which
+it does not condition on injury at all. That is a defensible place for the
+package to be.
+
+### "It depends on the injury" — the right cut, at sample sizes that cannot carry it
+
+Year one only, which roughly doubles the lost-season sample, joined to the
+nflverse injury reports from 2009 and bucketed by the repo's own
+`_injury_body_group`:
+
+| primary body group | n | difference vs control | 95% bootstrap |
+|---|---:|---:|---|
+| no severe report | 74 | −0.7% | [−6.7%, +5.1%] |
+| lower_body | 69 | −2.2% | [−7.8%, +3.3%] |
+| head_neck | 12 | −11.0% | [−22.5%, −0.4%] |
+| upper_body | 9 | −9.9% | [−26.3%, +6.3%] |
+| core | 7 | +3.2% | [−15.1%, +20.1%] |
+
+Two things worth saying about this table and neither is the obvious one.
+
+**The best-powered cell is the classic narrative, and it is the smallest effect.**
+Lower body — knees, ankles, hamstrings, the injuries the "never the same again"
+story is usually told about — has 69 rows and a −2.2% point estimate whose
+interval spans zero.
+
+**The two eye-catching rows have 12 and 9 rows.** `head_neck` at −11% is the only
+interval that excludes zero, barely, on twelve observations, from the highest
+baseline in the table, where regression to the mean is working in the same
+direction. It is a hypothesis worth a real study, not a coefficient.
+
+And 74 of the 219 lost seasons carry **no severe injury report at all**, which is
+the honest limit of an availability proxy: a third of what this measurement calls
+an injury is a benching, a holdout, or a lost job.
+
+### Recommendation
+
+**Do not add a post-injury efficiency feature on this evidence.** The effect is
+small, the interval spans zero, and the shape the question is really asking about
+— a two-year curve — would require extending the efficiency feature contract to
+lag 2, which is a much larger change than the finding supports.
+
+Two cheaper things are worth doing instead:
+
+1. **Give the four `prior`-mode responses their `prior_availability` term.** They
+   currently have no covariates whatsoever, so receiving and rushing touchdown
+   rate do not know whether the prior season was sixteen games or four. That is
+   a gap regardless of any recovery curve, and it falls out of the fitted-mean
+   mode recommended in section 1 at no extra cost — the same two-parameter
+   change that adds a slope can add this one column.
+2. **Trust the availability layer with this, because that is where the effect
+   is.** A 41.7% return-to-role rate against 71.3% is a large, well-identified
+   effect on exactly the quantity the availability model exists to predict.
+   Note the tension with section 3, though: the controlled table there shows
+   prior-season injury adding nothing *conditional on prior availability*, and
+   these two facts are consistent — the attrition is visible in the availability
+   number itself, which is why a separate injury feature keeps coming back null.
+
+---
+
 ## 3. Availability, PUP, and the Charbonnet number
 
 The shipped 2026 projection gives Zach Charbonnet **14.636** projected games,
@@ -435,3 +571,29 @@ so that is indicative rather than a bound — but it points the same way as
 `docs/availability-resolution-2026-08.md`, which found the layer biased −6.7% on
 drafted players and +5.3% on undrafted ones *in sample*. That is a resolution
 problem, and it is the same problem whether or not anyone is hurt.
+
+---
+
+## Reproducing
+
+Each script caches its frames on first run and is offline thereafter.
+
+```bash
+pip install -e ".[dev]"
+
+# Sections 1 and 2: shrinkage, the fitted slope, quintile bias, and the
+# injury-contamination check on the efficiency prior.
+python scripts/measure_efficiency_reversion.py
+
+# Section 2b: the post-injury event study, its survivorship table, and the
+# injury body-group split.
+python scripts/measure_post_injury_efficiency.py
+
+# Section 3: the forecast ceiling, the controlled injury increment, and
+# Week-1 roster status against active weeks.
+python scripts/measure_availability_signal.py
+```
+
+No source file is changed by any of this. The scripts and this document are
+additive, so nothing here alters a shipped projection until a gate says it
+should. Fast suite at the time of writing: 470 passed, 11 skipped.

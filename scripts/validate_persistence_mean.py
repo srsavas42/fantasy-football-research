@@ -20,12 +20,20 @@ receptions. Those rows give catch rates above 1.0, ``_prior_signal`` sends them
 to +8.5 on the logit scale, and a fitted slope through them collapses to 0.08 --
 a result about broken targets, presented as a result about persistence. The
 contamination stops after 2008 and the shipping window starts at 2014, so
-reading the frame the pipeline actually builds avoids it. ``--check-bounds``
-asserts that rather than trusting it.
+reading the frame the pipeline actually builds avoids it, and ``check_bounds``
+asserts it on every run rather than trusting it.
 
 **It reports the fitted slope with its interval.** The point of the change is
 that the shipped value is 1.000 and the data disagrees; a posterior that
 straddles 1.0 would mean the change is not worth making, whatever the MAE says.
+
+One caveat on the coverage column. It scores the realized season rate against
+the latent rate draws, which do not carry the binomial observation noise the
+player's actual exposure adds, so the absolute level under-covers in *both*
+arms and is not the layer's calibration -- ``validate_efficiency_posteriors.py``
+measures that properly. The arm-to-arm difference is still the thing to read: a
+better mean shrinks the residual the concentration has to absorb, which narrows
+the intervals, and that is a cost worth seeing next to the accuracy gain.
 """
 
 from __future__ import annotations

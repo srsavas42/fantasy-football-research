@@ -115,8 +115,13 @@ def test_flag_on_moves_only_the_intended_responses() -> None:
     # Every response it moves must have been on ``prior``: the measurement
     # behind the change is about the identity map, and nothing else.
     assert set(PERSISTENCE_MEAN_MODE) <= set(PRIOR_MODE_TARGETS)
-    # And it deliberately leaves one behind.
+    # And it deliberately leaves two behind, for different reasons.
+    # fumble_lost_rate was never measured (0.05% of points variance);
+    # rec_td_rate was measured and its CRPS regressed 2.00% on 1/3 folds, so
+    # the mean fix is held pending a dispersion component. Both are recorded
+    # here so a future edit that quietly adds either has to change this test.
     assert "fumble_lost_rate" not in PERSISTENCE_MEAN_MODE
+    assert "rec_td_rate" not in PERSISTENCE_MEAN_MODE
 
 
 def test_pipeline_default_is_on_and_the_flag_reaches_the_models() -> None:

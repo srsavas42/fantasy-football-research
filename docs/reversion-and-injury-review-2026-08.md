@@ -10,7 +10,11 @@ measured on this checkout against nflverse 1999–2025 and is reproducible with
 Short answers:
 
 1. **Touchdown reversion is applied, but by a hand-set constant that is roughly
-   half of what the data asks for.** Receiving and rushing touchdown rate ship a
+   half of what the data asks for.** *(Validated: fitted persistence is 0.31–0.55
+   against a shipped 1.000 on every fold of every response. Catch rate and
+   rushing TD rate are fixed and shipping; receiving TD rate is held, because
+   sharpening its mean costs 2.00% CRPS — the concentration had been absorbing
+   the mean's error and the two need fixing together.)* Receiving and rushing touchdown rate ship a
    conditional mean equal to the lagged feature itself. The data wants a slope
    of 0.59 and 0.44 on that feature. The cost is a monotone bias across the
    board — the top quintile of last year's touchdown rate is projected about 5
@@ -269,15 +273,61 @@ and on the two responses xFP is usually invoked for it applies about half the
 correction the data supports. The xFP result stands — expected points was not a
 better route — but "the correction is already applied" is not why it failed.
 
-### Recommendation
+### Built, validated, and only half promoted
 
-Add a fourth `POSTERIOR_MEAN_MODE`: the shrunk prior with a fitted intercept and
-persistence slope, and nothing else. It is two parameters, it reuses the feature
-already built, and it is a strict generalisation of `prior` (slope 1, intercept 0
-recovers today's behaviour exactly), so the arm cannot lose by more than sampling
-noise. Gate it on total points as usual, but score the tails explicitly — a
-pooled metric is the instrument that missed this, so it is not the instrument to
-confirm the fix with.
+The fourth mode exists: `persistence`, the shrunk prior with a fitted intercept,
+sum-to-zero position offsets and a slope, and no covariates. Position offsets
+are not optional — the shrinkage pools toward a season-*and-position* mean, so a
+single shared intercept would pull three positions with genuinely different
+touchdown rates toward one grand mean. It is a strict generalisation of `prior`:
+slope 1, intercept at the prior centre, zero offsets reproduces today's model.
+`fitted_persistence_means` on `SeasonAveragePosteriorEfficiencyPipeline` selects
+it, so the paired arm stays reproducible.
+
+`scripts/validate_persistence_mean.py` fits both arms of the real model on the
+2015–2025 frame, holding out 2022, 2023 and 2024, at 600 draws and four chains.
+Zero divergences and max R-hat 1.01 throughout.
+
+| response | fitted slope, across folds | MAE | folds | CRPS | folds | shipped? |
+|---|---|---:|---|---:|---|---|
+| rec_catch_rate | 0.537 – 0.545 | **−1.00%** | **3/3** | **−1.45%** | **3/3** | **yes** |
+| rush_td_rate | 0.327 – 0.361 | **−2.48%** | 2/3 | −0.26% | 1/3 | **yes** |
+| rec_td_rate | 0.310 – 0.342 | −1.10% | 2/3 | **+2.00%** | 1/3 | held |
+
+**The finding is confirmed on every response.** The fitted persistence excludes
+1.000 on every fold of every response — 0.31 to 0.55 on the logit scale against
+a shipped assertion of 1.000. The layer really was keeping about twice as much
+of last season as the next one repays.
+
+**The remedy only half works, and the likelihood says why.** A Beta-Binomial has
+one location and one dispersion. With the mean pinned to an identity map that is
+wrong at the tails, the only free parameter left to explain the residual is the
+concentration — so it is fitted small and the predictive comes out wide. Fit the
+mean, the residual shrinks, the concentration is fitted larger, and the
+predictive narrows. That is correct for a model whose only source of spread is
+Beta-Binomial noise, and wrong here, because much of the true season-to-season
+spread in touchdown rate is player-season heterogeneity that no covariate in
+this arm explains. Sharpening the location leaves nothing holding that variance
+open, and CRPS charges for it.
+
+So for touchdown rate the two halves are not separable, and only the responses
+whose CRPS does not regress are promoted. `rec_td_rate` is held: it clears the
+efficiency-v2 mean gate on MAE and regresses 2.00% on CRPS, and it needs a
+dispersion component alongside the mean — a larger change that wants its own
+gate.
+
+Worth stating plainly rather than burying: **the largest single bias in this
+document — the +5.1 PPR points on top-quintile receivers — is identified,
+reproduced, understood, and not yet fixed.** What ships is the two responses
+where the same fix pays for itself.
+
+One caveat on why coverage is not in that table. The harness scores the realized
+season rate against the latent rate draws, which do not carry the binomial
+observation noise a player's actual exposure adds, so the absolute level
+under-covers in *both* arms and is not the layer's calibration —
+`validate_efficiency_posteriors.py` measures that properly. The arm-to-arm move
+(−0.028 catch rate, −0.016 rushing TD, −0.043 receiving TD) is the readable
+part, and it is the same narrowing the CRPS column reports.
 
 The same architectural pattern appears one layer up and deserves its own look
 rather than a claim here: `SeasonRosterShareModel.fit` puts `log(role_prior)` in

@@ -320,8 +320,41 @@ POSTERIOR_MEAN_MODE = {
 #
 # ``fumble_lost_rate`` stays on ``prior``. It is 0.05% of points variance and
 # was not measured; there is no reason to widen the surface for it.
+#
+# Validated by ``scripts/validate_persistence_mean.py`` -- both arms the real
+# model on the 2015-2025 frame, holding out 2022/2023/2024, 600 draws, four
+# chains, zero divergences and max R-hat 1.01 throughout:
+#
+#   response          fitted slope    MAE            CRPS
+#   rec_catch_rate    0.537-0.545     -1.00%  3/3    -1.45%  3/3
+#   rush_td_rate      0.327-0.361     -2.48%  2/3    -0.26%  1/3
+#   rec_td_rate       0.310-0.342     -1.10%  2/3    +2.00%  1/3
+#
+# The finding holds everywhere: the fitted slope excludes 1.000 on every fold of
+# every response, so the layer was asserting a persistence the data does not
+# support. The *remedy* only half works, and the reason is visible in the
+# likelihood. A Beta-Binomial has one location and one dispersion. With the mean
+# pinned to an identity map that is wrong at the tails, the only free parameter
+# left to explain the residual is the concentration, so it is fitted small and
+# the predictive comes out wide. Fit the mean, the residual shrinks, the
+# concentration is fitted larger, and the predictive narrows -- correct for a
+# model whose only spread is Beta-Binomial noise, wrong here, because much of
+# the real season-to-season spread in touchdown rate is player-season
+# heterogeneity that no covariate in this arm explains. Sharpening the location
+# leaves nothing holding that variance open, and CRPS charges for it.
+#
+# So the two halves are not separable for touchdown rate, and only the responses
+# whose CRPS does not regress are promoted:
+#
+# - ``rec_catch_rate`` improves both metrics on three folds of three. In.
+# - ``rush_td_rate`` clears the efficiency-v2 mean gate (pooled MAE improved,
+#   two of three folds) with CRPS a wash inside the 0.25% materiality floor. In.
+# - ``rec_td_rate`` clears the same mean gate and regresses 2.00% on CRPS with
+#   one fold of three. Out, pending a dispersion component to hold the variance
+#   the sharpened mean stops absorbing. Its measured bias is unchanged and still
+#   documented; what is not yet established is a fix that does not cost more
+#   distributionally than it buys.
 PERSISTENCE_MEAN_MODE = {
-    "rec_td_rate": "persistence",
     "rush_td_rate": "persistence",
     "rec_catch_rate": "persistence",
 }

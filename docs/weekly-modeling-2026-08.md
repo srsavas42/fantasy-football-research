@@ -201,6 +201,82 @@ Ranked by share of error, and none of it is a decay-rate question:
    unused.
 3. **Everything else.** No segment above accounts for more than 3.5%.
 
+## Is role change a season boundary or a weekly one? (2026-08-27)
+
+`scripts/decompose_role_change.py`. The two possibilities want opposite work: a
+season-boundary problem is fixed by discounting last year's role and leaning on
+preseason information, a weekly one is not fixed by anything at the boundary.
+
+### Both, in almost equal measure — but only a third of role variance moves at all
+
+Variance of a player's share of his team's carries or targets, over 2,830
+player-seasons with at least six games:
+
+| source | share of total variance |
+|---|---:|
+| between players — who he is | **66.0%** |
+| between seasons, same player | 16.0% |
+| week to week, inside a season | 18.0% |
+
+Two thirds of role is simply who the player is, and the model has that. Of the
+third that moves, the split is 47:53 between the offseason and the season —
+neither dominates.
+
+The week-to-week figure is corrected for sampling noise and that correction
+decides the answer. A share measured over twenty-five carries wobbles because
+the denominator is small, not because the role moved: raw within-season variance
+is 0.00983, of which **0.00438 (45%) is binomial noise**. Counted uncorrected,
+week-to-week would read 29% against between-season's 13% and the conclusion would
+flip. `tests/test_role_decomposition.py` pins the correction with constructed
+players whose true role is known.
+
+### The season boundary is already handled about as well as it can be
+
+Mean absolute error in predicting this week's share, by week:
+
+| week | last season's share | this season's share | the model's blend |
+|---|---:|---:|---:|
+| 1 | 0.0790 | — | **0.0786** |
+| 2 | 0.0801 | 0.0814 | **0.0765** |
+| 3 | 0.0827 | **0.0738** | 0.0737 |
+| 4 | 0.0838 | 0.0695 | 0.0707 |
+| 8 | 0.0864 | 0.0712 | 0.0705 |
+| 12 | 0.0895 | 0.0688 | **0.0675** |
+| 14 | 0.0889 | 0.0734 | 0.0699 |
+
+Three things fall out. **The crossover is week 3** — after two games, the current
+season beats the previous one outright. **Last season decays as the year runs**,
+from 0.079 to 0.089, which is roles drifting away from where they ended. And
+**the model's exponentially weighted blend matches or beats the better of the two
+at every single week**, including week 1, where it edges the only information
+available. There is no free win in re-weighting the season boundary; the blend is
+already doing it.
+
+### And most of the error is not at the boundary anyway
+
+First role step-ups by the week they occur — noting that "first in a season"
+mechanically favours early weeks, since a player who steps up in week 2 cannot
+also be counted in week 9:
+
+| weeks | first step-ups |
+|---|---:|
+| 1–2 | 437 (22.7%) |
+| 3–8 | 815 (42.3%) |
+| 9–18 | 676 (35.1%) |
+
+Even with that bias, **77% of first step-ups happen after week 2**. The error
+attribution agrees from the other direction: the role-grew segment carries
+almost identical bias in weeks 1–4 (−6.99) and weeks 5+ (−6.87), and there are
+3.3 times as many rows in the second window, so roughly **77% of the role-change
+error mass sits in weeks where the season boundary is irrelevant.**
+
+**The answer is week-to-week.** Not because the offseason does not move roles —
+it moves them about as much — but because the model already handles the boundary
+near-optimally, and because three quarters of the error arrives in weeks when
+last season is no longer the question. Combined with the news finding above, that
+is a consistent picture: in-season role change is real, large, mostly
+unannounced, and the largest open problem in this layer.
+
 ## Pre-game news: the injury report and the depth chart (2026-08-27)
 
 The role-change finding above points at a leading indicator, and two cached feeds

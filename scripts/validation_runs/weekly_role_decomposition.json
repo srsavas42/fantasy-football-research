@@ -1,0 +1,248 @@
+{
+  "variance_components": {
+    "n_player_seasons": 2830,
+    "n_players_multi_season": 625,
+    "between_player": 0.020012618939557324,
+    "between_season_within_player": 0.004863516366479705,
+    "within_season_raw": 0.009834810479568853,
+    "within_season_sampling_noise": 0.004378319019990276,
+    "within_season_drift": 0.0054564914595785765,
+    "pct_between_player": 65.97720366982257,
+    "pct_between_season": 16.033943924674798,
+    "pct_within_season": 17.988852405502627
+  },
+  "lag_comparison": [
+    {
+      "week": 1,
+      "n": 2485,
+      "last_season_n": 1968,
+      "last_season_mae": 0.07900115701148785,
+      "this_season_n": 0,
+      "this_season_mae": NaN,
+      "model_lag_n": 2042,
+      "model_lag_mae": 0.07860454872880432
+    },
+    {
+      "week": 2,
+      "n": 2434,
+      "last_season_n": 1910,
+      "last_season_mae": 0.08010349691312883,
+      "this_season_n": 2187,
+      "this_season_mae": 0.08140851708895944,
+      "model_lag_n": 2392,
+      "model_lag_mae": 0.07652614222793208
+    },
+    {
+      "week": 3,
+      "n": 2376,
+      "last_season_n": 1847,
+      "last_season_mae": 0.08273996919944196,
+      "this_season_n": 2220,
+      "this_season_mae": 0.07381377740007727,
+      "model_lag_n": 2359,
+      "model_lag_mae": 0.07365897766547716
+    },
+    {
+      "week": 4,
+      "n": 2331,
+      "last_season_n": 1820,
+      "last_season_mae": 0.08384677231836826,
+      "this_season_n": 2199,
+      "this_season_mae": 0.06951390892194849,
+      "model_lag_n": 2315,
+      "model_lag_mae": 0.0706961842627395
+    },
+    {
+      "week": 5,
+      "n": 2176,
+      "last_season_n": 1636,
+      "last_season_mae": 0.08624517018829912,
+      "this_season_n": 2047,
+      "this_season_mae": 0.07027370601448588,
+      "model_lag_n": 2167,
+      "model_lag_mae": 0.07100151962282279
+    },
+    {
+      "week": 6,
+      "n": 2145,
+      "last_season_n": 1582,
+      "last_season_mae": 0.08547940869438239,
+      "this_season_n": 2044,
+      "this_season_mae": 0.07153750225980825,
+      "model_lag_n": 2140,
+      "model_lag_mae": 0.07004977357580291
+    },
+    {
+      "week": 7,
+      "n": 2140,
+      "last_season_n": 1562,
+      "last_season_mae": 0.0869645609819948,
+      "this_season_n": 2041,
+      "this_season_mae": 0.07405981676907306,
+      "model_lag_n": 2132,
+      "model_lag_mae": 0.07310533148600147
+    },
+    {
+      "week": 8,
+      "n": 2159,
+      "last_season_n": 1587,
+      "last_season_mae": 0.08639042553179625,
+      "this_season_n": 2080,
+      "this_season_mae": 0.07118783870698492,
+      "model_lag_n": 2157,
+      "model_lag_mae": 0.07046090360112756
+    },
+    {
+      "week": 9,
+      "n": 2079,
+      "last_season_n": 1524,
+      "last_season_mae": 0.08748699953597437,
+      "this_season_n": 2013,
+      "this_season_mae": 0.07149842619658199,
+      "model_lag_n": 2078,
+      "model_lag_mae": 0.07052051371643626
+    },
+    {
+      "week": 10,
+      "n": 2129,
+      "last_season_n": 1516,
+      "last_season_mae": 0.0919986056888251,
+      "this_season_n": 2058,
+      "this_season_mae": 0.07368586876349406,
+      "model_lag_n": 2128,
+      "model_lag_mae": 0.0722577801384319
+    },
+    {
+      "week": 11,
+      "n": 2168,
+      "last_season_n": 1550,
+      "last_season_mae": 0.08963828594809516,
+      "this_season_n": 2103,
+      "this_season_mae": 0.0715485632829443,
+      "model_lag_n": 2163,
+      "model_lag_mae": 0.070673247046125
+    },
+    {
+      "week": 12,
+      "n": 2247,
+      "last_season_n": 1596,
+      "last_season_mae": 0.08952192126883078,
+      "this_season_n": 2191,
+      "this_season_mae": 0.06881812344049783,
+      "model_lag_n": 2246,
+      "model_lag_mae": 0.06746726322393243
+    },
+    {
+      "week": 13,
+      "n": 2278,
+      "last_season_n": 1625,
+      "last_season_mae": 0.09022067298297762,
+      "this_season_n": 2222,
+      "this_season_mae": 0.0713326312526697,
+      "model_lag_n": 2276,
+      "model_lag_mae": 0.07021554340978128
+    },
+    {
+      "week": 14,
+      "n": 2231,
+      "last_season_n": 1568,
+      "last_season_mae": 0.0889247036373403,
+      "this_season_n": 2174,
+      "this_season_mae": 0.07341399738233088,
+      "model_lag_n": 2229,
+      "model_lag_mae": 0.06986193039670945
+    }
+  ],
+  "events_by_week": [
+    {
+      "week": 1,
+      "events": 210,
+      "mean_step": 0.18780032915633205
+    },
+    {
+      "week": 2,
+      "events": 227,
+      "mean_step": 0.18107218076537338
+    },
+    {
+      "week": 3,
+      "events": 203,
+      "mean_step": 0.18505668408881099
+    },
+    {
+      "week": 4,
+      "events": 124,
+      "mean_step": 0.1721837208999156
+    },
+    {
+      "week": 5,
+      "events": 135,
+      "mean_step": 0.18360428023551492
+    },
+    {
+      "week": 6,
+      "events": 124,
+      "mean_step": 0.17048120972930017
+    },
+    {
+      "week": 7,
+      "events": 131,
+      "mean_step": 0.17977700383782919
+    },
+    {
+      "week": 8,
+      "events": 98,
+      "mean_step": 0.15495100903656567
+    },
+    {
+      "week": 9,
+      "events": 75,
+      "mean_step": 0.1739738211015807
+    },
+    {
+      "week": 10,
+      "events": 72,
+      "mean_step": 0.17892509017764308
+    },
+    {
+      "week": 11,
+      "events": 63,
+      "mean_step": 0.16237485479903677
+    },
+    {
+      "week": 12,
+      "events": 69,
+      "mean_step": 0.17115764662561989
+    },
+    {
+      "week": 13,
+      "events": 86,
+      "mean_step": 0.17708799264134253
+    },
+    {
+      "week": 14,
+      "events": 70,
+      "mean_step": 0.17444029364304545
+    },
+    {
+      "week": 15,
+      "events": 71,
+      "mean_step": 0.1800635828908513
+    },
+    {
+      "week": 16,
+      "events": 64,
+      "mean_step": 0.17210939380568113
+    },
+    {
+      "week": 17,
+      "events": 74,
+      "mean_step": 0.20468732238773865
+    },
+    {
+      "week": 18,
+      "events": 32,
+      "mean_step": 0.23802990562895793
+    }
+  ]
+}

@@ -7,7 +7,8 @@ measured on this checkout against nflverse 1999–2025 and is reproducible with
 `scripts/measure_history_depth.py`,
 `scripts/measure_availability_signal.py`,
 `scripts/validate_persistence_mean.py`,
-`scripts/measure_dispersion_link.py` and
+`scripts/measure_dispersion_link.py`,
+`scripts/measure_sequence_length.py` and
 `scripts/validate_availability_history.py`.
 
 Short answers:
@@ -432,6 +433,122 @@ measured dispersion of 1.43 and 2.00, so the same shape — a hand-set constant
 standing in for a fitted coefficient — is doing the work there too. Role is far
 stickier than touchdown rate (snap share persists at r ≈ 0.76), so the offset is
 much more defensible; that is a reason to check it, not to assume it.
+
+---
+
+## 1b. ARIMA, exponential smoothing, or an SVM for longer sequence dynamics?
+
+Asked after the persistence work, and the second half of the question — "or do
+they all require a fixed set of historical data" — is the one that decides it.
+
+### The series are not long enough for two of the three
+
+Measured by `scripts/measure_sequence_length.py` on the 2015–2025 frame, 6,537
+non-replacement rows:
+
+| prior seasons available at prediction time | share | cumulative |
+|---|---:|---:|
+| 0 | 31.6% | 31.6% |
+| 1 | 21.4% | 53.0% |
+| 2 | 15.1% | 68.1% |
+| 3 | 10.5% | 78.6% |
+| 5+ | — | 13.7% qualify |
+| 8+ | — | 2.3% qualify |
+
+**The median row has one prior season.** Median career in-window is two.
+
+| method | minimum it needs | share of rows it can run on |
+|---|---:|---:|
+| simple exponential smoothing / AR(1) | 1 | 68.4% |
+| Holt's linear trend / AR(2) | 2 | 47.0% |
+| per-player ARIMA, minimum identification | 5 | **13.7%** |
+| per-player ARIMA, comfortable | 8 | **2.3%** |
+
+A method whose minimum admits a seventh of the board is not a modelling choice.
+
+### Exponential smoothing: already shipping
+
+`features/season_pathways.py` applies simple exponential smoothing with
+`HISTORY_ALPHA = 0.50` — last season half the weight, the one before a quarter,
+grouped by `player_key`. That is the one classical method that survives ragged
+history, because with a fixed α it needs no minimum length and degrades
+gracefully to "the one observation you have".
+
+What a full ETS would add is a *fitted* α instead of 0.50, plus optionally
+Holt's trend and damping. Worth knowing, but section 2c measured what the EWMA
+is worth: −0.07% to −0.87% on efficiency, −0.44% on availability. Tuning α is
+tuning a knob on something that is barely paying.
+
+### ARIMA: collapses to what already ships, and the "I" is contraindicated
+
+Per-player fitting is out on the table above. A *pooled* ARIMA — shared
+coefficients across players — is the only version that runs, and a pooled AR(1)
+on the lagged shrunk rate is **exactly the `persistence` mode promoted in
+section 1**: `intercept + φ · lag`. Its fitted φ is 0.31–0.55.
+
+Term by term:
+
+- **AR(2)** is adding lag-2, measured in section 2c at −0.07% (rec_td_rate) to
+  −0.87% (rush_td_rate).
+- **Differencing (`d ≥ 1`)** assumes a unit root — a stochastic trend with no
+  mean to revert to. The fitted φ of 0.33 says the opposite: strongly
+  stationary and mean-reverting. `d = 1` would assert φ = 1, which is precisely
+  the defect section 1 exists to fix. The "I" is not neutral here, it is
+  backwards.
+- **MA terms** need repeated observations per unit to identify a shock process.
+  At a median of one prior season they are not identifiable.
+- **Seasonality** has no meaning at season granularity.
+
+So ARIMA's usable content is already in the model, and its distinctive
+component is contraindicated.
+
+### SVM: the wrong shape for this architecture
+
+Not a sequence model at all — a supervised learner that would take lags as
+features, which is what the ridge and posterior regressions already do. Three
+objections, in order of weight:
+
+1. **It returns a point, not a distribution.** Every layer here feeds
+   calibrated draws into a simulator. An SVR would need a separate uncertainty
+   model bolted alongside it, which discards the architecture's central value.
+2. **No natural exposure weighting.** A rate on 5 targets and a rate on 150 are
+   not equally reliable; the Beta-Binomial handles that inside the likelihood.
+   Sample weights are a poor substitute for a variance that scales correctly.
+3. **The signal-to-noise argues against flexibility.** Section 1 measured the
+   top quintile of receiving touchdown rate as having latent variance at or
+   below zero — the spread is binomial. A flexible learner given that will fit
+   noise. The binding constraint on this layer is not model capacity.
+
+There is precedent, too: the package already carries an XGBoost roster-softmax
+challenger behind `ffmodel[ml]`, so a flexible discriminative learner has been
+on the menu.
+
+### The premise is the real issue
+
+All three presuppose there *are* longer sequence dynamics at the season level.
+For efficiency, the measurements say largely not: lag-2 and career EWMAs are
+worth a fraction of a percent, the top-quintile touchdown variance is pure
+coin-flipping, and the median player has one prior season to be dynamic about.
+
+Two places where sequence dynamics would plausibly pay:
+
+- **The weekly layer (Phase 7, unbuilt).** Within a season a player has ~17
+  observations rather than one, and the autocorrelation is real: role ramps,
+  snap-count trends, returns from injury, usage shifts after a trade. That is
+  where a state-space model has a series long enough to identify, and it is the
+  pillar that does not exist yet.
+- **A hierarchical state-space model at the season level** — the principled
+  version of what ARIMA gestures at. A dynamic linear model with partial pooling
+  handles ragged histories natively: one season gets the population prior, eight
+  gets a sharp state, no minimum length. Temper the prior with precedent, though:
+  the discrete latent-regime challenger in
+  [latent-regime-ablation](latent-regime-ablation.md) was **rejected** — worse
+  on every stream in every holdout, targets especially — and both regime flags
+  remain off.
+
+**Recommendation: none of the three at the season layer.** If sequence dynamics
+are the goal, build the weekly pillar, where the series are seventeen long
+instead of one.
 
 ---
 

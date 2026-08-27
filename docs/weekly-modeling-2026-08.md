@@ -89,6 +89,118 @@ Mixture, not averaging — averaging paired draws produces a distribution narrow
 than either input and wrecks calibration, which the season layer measured at
 0.689 against a nominal 0.80.
 
+## Where the error actually is (2026-08-27, follow-up)
+
+`scripts/diagnose_weekly_errors.py` attributes the error to segments and reports
+the signed bias, because over- and under-projection want opposite fixes. It
+overturns the framing above and finds a different, larger problem.
+
+### The next-week model does not get worse early. The board gets better.
+
+| window | model MAE | model CRPS | ADP MAE | ADP CRPS |
+|---|---:|---:|---:|---:|
+| weeks 1–4 | 4.967 | 3.376 | 5.590 | 4.061 |
+| weeks 5–10 | 4.974 | 3.329 | 5.976 | 4.407 |
+| weeks 11–18 | 5.055 | 3.412 | 6.317 | 4.708 |
+
+The model is flat across the season to within a rounding error. **Every bit of
+the narrowing early-season gap is the draft board being good in September and
+decaying from there** — its CRPS worsens by 16% from week 1 to week 18 while the
+model's moves 1%. "The model struggles early" is the wrong description of the
+next-week response and the wrong thing to go and fix.
+
+It remains true for rest of season, where weeks 1–4 really are harder in absolute
+terms — but most of that is horizon length (a 17-game sum against a 3-game one),
+not a defect that appears in September.
+
+### The real failure is role change, and it is not seasonal
+
+Bias is projected minus observed, so positive is over-projection. Both windows,
+relevant population plus anyone the board drafted:
+
+| segment | share of error | observed | projected | bias (early) | bias (later) |
+|---|---:|---:|---:|---:|---:|
+| **role grew (share +10pt)** | 14% | 15.0 | 8.0 | **−6.99** | **−6.87** |
+| **role shrank (share −10pt)** | 22% | 2.4 | 6.4 | **+4.00** | **+4.00** |
+| did not play | 20–22% | 0.0 | 3.9 | +3.91 | +3.70 |
+| returning after 1 week out | 7–9% | 3.8 | 5.7 | +1.88 | +2.80 |
+| handcuff: lead back out | 3.5% | 6.7 | 4.8 | −1.95 | −2.19 |
+
+The two role-change rows are the same number in both windows. This is not an
+early-season problem that fades; it is a permanent property of a model whose
+usage features are all exponentially weighted averages of what a player has
+already done. A promotion enters the features only as it is produced.
+
+The board is worse on both (−7.3/−7.7 on role growth, +4.3/+5.2 on role
+decline), so this is not something ADP solves — it is what any
+backward-looking method does.
+
+### How long it takes to catch up: about two weeks
+
+Following the model's bias forward from the week a player's share of his team's
+carries or targets first steps up by ten points and reaches twenty percent:
+
+| weeks since the role changed | n | bias | MAE | observed |
+|---|---:|---:|---:|---:|
+| 0 (the week it happens) | 591 | **−7.41** | 8.11 | 14.57 |
+| 1 | 566 | −1.98 | 5.80 | 10.37 |
+| 2 | 543 | −0.49 | 5.48 | 9.17 |
+| 3 | 533 | −0.30 | 5.81 | 8.97 |
+| 5 | 476 | −0.06 | 5.61 | 8.76 |
+
+**The entire cost is the first week.** Seven and a half points low the week a
+role opens, two the week after, unbiased by the second. The four-game half-life
+is doing exactly what it was specified to do, and the damage is concentrated
+where no amount of retuning the decay will help — in the week before there is
+any new data at all.
+
+### Handcuffs specifically
+
+A backup running back in a week his team's established lead rusher (lagged carry
+share ≥ 0.35) is inactive: **the model projects him 1.9–2.2 points low**, on 86
+early rows and 503 later ones, about 3.5% of total error. Smaller than the
+general role-growth miss because many activations do not produce a full takeover
+— a committee absorbs the carries. The board is slightly worse (−2.2/−2.3).
+
+The gap between the handcuff miss (−2.1) and the role-growth miss (−7.0) is the
+useful part: knowing the starter is out is worth much less than knowing the
+backup will actually get the volume, and only the second is a large error.
+
+### The two hypotheses that did not hold
+
+**Rookies and thin history are not the problem.** On players with no career
+weeks at all the model is essentially unbiased (+0.10 early) and beats the board
+outright (CRPS 2.15 against 3.19) — the board over-projects them by +2.94. Thin
+history (1–7 games) is the same story: bias −0.49, CRPS 2.98 against the board's
+3.94. Imputing missing history to the training median with an explicit
+"no history" indicator, plus the ADP columns, handles these rows better than the
+consensus that was built to price them.
+
+Note that the headline `relevant` population cannot see this at all — it requires
+four prior appearances and so excludes every rookie by construction. The
+diagnostic has a `--population drafted-or-relevant` mode for exactly this reason.
+
+**Low-ADP over-projection is real but small, and only for the undrafted.**
+Players the board declined to rank are over-projected by **+0.71 early** against
+−0.17 later, which is the "last year's part-timer projected into a role he has
+already lost" effect and it is worth about seven tenths of a point on players
+averaging 2.6. Within the drafted board there is no rank gradient in the bias at
+all: ADP 1–36 −0.26, 37–84 −0.60, 85–150 −0.89, 151+ +0.04.
+
+### What this points at
+
+Ranked by share of error, and none of it is a decay-rate question:
+
+1. **Role change, in the first week only** (36% of error across both directions).
+   Wants a leading indicator of role, not a better average of the trailing one:
+   snap share and depth charts are both cached and unused, and a depth chart is
+   published before the game.
+2. **Absence** (20–22%). The model projects 3.9 points for players who score
+   zero, and over-projects returners by 1.9–2.8. The availability half reads
+   appearance history and nothing else; the weekly injury report is cached and
+   unused.
+3. **Everything else.** No segment above accounts for more than 3.5%.
+
 ## The panel, and why it starts in 2016
 
 A stat feed contains rows for players who recorded something. Modelling on those

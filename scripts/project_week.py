@@ -30,6 +30,7 @@ import pandas as pd
 from ffmodel.models.market_blend import blend_samples
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
+from ffmodel.weekly.news import add_news_features
 from ffmodel.weekly.market import (
     WeeklyRankCurve,
     attach_adp,
@@ -44,7 +45,7 @@ from ffmodel.weekly.restofseason import (
     add_rest_of_season_target,
 )
 
-DEFAULT_FEATURES = Path(".cache/weekly_features_2016_2025.pkl")
+DEFAULT_FEATURES = Path(".cache/weekly_features_news_2016_2025.pkl")
 
 
 def main(argv=None) -> int:
@@ -74,6 +75,8 @@ def main(argv=None) -> int:
         frame = pd.read_pickle(args.features)
     else:
         frame = add_features(attach_adp(load_panel(range(2016, args.season + 1))))
+    if "inj_status" not in frame.columns:
+        frame = add_news_features(frame)
     frame = add_rest_of_season_target(frame)
 
     train = frame[frame["season"] < args.season]
@@ -95,6 +98,7 @@ def main(argv=None) -> int:
             use_phase=True,
             use_script=True,
             use_adp=True,
+            use_news=True,
             by_position=True,
         ).fit(train, weekly_target)
         label = "points"

@@ -22,6 +22,7 @@ from ffmodel.weekly.evaluate import report, walk_forward
 from ffmodel.weekly.features import add_features
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.market import attach_adp
+from ffmodel.weekly.news import add_news_features
 from ffmodel.weekly.nextweek import next_week_ladder
 from ffmodel.weekly.restofseason import (
     OFFSET,
@@ -74,7 +75,7 @@ def main(argv=None) -> int:
         panel = load_panel(range(args.seasons[0], args.seasons[1] + 1))
         # ADP is attached before the features so the market curve and every
         # model see exactly the same rows.
-        frame = add_features(attach_adp(panel))
+        frame = add_news_features(add_features(attach_adp(panel)))
         args.features.parent.mkdir(parents=True, exist_ok=True)
         frame.to_pickle(args.features)
     print(f"panel {frame.shape[0]} rows, seasons {frame.season.min()}-{frame.season.max()}")

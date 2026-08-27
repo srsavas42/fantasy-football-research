@@ -110,6 +110,25 @@ ADP_FEATURES = (
     "adp_drafted_early",
 )
 
+# Published before the game and not yet reflected in any average. The split
+# between the two halves is the point: the injury report is overwhelmingly a
+# statement about whether a player takes the field, while the depth chart is a
+# statement about how much work he gets once he does.
+NEWS_AVAILABILITY_FEATURES = (
+    "inj_status",
+    "inj_practice",
+    "inj_out",
+)
+
+NEWS_MAGNITUDE_FEATURES = (
+    "inj_status",
+    "inj_practice",
+    "depth_rank",
+    "depth_promoted",
+    "ahead_out",
+    "position_group_out",
+)
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -230,6 +249,7 @@ class Hurdle:
     use_phase: bool = False
     use_script: bool = False
     use_adp: bool = False
+    use_news: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -250,11 +270,14 @@ class Hurdle:
             + (PHASE_FEATURES if self.use_phase else ())
             + (SCRIPT_FEATURES if self.use_script else ())
             + (ADP_FEATURES if self.use_adp else ())
+            + (NEWS_MAGNITUDE_FEATURES if self.use_news else ())
         )
 
     @property
     def availability_features(self) -> tuple[str, ...]:
-        return AVAILABILITY_FEATURES
+        return AVAILABILITY_FEATURES + (
+            NEWS_AVAILABILITY_FEATURES if self.use_news else ()
+        )
 
     def _fit_magnitude(
         self, frame: pd.DataFrame, target: np.ndarray
@@ -395,6 +418,16 @@ def next_week_ladder() -> list:
             use_matchup=True,
             use_phase=True,
             use_script=True,
+            by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+context+adp+news/position",
+            use_team=True,
+            use_matchup=True,
+            use_phase=True,
+            use_script=True,
+            use_adp=True,
+            use_news=True,
             by_position=True,
         ),
         Hurdle(

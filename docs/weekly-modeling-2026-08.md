@@ -201,6 +201,102 @@ Ranked by share of error, and none of it is a decay-rate question:
    unused.
 3. **Everything else.** No segment above accounts for more than 3.5%.
 
+## Pre-game news: the injury report and the depth chart (2026-08-27)
+
+The role-change finding above points at a leading indicator, and two cached feeds
+carry one. Both were checked for timing before anything was built with them: the
+injury report lands a median **28 hours before kickoff**, 99% of it at least 2.7
+hours before, and 0.18% after gameday (Thursday and Monday games crossing a
+timezone). The depth chart is placed by the loader against the next
+regular-season game to be played. Both are legitimately available at decision
+time. Coverage is stable across all ten seasons — about 8% of panel rows carry an
+injury entry, 79–97% a depth rank.
+
+### The ceiling measurement said the opposite of what was expected
+
+`scripts/measure_role_signal.py` asks whether these feeds flag role change
+*before* it happens, deliberately run before wiring anything in. They barely do:
+
+| signal | % of rows | P(role grows) | lift | recall |
+|---|---:|---:|---:|---:|
+| someone ahead of him is out, and he is healthy | 5.7% | 0.162 | 1.89 | 0.095 |
+| someone ahead of him is out | 6.3% | 0.150 | 1.75 | 0.097 |
+| promoted on the depth chart | 3.5% | 0.145 | 1.74 | 0.059 |
+| promoted last week (strictly lagged) | 3.2% | 0.129 | 1.55 | 0.050 |
+| he is questionable or worse | 9.9% | 0.035 | **0.40** | 0.040 |
+
+Lift of 1.9 on 5.7% of rows sounds useful until the recall column is read.
+**Only 10–18% of role growth is flagged by anything these feeds contain**, across
+all three folds. The intuition that a role change is knowable in advance as
+"injuries plus news" holds for roughly one promotion in eight. The rest are
+committee shifts, coaching decisions, game script, and — this is the honest
+caveat on the −7.4 figure — a good deal of one-week variance, because a segment
+defined by realised share exceeding lagged share is selecting on a positive
+usage residual and will show a negative points residual mechanically. The
+catch-up profile is the trustworthy statistic precisely because it follows the
+same players forward: the genuinely persistent part of a promotion is the −1.98
+at week 1, not the −7.41 at week 0.
+
+### But the injury report is close to deterministic about availability
+
+The last row of that table is the interesting one, and it points the other way.
+A player on the report is *less* likely to see his role grow, and the model
+over-projects him by +4.0. Read directly:
+
+| report status | n | play rate | mean points |
+|---|---:|---:|---:|
+| **Out** | 2,218 | **0.000** | 0.01 |
+| **Doubtful** | 384 | **0.010** | 0.07 |
+| Questionable | 3,164 | 0.665 | 6.33 |
+| not listed | 48,678 | 0.769 | 7.75 |
+| did not practice | 3,251 | 0.180 | 1.87 |
+
+Out means out, on 2,218 rows, without exception. The model was guessing 77% from
+appearance history on rows where the answer had already been published. This is
+the "did not play" bucket — 20–22% of all error at a bias of +3.9 — and most of
+it was never a modelling problem at all. It was a missing feed.
+
+### Result: the largest single gain since recency
+
+The injury columns go to the availability half and the depth columns to the
+magnitude half, which is the split the ceiling measurement argues for: the report
+is a statement about whether a player takes the field, the depth chart about how
+much work he gets once he does.
+
+Relevant population, pooled over three holdouts:
+
+| arm | MAE | CRPS | ρ (within pos) | top-24 |
+|---|---:|---:|---:|---:|
+| + context + ADP, per position | 5.010 | 3.377 | 0.588 | 0.113 |
+| **+ pre-game news** | **4.609** | **3.140** | **0.668** | **0.116** |
+| change | **−8.0%** | **−7.0%** | **+13.7%** | +2.5% |
+
+Improved on **3/3 folds on every metric**. In weeks 1–4 specifically: MAE −6.7%,
+CRPS −6.5%, within-position ρ +13.7%, and top-24 hit rate **+11.3%**
+(0.2745 → 0.3055).
+
+Against the ADP baseline on the drafted pool, the count of metrics that fail to
+clear the bar drops from three to **one**: early-season top-24 hit rate, now
+−5.9% against the board where it was −15.3%. Everything else wins, pooled CRPS by
+29.7%.
+
+A practical consequence worth noting: the p10 floors stop collapsing to zero.
+Before, any player with more than a 10% chance of sitting had a tenth percentile
+of exactly zero, which made the floor useless for separating two similar
+projections. With the report resolving the certain cases, the floor becomes real
+information again.
+
+### On preseason hype specifically
+
+It is already in, and that is why there is not much left. ADP *is* the aggregated
+preseason news — it is what drafters believed after digesting camp reports,
+depth-chart chatter and beat coverage — and it entered the model in the previous
+round, cutting the early-week rest-of-season deficit from −3.05% to −0.51% MAE.
+What a separate hype feed would add over the consensus that already prices it is
+an open question this measurement cannot answer, and the remaining early-season
+gap is now one ordering metric at −5.9%. That is a small target to spend a new
+data source on.
+
 ## The panel, and why it starts in 2016
 
 A stat feed contains rows for players who recorded something. Modelling on those
@@ -400,8 +496,8 @@ seventeen, and this week's line says nothing about week twelve's.
 
 `scripts/project_week.py`, fitted on seasons strictly before the one requested.
 
-- **Next week** — the hurdle with team, matchup, phase defence, game script and
-  ADP, fitted per position. Output carries `p_plays` alongside quantiles: a p10
+- **Next week** — the hurdle with team, matchup, phase defence, game script, ADP
+  and the pre-game injury/depth feeds, fitted per position. Output carries `p_plays` alongside quantiles: a p10
   of zero means "he might not play", a different call from a low projection for
   someone certain to suit up.
 - **Rest of season** — the direct total with phase and ADP, blended with the rank
@@ -422,10 +518,17 @@ choosing the story over the evidence, which is why the simulator does not ship.
   worse than the board does in weeks 1–4.
 - **Snap counts are not in the panel.** They exist upstream from 2014 but join on
   name and PFR id rather than the gsis id everything else uses. Snap share is the
-  most direct measure of role available and its absence is the largest known gap.
-- **No injury designations.** The weekly injury report is cached (2009–2025) and
-  unused. It is the obvious next input for the availability half, whose largest
-  bucket carries the standing 2-point bias.
+  most direct measure of role available and remains the largest known gap.
+- **Role change is still mostly unpredicted.** The news feeds flag 10–18% of it.
+  The remaining 82–90% is committee shifts, coaching decisions and game script,
+  and nothing currently cached speaks to it.
+- **The news feeds are only in the next-week model.** Adding them to the
+  rest-of-season response is untested: a Friday game status is a statement about
+  one game, and its value over a seventeen-week horizon is a different question
+  that has not been measured.
+- **Depth-chart coverage jumps in 2025** (0.79 to 0.97) with the upstream schema
+  change. That is more coverage in the final holdout than in training, which
+  could flatter 2025 slightly; the gain holds on 2023 and 2024 regardless.
 - **Game script is measured through the closing line only.** No pace, no
   personnel-grouping tendency, no coverage-specific matchup. The line prices what
   the market expects, which is not the same as what the offence will do.

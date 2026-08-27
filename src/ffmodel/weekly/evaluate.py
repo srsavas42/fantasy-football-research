@@ -109,6 +109,11 @@ def walk_forward(
         train_target = pd.to_numeric(train[target], errors="coerce").to_numpy(float)
 
         week = pd.to_numeric(test["week"], errors="coerce").to_numpy(float)
+        drafted = (
+            pd.to_numeric(test["adp_drafted"], errors="coerce").eq(1).to_numpy()
+            if "adp_drafted" in test.columns
+            else None
+        )
         for estimator in estimators:
             fitted = estimator.fit(train, train_target)
             samples = fitted.predict_samples(test, draws=draws, seed=seed + holdout)
@@ -127,6 +132,27 @@ def walk_forward(
                     entry[f"relevant_{label}"] = score(
                         observed[inside], samples[inside], groups=position[inside]
                     )
+            # The population where the draft board is a real forecast rather
+            # than an extrapolation. Beating ADP on players it declined to rank
+            # is close to free -- it has nothing to say about them -- so the
+            # honest comparison is here, which is the split the season layer's
+            # ADP work also had to make.
+            if drafted is not None:
+                inside = relevant & drafted
+                if inside.sum() >= 50:
+                    entry["drafted"] = score(
+                        observed[inside], samples[inside], groups=position[inside]
+                    )
+                    for label, window in (
+                        ("early", (1, 4)),
+                        ("mid", (5, 10)),
+                        ("late", (11, 18)),
+                    ):
+                        block = inside & (week >= window[0]) & (week <= window[1])
+                        if block.sum() >= 50:
+                            entry[f"drafted_{label}"] = score(
+                                observed[block], samples[block], groups=position[block]
+                            )
             fold["estimators"][estimator.name] = entry
         results["folds"].append(fold)
 

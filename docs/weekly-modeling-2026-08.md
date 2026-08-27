@@ -7,24 +7,87 @@ Nothing here reads a season projection and nothing here is constrained by one.
 start/sit decision.
 
 **Model 2 — rest of season.** Points from week `w` to the end of the regular
-season, given every week before it. At `w = 1` this is the draft question asked
-without a draft board; from about week 5 it is the waiver question.
+season, given every week before it. At `w = 1` this is the draft question; from
+about week 5 it is the waiver question.
 
-Code in `src/ffmodel/weekly/`, validated by `scripts/validate_weekly.py`,
-diagnosed by `scripts/diagnose_weekly_calibration.py`, run by
-`scripts/project_week.py`.
+Code in `src/ffmodel/weekly/`. Validated by `scripts/validate_weekly.py`,
+checked against the draft board by `scripts/compare_weekly_to_adp.py`, blended by
+`scripts/blend_weekly_with_market.py`, diagnosed by
+`scripts/diagnose_weekly_calibration.py`, run by `scripts/project_week.py`.
 
-The headline is two clean negatives and one clean positive, and the negatives are
-the more useful half:
+## The bar: a naive draft board
 
-- **Recency is almost the whole story.** Exponentially weighting a player's own
-  history beats averaging it by 11.4% CRPS. Everything after that is small.
-- **Matchup contributes nothing.** The most widely believed weekly input in the
-  sport moves CRPS by 0.10% and is exactly zero on one of three folds.
-- **The forward simulation lost to a four-term regression.** The hierarchical
-  rest-of-season model is better motivated, directionally correct, and worse:
-  5.8% worse CRPS on 3/3 folds, and badly over-confident where the direct fit is
-  calibrated.
+Every claim here is measured against ADP, because ADP is what a manager already
+has for free. The weekly restatement is the season layer's rank curve prorated:
+a per-position log fit of season points on draft rank, divided by games for one
+week, multiplied by games remaining for the rest of a season, with spread from
+the curve's own residuals at nearby ranks.
+
+It is stale by construction and increasingly so — published in August, it knows
+everything in week 1 and nothing new by week 12 — so **the comparison is always
+reported by week**, never pooled alone. And it is scored on the **drafted pool**,
+because beating a board on players it declined to rank is close to free.
+
+### Where the models beat it, and where they do not
+
+Against the ADP curve on the drafted pool, walk-forward over 2023/2024/2025:
+
+| response | pooled | weeks 1–4 | weeks 5–10 | weeks 11–18 |
+|---|---|---|---|---|
+| **next week** | wins 7/7 | wins 6/7 | wins 7/7 | wins 7/7 |
+| **rest of season (blended)** | wins 7/7 | wins 4/7, ties 1 | wins 7/7 | wins 7/7 |
+
+Next week, pooled drafted pool: MAE −10.8%, CRPS −19.0%, within-position
+Spearman +75%, top-24 hit rate +26.6%, and CRPS wins on 3/3 folds individually.
+Late in the season the margin widens to CRPS −24.9%.
+
+**The three metrics that do not clear the bar, all in weeks 1–4:**
+
+| response | metric | model | ADP | margin | folds |
+|---|---|---:|---:|---:|---|
+| next week | top-24 hit rate | 0.278 | 0.329 | −15.3% | lost 3/3 |
+| rest of season | within-position ρ | 0.535 | 0.543 | −1.5% | lost 2/2 |
+| rest of season | top-24 hit rate | 0.459 | 0.483 | −5.0% | lost 1/2, tied 1 |
+
+The pattern is specific and worth stating precisely: **early in the season the
+model orders the whole position better than the board and picks the very top
+worse.** Within-position Spearman is a win in weeks 1–4 on 3/3 folds for next
+week; the top-24 hit rate is a loss on 3/3. A draft board is a consensus ranking
+built by people concentrating on the players who go early, and that is exactly
+where it stays sharper than a model reading box scores. Everywhere else, and on
+every loss metric everywhere, the models win.
+
+This is the season layer's finding reappearing at a new cadence, and it was
+attacked the two ways that package already has evidence for.
+
+**ADP as a feature, not just a rival.** The board carries the one thing usage
+history cannot: an offseason. A trade, a rookie, a vacated backfield reaches no
+box score until it is too late to help. Entering `adp_log_rank` and
+`adp_drafted` interacted with an early-season indicator — so the fit leans on the
+board while history is thin and discounts it after — cut the rest-of-season
+early-week deficit from −3.05% MAE to −0.51%, and from −4.78% CRPS to −0.69%.
+
+**A blend, weighted per horizon.** The variance-optimal weight on the model
+against the curve is the slope of `observed - curve = a + b(model - curve)`.
+Estimated separately per horizon, from earlier holdouts only, it produces the
+schedule this section argues for without being told to:
+
+| horizon | 2024 weight | 2025 weight |
+|---|---:|---:|
+| weeks 1–4 | 0.65 | 0.51 |
+| weeks 5–10 | 1.00 | 0.93 |
+| weeks 11–18 | 1.00 | 1.00 |
+
+The model earns its weight as the season gives it something the board never saw.
+Pooled over the two scorable folds, the blend beats the curve on **every metric
+overall and in mid and late**, and in weeks 1–4 beats it on MAE (+2.0%), RMSE
+(+1.0%), CRPS (+2.1%) and 80% coverage while ties on 95% and trailing on the two
+ordering metrics above. It also beats the unblended model on all three folds.
+2023 is unscored throughout: no earlier holdout exists to take its weight from.
+
+Mixture, not averaging — averaging paired draws produces a distribution narrower
+than either input and wrecks calibration, which the season layer measured at
+0.689 against a nominal 0.80.
 
 ## The panel, and why it starts in 2016
 
@@ -37,11 +100,9 @@ one and an honest zero if there is not.
 
 Bye weeks are dropped rather than zeroed. A team-week with no game produces no
 lines for anybody, which is indistinguishable from a roster full of inactives
-unless the schedule is consulted. Leaving byes in would hand the model a large
-block of trivially predictable zeros and corrupt both the play rate and the
-rest-of-season sum.
+unless the schedule is consulted.
 
-Weekly rosters exist upstream from 2011, and **are not usable before 2016**:
+Weekly rosters exist upstream from 2011 and **are not usable before 2016**:
 
 | seasons | rows/season | play rate | RES play rate |
 |---|---:|---:|---:|
@@ -49,262 +110,212 @@ Weekly rosters exist upstream from 2011, and **are not usable before 2016**:
 | 2016–2025 | ~9,600 | 0.54–0.59 | ~0.00 |
 
 A player on injured reserve who records a stat line 70% of the time is not on
-injured reserve. Whatever those rows are, they are not "employed and did not
-play", so the zeros would not be honest and the response would change meaning
-halfway through the window. The panel is therefore **2016–2025, 98,225 rows**,
-56.7% of them weeks a player actually appeared.
+injured reserve. The panel is therefore **2016–2025, 98,225 rows**, 56.7% of them
+weeks a player actually appeared. Week-`w` roster status is recorded for
+diagnostics and is never a feature: whether a player was declared inactive is the
+thing being predicted.
 
-The ACT/INA split does move inside that window — inactives are only reported
-separately from 2019, and before that are carried inside ACT — but that is a
-relabelling of rows the panel already contains, not a change to which rows it
-contains, and no feature reads the label. Week-`w` status is recorded for
-diagnostics and is never a feature: whether a player was declared inactive is
-the thing being predicted.
-
-### Two populations, both reported
-
-The season layer learned this expensively: fitting and scoring on every rostered
-player, most of whom are fringe, cost 3.6 CRPS points on the players who actually
-get drafted and accounted for most of an apparent deficit against the draft
-board. A pooled weekly metric has the same defect and worse — roughly 43% of the
-panel is a player who did not play, most of them third-stringers, and a forecast
-of zero for all of them scores well.
-
-So every number below is reported on the **relevant** population: rows where the
-player's recency-weighted average *over weeks he played* is at least 4 points and
-he has at least 4 prior appearances. That filter reads only lagged columns, so it
-defines a population without looking at the outcome, and it keeps an injured
-starter in the population he belongs to. It is 49.1% of the panel, about 5,100
-rows a season.
+Every number below is reported on the **relevant** population — recency-weighted
+average over weeks played of at least 4 points, and at least 4 prior appearances,
+both read from lagged columns only. That is 49.1% of the panel. The season layer
+learned the cost of not doing this: scoring on a fringe-heavy mixture flatters a
+model that is good at forecasting zero.
 
 ## Leakage
 
 On a seventeen-game series an expanding mean that forgets to shift includes the
-week being predicted, which is a large share of the average. The resulting model
-validates beautifully, cannot be used, and nothing in the metrics says so.
+week being predicted. The resulting model validates beautifully, cannot be used,
+and nothing in the metrics says so. The lag is therefore structural: every
+history column is produced by one function that applies its statistic and then
+shifts it by one row within the group.
 
-The lag is therefore structural rather than per-feature: every history column is
-produced by one function that applies its statistic and then shifts it by one row
-within the group, and there is no path through the feature layer that reaches the
-current week. `tests/test_weekly_features.py` pins it the only way that actually
-demonstrates it — perturb an outcome by 1000 points, assert that no feature at or
-before that week moves, **and assert that at least one feature after it does**. A
-feature layer that ignored history entirely would pass the first half alone.
+`tests/test_weekly_features.py` pins it the only way that demonstrates it —
+perturb an outcome by 1000 points, assert no feature at or before that week
+moves, **and assert at least one feature after it does**. A feature layer that
+ignored history entirely would pass the first half alone. A second test pins the
+features invariant to row order, which a grouped expanding statistic does not
+give for free. A third does the same for the defence-allowed columns.
 
-A second test pins something subtler. A grouped expanding statistic comes back
-ordered by group, not by frame; realigning it positionally happens to work while
-the input is sorted by that group and misaligns silently when it is not, handing
-every player somebody else's history with no error and entirely plausible
-numbers. The features are asserted invariant to row order.
+The market lines are the one exception and are deliberately unlagged: a closing
+spread is published before kickoff and is legitimately known at decision time.
 
 ## Model 1: next week
 
-Walk-forward, holdouts 2023/2024/2025, each fitted on seasons strictly before it.
-Relevant population, pooled, n = 15,320. 800 draws.
+Relevant population, pooled over three holdouts, n = 15,320, 800 draws.
 
-| rung | MAE | RMSE | CRPS | cov80 | within-position ρ |
+| rung | MAE | RMSE | CRPS | cov80 | ρ (within pos) |
 |---|---:|---:|---:|---:|---:|
-| 1. position climatology | 6.564 | 8.851 | 4.855 | 0.811 | 0.003 |
-| 2. career mean | 5.801 | 7.552 | 3.944 | 0.779 | 0.409 |
-| 3. recency-weighted mean | 5.173 | 6.905 | 3.493 | 0.792 | 0.570 |
-| 4. hurdle | 5.091 | 6.872 | 3.409 | 0.888 | 0.582 |
-| 5. + team context | 5.087 | 6.866 | 3.406 | 0.889 | 0.582 |
-| 6. + matchup | 5.072 | 6.863 | 3.403 | 0.888 | 0.583 |
+| ADP curve | 6.046 | 7.703 | 4.468 | 0.458 | 0.405 |
+| position climatology | 6.564 | 8.851 | 4.855 | 0.811 | 0.003 |
+| career mean | 5.801 | 7.552 | 3.944 | 0.779 | 0.409 |
+| recency-weighted mean | 5.173 | 6.905 | 3.493 | 0.792 | 0.570 |
+| hurdle | 5.091 | 6.872 | 3.409 | 0.888 | 0.582 |
+| + team & points-allowed matchup | 5.072 | 6.863 | 3.403 | 0.888 | 0.583 |
+| + game script & phase defence | 5.049 | 6.834 | 3.391 | 0.887 | 0.587 |
+| + per-position fitting | 5.031 | 6.829 | 3.385 | 0.885 | 0.587 |
+| **+ ADP (ships)** | **5.010** | **6.815** | **3.377** | 0.884 | 0.588 |
 
-Each rung against the one above it, on CRPS:
+Each step against the one above it, on CRPS:
 
-| step | ΔCRPS | folds improved |
-|---|---:|---|
-| climatology → career mean | −18.75% | 3/3 |
-| career mean → **recency** | **−11.45%** | 3/3 |
-| recency → **hurdle** | **−2.41%** | 3/3 |
-| hurdle → team context | −0.06% | — |
-| team → matchup | −0.10% | 2/3, one exactly 0.000 |
+| step | ΔCRPS |
+|---|---:|
+| climatology → career mean | −18.75% |
+| career mean → **recency** | **−11.45%** |
+| recency → **hurdle** | **−2.41%** |
+| hurdle → team + points-allowed matchup | −0.16% |
+| → **game script & phase defence** | **−0.36%** |
+| → **per-position fitting** | −0.18% |
+| → ADP | −0.24% |
 
-**Recency is the result.** A four-game half-life on a player's own history is
-worth 11.5% of CRPS over averaging that history flat, and it is worth more than
-every structural idea that follows it combined. This is the same instinct as the
-season layer's `HISTORY_ALPHA = 0.50`, at a cadence where there is enough series
-to make it pay. The decay was fixed a priori rather than tuned, so none of the
-holdout was spent on it.
+**Recency is still the result.** A four-game half-life on a player's own history
+is worth 11.5% of CRPS, more than every structural idea after it combined. The
+decay was fixed a priori at four games rather than tuned, so no holdout was spent
+on it.
 
-**The hurdle is real but modest.** Splitting availability from magnitude is worth
-2.4% CRPS, 3/3 folds. It earns its place — and see the calibration section, which
-is where it earns it properly rather than on the pooled number.
+### Game script and opponent: real, and small
 
-**Team context and matchup are null.** Adding the offence a player is attached to
-moves CRPS by 0.06%. Adding a recency-weighted average of the points his opponent
-has allowed to his position moves it by a further 0.10%, and by exactly zero on
-2024. Both are well inside noise.
+The first attempt at matchup — points allowed by the opponent to this position,
+recency-weighted — was worth 0.16% and exactly zero on one fold. That null did
+not survive asking the question properly, but what replaced it is modest.
 
-The matchup null deserves stating plainly because of what it contradicts. Nearly
-every start/sit column in the sport is built on defence-versus-position, and here
-it contributes nothing to a model that already knows the player's own usage. The
-explanation is the season layer's, in a new setting: *whatever the matchup knows
-about a player's week, his usage history already knows*. A target share of 27%
-is a fact about a role, and it is the role that carries the week.
+Three changes, together worth **−1.60% MAE and −0.93% CRPS** over the plain
+hurdle:
 
-Two things this does **not** establish. It is one encoding of matchup — a
-recency-weighted points-allowed average by defence and position. A different one
-(pace, coverage-specific splits, defence-adjusted efficiency rather than raw
-points) is a different hypothesis and is untested. And the null is measured with
-the full feature set present, which is the right room to measure it in; the same
-term in a feature-poor design would very likely look useful, which is exactly how
-the season layer's ADP interaction produced a +4.11% probe result and a −1.57%
-model result.
+**Phase-split defence, volume and efficiency apart.** "Good against the run" is
+two claims. A defence can hold rushing yards down because it is hard to run on or
+because nobody runs on it, and those point in opposite directions for a back's
+workload. So carries and targets conceded are separate columns from yards per
+carry and EPA per play conceded, and run is kept apart from pass — a defence is
+routinely good at one and poor at the other, which a points-allowed aggregate
+averages away.
+
+**Game script from the closing line.** The spread says who is expected to lead,
+and the implied totals — `total/2 ± spread/2` — say how much this offence is
+expected to score and how much it will have to answer. A team favoured by ten
+runs out the fourth quarter; a team down two scores throws. The sign convention
+is load-bearing and tested: `spread_line` is quoted from the home team's
+perspective and is re-signed per team, so positive always means *this* team is
+favoured. Backwards, every game-script coefficient inverts and nothing about the
+fit looks wrong.
+
+**Per-position fitting, which is what lets the above be seen at all.** Several
+script terms point in opposite directions by position: a favourite's running back
+gets the fourth quarter and a favourite's receivers do not. A pooled slope
+averages them toward zero and reports a real effect as a null. Fitting each
+position its own design avoids the collinear-interaction pathology that sank the
+season layer's ADP interactions — four separate designs, not one carrying a level
+plus three deviations under a shared prior. A test asserts the RB and WR spread
+slopes come out with opposite signs and the pooled slope between them.
+
+So the mechanisms are real and they are measurable only in the right encoding.
+They are also worth about a seventh of what recency is worth, and that proportion
+is the honest headline. Own-defence quality (the "modern Bengals" effect — a team
+that cannot get off the field throws to keep up) is in the script block and is not
+separately identified from the implied opponent total, which measures the same
+thing prospectively.
 
 ### The hurdle's coverage is the atom, not a defect
 
-Rung 4 improves CRPS and simultaneously reports 80% coverage of 0.888 against a
-nominal 0.80. Read naively that is a model that got better and worse at once, and
-the temptation is to widen or narrow something until the number looks right.
+The hurdle reports 80% coverage of 0.888 against nominal 0.80. Central-interval
+coverage is not a proper scoring rule and behaves badly on a distribution with a
+point mass: if a player has a 12% chance of not playing, the 10th percentile *is*
+zero and every positive outcome clears it from below.
 
-Central-interval coverage is not a proper scoring rule and behaves badly on a
-distribution with a point mass. If a player has a 12% chance of not playing, 12%
-of the predictive sits at exactly zero, so the 10th percentile **is** zero and
-every positive outcome clears it from below. The interval is not too wide; the
-summary is wrong for the shape.
+`scripts/diagnose_weekly_calibration.py` separates the halves. Availability gets
+a reliability table; magnitude is scored on the weeks he played using the
+conditional predictive **without the atom** — scoring the unconditional
+predictive against outcomes selected on having played would report a
+correctly-sized zero mass as a downward bias, which is the mistake the diagnostic
+was rewritten to avoid.
 
-`scripts/diagnose_weekly_calibration.py` separates the halves rather than
-asserting this. Availability gets a reliability table; magnitude is scored on the
-weeks he played using the conditional predictive **without the atom** — scoring
-the unconditional predictive against outcomes selected on having played would
-report a correctly-sized zero mass as a downward bias, which is the mistake this
-diagnostic was rewritten to avoid.
-
-Availability, predicted against observed play rate:
-
-| bucket | 2023 gap | 2024 gap | 2025 gap |
-|---|---:|---:|---:|
-| 0.00–0.30 | −0.050 | −0.033 | +0.009 |
-| 0.30–0.50 | −0.004 | −0.011 | +0.000 |
-| 0.50–0.70 | −0.014 | +0.012 | +0.024 |
-| 0.70–0.85 | +0.002 | −0.011 | +0.019 |
-| 0.85–0.95 | −0.018 | −0.025 | −0.026 |
-
-Magnitude, on the weeks he played:
-
-| holdout | cov80 | cov95 | bias | PIT shape |
+| holdout | availability gap (worst bucket) | magnitude cov80 | cov95 | PIT |
 |---|---:|---:|---:|---|
-| 2023 | 0.813 | 0.951 | +0.27 | flat |
-| 2024 | 0.813 | 0.951 | −0.22 | flat |
-| 2025 | 0.803 | 0.949 | +0.34 | flat |
+| 2023 | −0.050 | 0.813 | 0.951 | flat |
+| 2024 | −0.033 | 0.813 | 0.951 | flat |
+| 2025 | +0.024 | 0.803 | 0.949 | flat |
 
-Both halves are calibrated. The zero mass is the right size and the magnitude
-interval sits on nominal at both levels with a flat PIT, so the pooled 0.888 is
-the atom widening a central interval and nothing needs adjusting. The one
-standing blemish is the largest availability bucket, which under-predicts the
-play rate by about 2 points in all three folds — consistent in sign, small, and
-recorded rather than rounded away.
+Both halves are calibrated. The pooled 0.888 is the atom. The one standing
+blemish is the largest availability bucket, which under-predicts the play rate by
+about 2 points in all three folds — consistent in sign, small, recorded.
 
 ## Model 2: rest of season
 
-Same folds, same population. The target is the sum from week `w` to the end of
-the season; the number of games remaining is the player's club's, taken from the
-schedule at week `w`, so the offset cannot quietly encode the fact that he was
-about to be cut. A player who leaves the league scores zero for the weeks he is
-gone and those zeros are summed.
+Same folds and population. The games-remaining offset is the player's club's,
+taken from the schedule at week `w`, so it cannot encode that he was about to be
+cut. A player who leaves the league scores zero for the weeks he is gone and
+those zeros are summed.
 
-| estimator | MAE | CRPS | cov80 | cov95 | PIT dev |
-|---|---:|---:|---:|---:|---:|
-| **direct total** | 29.59 | **20.90** | **0.802** | **0.946** | **0.141** |
-| independent weeks | 29.51 | 22.48 | 0.564 | 0.733 | 0.496 |
-| hierarchical | 29.51 | 22.18 | 0.589 | 0.763 | 0.449 |
+| estimator | MAE | CRPS | cov80 | cov95 | ρ | top-24 |
+|---|---:|---:|---:|---:|---:|---:|
+| ADP curve | 34.89 | 24.61 | 0.663 | 0.873 | 0.674 | 0.380 |
+| direct total | 29.59 | 20.90 | 0.802 | 0.946 | 0.766 | 0.392 |
+| direct total + phase | 29.60 | 20.89 | 0.802 | 0.945 | 0.766 | 0.396 |
+| **+ ADP (ships, before blending)** | **29.17** | **20.56** | 0.789 | 0.945 | **0.770** | **0.433** |
+| independent weeks | 29.51 | 22.48 | 0.564 | 0.733 | 0.764 | 0.365 |
+| hierarchical | 29.51 | 22.18 | 0.589 | 0.763 | 0.764 | 0.365 |
 
 ### The argument for the hierarchy was right, and lost anyway
 
-The obvious construction simulates the remaining games from the weekly model and
-adds them up. Drawing those weeks independently makes the total's variance `G`
-times a single week's, which is the variance of a player whose true ability is
-*known* and whose weeks differ only by luck. That is not this problem: most of
-what is unknown about a player's rest of season is unknown in all his weeks at
-once, and does not average out.
+Simulating the remaining games and adding them up understates the total's
+variance if the weeks are drawn independently: most of what is unknown about a
+player's rest of season is unknown in all his weeks at once and does not average
+out. So the hierarchical arm draws the player first — a latent availability rate
+from a Beta whose concentration comes from how much realised play counts
+over-disperse relative to Binomial, and a latent per-game level whose spread is
+estimated by variance components from the covariance between two different weeks
+of the same player — and then plays the games against that fixed player.
 
-So the hierarchical arm draws the player first — a latent availability rate from
-a Beta whose concentration comes from how much realised play counts over-disperse
-relative to Binomial, and a latent per-game level whose spread is estimated by
-variance components from the covariance between two different weeks of the same
-player — and then plays the games against that fixed player.
+**That reasoning is confirmed**: the hierarchy beats independent weeks by 1.31%
+CRPS on 3/3 folds and moves coverage the right way at both levels. **And it is
+nowhere near enough**: 0.589 against nominal 0.80 is still severely
+over-confident, and a plain ridge on the total beats it by 5.80% CRPS on 3/3
+folds while covering 0.802.
 
-**That reasoning is confirmed.** The hierarchy beats independent weeks on CRPS by
-1.31% on 3/3 folds, and moves coverage the right way at both levels (0.564 →
-0.589, 0.733 → 0.763). Drawing the player once does put the correlation back.
-
-**And it is nowhere near enough.** 0.589 against a nominal 0.80 is still severely
-over-confident, and a plain ridge on the total — the same lagged features, a
-games-remaining offset and one interaction, with residuals resampled locally —
-beats it by **5.80% CRPS on 3/3 folds** while covering 0.802 and 0.946 against
-nominal 0.80 and 0.95.
-
-The reason is not subtle in hindsight. The direct fit is trained on realised
-season totals, so it learns the spread of season totals from data. The simulator
-assembles that spread from parts, and every part it gets slightly wrong compounds
-across seventeen games — including the one it has no term for at all: that a
-player's role can simply end. The simulator's bias is +2.97 against the direct
-fit's −1.36, which is what a model that assumes today's role persists for the
-rest of the year looks like.
+The direct fit is trained on realised season totals, so it learns their spread
+from data. The simulator assembles that spread from parts, and every part it gets
+slightly wrong compounds across seventeen games — including the one it has no term
+for: that a role can simply end. Its bias is +2.97 against the direct fit's −1.36.
 
 This is the third time this package has run that comparison and got the same
-answer. A rank curve beat the season pipeline; composing volume × efficiency cost
-nothing over projecting points directly; and now a forward simulation loses to a
-regression on the quantity of interest. The pattern is worth naming: **fit the
-thing you are going to be scored on.**
+answer, after the rank curve and the composition test. **Fit the thing you are
+going to be scored on.**
 
-### It is much harder at the draft than on the waiver wire
-
-Splitting by when the question is asked, on the relevant population:
-
-| horizon | n | direct CRPS | direct cov80 | hierarchical CRPS | hierarchical cov80 |
-|---|---:|---:|---:|---:|---:|
-| weeks 1–4 (draft) | 3,379 | 35.73 | 0.712 | 39.87 | 0.455 |
-| weeks 5–10 (waiver) | 4,954 | 23.99 | 0.798 | 25.71 | 0.535 |
-| weeks 11–18 | 6,987 | 11.53 | 0.847 | 11.13 | 0.692 |
-
-The draft horizon is where both models are worst and where the direct fit's
-calibration also breaks down — 0.712 against nominal 0.80 is real
-over-confidence, and it is the one horizon where this model should be quoted with
-that caveat attached. Mid-season, which is the waiver question, it is calibrated
-almost exactly.
-
-Late in the season the ordering flips on CRPS: the hierarchical arm is 3.4%
-*better* (11.13 against 11.53) while still under-covering. With two or three
-games left the compounding that sinks the simulator has little room to operate.
-That is a narrow enough window, and a mixed enough result, that it is recorded
-rather than acted on.
-
-Ordering, which is what a draft or waiver decision actually consumes, is
-respectable: within-position Spearman 0.766 and a top-24 hit rate of 0.392 for
-the direct fit pooled across folds.
+Game script is deliberately absent from this response even though it helps the
+weekly one. A spread is published for one game; this response spans up to
+seventeen, and this week's line says nothing about week twelve's.
 
 ## What ships
 
-`scripts/project_week.py` runs both, fitted on seasons strictly before the one
-requested, so asking it for a past week reproduces what it would have said at the
-time.
+`scripts/project_week.py`, fitted on seasons strictly before the one requested.
 
-- **Next week** — the hurdle, without team or matchup terms, since neither paid.
-  Output carries `p_plays` alongside the quantiles: a p10 of zero means "he might
-  not play", which is a different call from a low projection for a player certain
-  to suit up, and the mean alone cannot distinguish them.
-- **Rest of season** — the direct total, not the simulation. Shipping the
-  better-motivated model over the better-calibrated one would be choosing the
-  story over the evidence.
+- **Next week** — the hurdle with team, matchup, phase defence, game script and
+  ADP, fitted per position. Output carries `p_plays` alongside quantiles: a p10
+  of zero means "he might not play", a different call from a low projection for
+  someone certain to suit up.
+- **Rest of season** — the direct total with phase and ADP, blended with the rank
+  curve at a per-horizon weight. The weight is estimated inside the training
+  window by holding out its most recent season, since a live projection has no
+  later season to borrow from; on 2025 that gives 0.41 early, 0.80 mid, 1.00
+  late, consistent with the walk-forward weights. `--no-blend` disables it.
+
+Shipping the better-motivated model over the better-calibrated one would be
+choosing the story over the evidence, which is why the simulator does not ship.
 
 ## What is not established
 
-- **Three folds, and the decay constant was never tuned on them.** That is the
-  honest position, but the population filter (4 points, 4 games) was chosen a
-  priori and not swept; a different threshold defines a different population and
-  the numbers would move.
-- **Matchup is null in one encoding only.** See above. This is the result most
-  likely to be overturned by a better feature, and the one worth attacking next.
+- **Three folds, two of them scorable for the blend.** 2023 has no earlier
+  holdout to take a weight from.
+- **The early-season ordering gap is real and unfixed.** Both remedies narrowed
+  it and neither closed it. A model that reads the board still picks the top 24
+  worse than the board does in weeks 1–4.
 - **Snap counts are not in the panel.** They exist upstream from 2014 but join on
   name and PFR id rather than the gsis id everything else uses. Snap share is the
-  most direct measure of role available and its absence is the largest known gap
-  in the feature layer.
+  most direct measure of role available and its absence is the largest known gap.
 - **No injury designations.** The weekly injury report is cached (2009–2025) and
-  unused. It is the obvious next input for the availability half, which is
-  currently inferred entirely from appearance history, and its largest bucket is
-  the one with the standing 2-point bias.
+  unused. It is the obvious next input for the availability half, whose largest
+  bucket carries the standing 2-point bias.
+- **Game script is measured through the closing line only.** No pace, no
+  personnel-grouping tendency, no coverage-specific matchup. The line prices what
+  the market expects, which is not the same as what the offence will do.
 - **The panel is PPR only.** The scoring rules are parameterised and the panel
   builder takes a format, but nothing has been validated in standard or half-PPR.

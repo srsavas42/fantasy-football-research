@@ -99,6 +99,12 @@ STAT_COLUMNS = (
     "rec_yds",
     "rec_td",
     "fumbles_lost",
+    # Efficiency, not just volume. A defence can concede few rushing yards
+    # because it is hard to run on or because nobody runs on it, and yards per
+    # carry separates the two; EPA does it better still by pricing down and
+    # distance. Both are needed for "good against the run" to mean anything.
+    "rush_epa",
+    "rec_epa",
 )
 
 
@@ -129,6 +135,58 @@ def _opponent_map(seasons: Iterable[int]) -> pd.DataFrame:
     out = pd.concat(frames, ignore_index=True).rename(
         columns={"opponent_team": "opponent"}
     )
+    for column in ("season", "week"):
+        out[column] = pd.to_numeric(out[column], errors="coerce").astype("Int64")
+    return out.dropna(subset=["season", "week"]).drop_duplicates(
+        subset=["season", "week", "team"]
+    )
+
+
+def _market_lines(seasons: Iterable[int]) -> pd.DataFrame:
+    """(season, week, team) -> closing spread and total, from the schedule.
+
+    The only prospective information in the panel. Every other column describes
+    what has already happened; the line is the market's forecast of the game
+    about to be played, published before it, and it is the natural home for
+    game script -- who is expected to lead, and how much scoring is expected.
+
+    ``spread_line`` is quoted from the home team's perspective, positive when
+    the home side is favoured. It is re-signed per team here so that a positive
+    spread always means *this* team is favoured, which is the only convention
+    under which a fitted coefficient can be read.
+
+    The implied totals follow from the identity that a spread and a total
+    determine both sides' expected scores: they sum to the total and differ by
+    the spread. ``implied_team_total`` is how many points this offence is
+    expected to produce, and ``implied_opponent_total`` is how much it is
+    expected to have to keep up with.
+    """
+    try:
+        schedule = ingest.load_schedules(list(seasons))
+    except Exception:
+        return pd.DataFrame(
+            columns=["season", "week", "team", "spread", "game_total"]
+        )
+    if schedule.empty:
+        return pd.DataFrame(columns=["season", "week", "team", "spread", "game_total"])
+    needed = {"season", "week", "home_team", "away_team", "spread_line", "total_line"}
+    if not needed.issubset(schedule.columns):
+        return pd.DataFrame(columns=["season", "week", "team", "spread", "game_total"])
+    if "game_type" in schedule.columns:
+        schedule = schedule[schedule["game_type"] == "REG"]
+
+    frames = []
+    for side, sign in (("home_team", 1.0), ("away_team", -1.0)):
+        block = schedule[["season", "week", side, "spread_line", "total_line"]].copy()
+        block = block.rename(columns={side: "team", "total_line": "game_total"})
+        block["spread"] = sign * pd.to_numeric(
+            block.pop("spread_line"), errors="coerce"
+        )
+        frames.append(block)
+    out = pd.concat(frames, ignore_index=True)
+    out["game_total"] = pd.to_numeric(out["game_total"], errors="coerce")
+    out["implied_team_total"] = out["game_total"] / 2.0 + out["spread"] / 2.0
+    out["implied_opponent_total"] = out["game_total"] / 2.0 - out["spread"] / 2.0
     for column in ("season", "week"):
         out[column] = pd.to_numeric(out[column], errors="coerce").astype("Int64")
     return out.dropna(subset=["season", "week"]).drop_duplicates(
@@ -246,6 +304,19 @@ def build_panel(
         panel = panel.merge(opponents, on=["season", "week", "team"], how="left")
     else:
         panel["opponent"] = pd.NA
+
+    lines = _market_lines(seasons)
+    if not lines.empty:
+        lines = lines.astype({"season": "int64", "week": "int64"})
+        panel = panel.merge(lines, on=["season", "week", "team"], how="left")
+    else:
+        for column in (
+            "spread",
+            "game_total",
+            "implied_team_total",
+            "implied_opponent_total",
+        ):
+            panel[column] = np.nan
 
     panel["player_key"] = panel["player_id"].astype(str)
     panel["scoring"] = scoring

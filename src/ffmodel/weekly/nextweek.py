@@ -72,6 +72,44 @@ TEAM_FEATURES = (
 # independently. Folk wisdom rates this the most important weekly input there is.
 MATCHUP_FEATURES = ("defense_points_allowed_recent",)
 
+# The same matchup question asked properly: run and pass defence apart, and
+# volume conceded apart from efficiency conceded.
+PHASE_FEATURES = (
+    "def_rush_att_allowed",
+    "def_rush_yds_allowed",
+    "def_rush_ypc_allowed",
+    "def_rush_epa_allowed",
+    "def_targets_allowed",
+    "def_rec_yds_allowed",
+    "def_rec_epa_allowed",
+)
+
+# Game script. The spread says who is expected to lead, which decides whether a
+# team runs out a win or throws to catch up; the implied totals say how much
+# scoring is expected of this offence and how much it will have to answer.
+SCRIPT_FEATURES = (
+    "spread",
+    "game_total",
+    "implied_team_total",
+    "implied_opponent_total",
+    "own_def_rush_epa_allowed",
+    "own_def_rec_epa_allowed",
+    "own_def_rec_yds_allowed",
+)
+
+# The draft board, as an input rather than a rival. It carries the one thing the
+# history cannot: what happened over the offseason -- a trade, a rookie, a
+# vacated backfield -- none of which is in a box score until it is too late to
+# help. That is worth most in week 1 and decays to nothing, so the level is
+# interacted with an early-season indicator rather than entered flat, letting the
+# fit lean on the board while the history is thin and discount it afterwards.
+ADP_FEATURES = (
+    "adp_log_rank",
+    "adp_drafted",
+    "adp_log_rank_early",
+    "adp_drafted_early",
+)
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -189,11 +227,19 @@ class Hurdle:
     name: str = "hurdle"
     use_team: bool = False
     use_matchup: bool = False
+    use_phase: bool = False
+    use_script: bool = False
+    use_adp: bool = False
+    by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
     residuals: LocalResiduals | None = None
     availability_medians: pd.Series | None = None
     magnitude_medians: pd.Series | None = None
+    # Per-position fits, when ``by_position``. A position without enough played
+    # weeks of its own falls back to the pooled fit above rather than to a
+    # slope estimated from a handful of rows.
+    parts: dict = field(default_factory=dict)
 
     @property
     def magnitude_features(self) -> tuple[str, ...]:
@@ -201,11 +247,22 @@ class Hurdle:
             MAGNITUDE_FEATURES
             + (TEAM_FEATURES if self.use_team else ())
             + (MATCHUP_FEATURES if self.use_matchup else ())
+            + (PHASE_FEATURES if self.use_phase else ())
+            + (SCRIPT_FEATURES if self.use_script else ())
+            + (ADP_FEATURES if self.use_adp else ())
         )
 
     @property
     def availability_features(self) -> tuple[str, ...]:
         return AVAILABILITY_FEATURES
+
+    def _fit_magnitude(
+        self, frame: pd.DataFrame, target: np.ndarray
+    ) -> tuple[Ridge, pd.Series, LocalResiduals]:
+        design, medians = _design(frame, self.magnitude_features)
+        model = Ridge.fit(design, target, penalty=RIDGE_PENALTY)
+        residuals = LocalResiduals.fit(model.predict(design), target)
+        return model, medians, residuals
 
     def fit(self, frame: pd.DataFrame, target: np.ndarray) -> "Hurdle":
         target = np.asarray(target, float)
@@ -218,19 +275,63 @@ class Hurdle:
         if on_field.sum() < 200:
             raise ValueError("the magnitude model needs at least 200 played weeks")
         played_frame = frame.loc[on_field]
-        magnitude_design, self.magnitude_medians = _design(
-            played_frame, self.magnitude_features
+        played_target = target[on_field]
+        self.magnitude, self.magnitude_medians, self.residuals = self._fit_magnitude(
+            played_frame, played_target
         )
-        self.magnitude = Ridge.fit(
-            magnitude_design, target[on_field], penalty=RIDGE_PENALTY
-        )
-        fitted = self.magnitude.predict(magnitude_design)
-        self.residuals = LocalResiduals.fit(fitted, target[on_field])
+
+        # Several of the game-script terms point in opposite directions by
+        # position -- a favourite's running back gets the fourth quarter and a
+        # favourite's receivers do not -- so a single pooled slope averages them
+        # towards zero and reports a real effect as a null. Fitting each position
+        # its own slopes is the encoding that lets those terms be seen at all,
+        # and it avoids the collinear-interaction pathology that sank the season
+        # layer's ADP interactions: these are four separate designs, not one
+        # design carrying a level plus three deviations under a shared prior.
+        self.parts = {}
+        if self.by_position:
+            position = played_frame["position"].astype(str).to_numpy()
+            for name in POSITIONS:
+                want = position == name
+                if want.sum() < 1000:
+                    continue
+                self.parts[name] = self._fit_magnitude(
+                    played_frame.loc[want], played_target[want]
+                )
         return self
 
     def _magnitude_mean(self, frame: pd.DataFrame) -> np.ndarray:
         design, _ = _design(frame, self.magnitude_features, self.magnitude_medians)
-        return self.magnitude.predict(design)
+        mean = self.magnitude.predict(design)
+        if not self.parts:
+            return mean
+        position = frame["position"].astype(str).to_numpy()
+        for name, (model, medians, _) in self.parts.items():
+            want = position == name
+            if not want.any():
+                continue
+            block, _ = _design(frame.loc[want], self.magnitude_features, medians)
+            mean[want] = model.predict(block)
+        return mean
+
+    def _draw_residuals(
+        self, frame: pd.DataFrame, mean: np.ndarray, draws: int, rng
+    ) -> np.ndarray:
+        """Spread from each position's own residual pool when fitted that way."""
+        if not self.parts:
+            return self.residuals.draw(mean, draws, rng)
+        position = frame["position"].astype(str).to_numpy()
+        out = np.empty((len(frame), draws), dtype=float)
+        covered = np.zeros(len(frame), dtype=bool)
+        for name, (_, _, residuals) in self.parts.items():
+            want = position == name
+            if not want.any():
+                continue
+            out[want] = residuals.draw(mean[want], draws, rng)
+            covered |= want
+        if (~covered).any():
+            out[~covered] = self.residuals.draw(mean[~covered], draws, rng)
+        return out
 
     def play_probability(self, frame: pd.DataFrame) -> np.ndarray:
         design, _ = _design(frame, self.availability_features, self.availability_medians)
@@ -251,7 +352,7 @@ class Hurdle:
             raise RuntimeError("fit before predicting")
         rng = np.random.default_rng(seed)
         mean = self._magnitude_mean(frame)
-        return mean[:, None] + self.residuals.draw(mean, draws, rng)
+        return mean[:, None] + self._draw_residuals(frame, mean, draws, rng)
 
     def predict_samples(
         self, frame: pd.DataFrame, draws: int, seed: int = 0
@@ -261,18 +362,48 @@ class Hurdle:
         rng = np.random.default_rng(seed)
         probability = self.play_probability(frame)
         mean = self._magnitude_mean(frame)
-        spread = self.residuals.draw(mean, draws, rng)
+        spread = self._draw_residuals(frame, mean, draws, rng)
         plays = rng.random((len(frame), draws)) < probability[:, None]
         return np.where(plays, mean[:, None] + spread, 0.0)
 
 
 def next_week_ladder() -> list:
-    """The ladder, in the order the document reports it."""
+    """The ladder, in the order the document reports it.
+
+    The market curve is first because it is the baseline everything else has to
+    beat, not because it is the weakest.
+    """
+    from ffmodel.weekly.market import WeeklyRankCurve
+
     return [
+        WeeklyRankCurve(name="adp-curve", per_game=True),
         PositionClimatology(),
         HistoryMean(column="prior_points_mean", name="career-mean"),
         HistoryMean(column="prior_points_recent", name="recency-mean"),
         Hurdle(name="hurdle", use_team=False),
-        Hurdle(name="hurdle+team", use_team=True),
         Hurdle(name="hurdle+team+matchup", use_team=True, use_matchup=True),
+        Hurdle(
+            name="hurdle+context",
+            use_team=True,
+            use_matchup=True,
+            use_phase=True,
+            use_script=True,
+        ),
+        Hurdle(
+            name="hurdle+context/position",
+            use_team=True,
+            use_matchup=True,
+            use_phase=True,
+            use_script=True,
+            by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+context+adp/position",
+            use_team=True,
+            use_matchup=True,
+            use_phase=True,
+            use_script=True,
+            use_adp=True,
+            by_position=True,
+        ),
     ]

@@ -50,6 +50,12 @@ HISTORY_ALPHA = 1.0 - 0.5 ** (1.0 / HISTORY_HALFLIFE)
 TEAM_HALFLIFE = 8.0
 TEAM_ALPHA = 1.0 - 0.5 ** (1.0 / TEAM_HALFLIFE)
 
+# Where "early season" ends, for the purpose of letting the draft board matter
+# more while a player's current-season history is still thin. Four games is a
+# quarter of a season and matches the horizon buckets the evaluation reports, so
+# it is not a third boundary invented for one feature.
+EARLY_SEASON_WEEKS = 4
+
 PLAYER_ORDER = ["player_key", "season", "week"]
 
 # Volume columns whose lagged rate the models are allowed to read.
@@ -76,6 +82,27 @@ FEATURE_COLUMNS = (
     "team_pass_att_recent",
     "team_rush_att_recent",
     "defense_points_allowed_recent",
+    "def_rush_att_allowed",
+    "def_rush_yds_allowed",
+    "def_rush_ypc_allowed",
+    "def_rush_epa_allowed",
+    "def_targets_allowed",
+    "def_rec_yds_allowed",
+    "def_rec_epa_allowed",
+    "own_def_rush_epa_allowed",
+    "own_def_rec_epa_allowed",
+    "own_def_rec_yds_allowed",
+)
+
+# Prospective rather than historical: the market's forecast of the game about to
+# be played. Not produced by :func:`_prior` because they need no lag -- a
+# closing line is published before kickoff and is legitimately known at decision
+# time. They are attached in :mod:`ffmodel.weekly.frame`.
+MARKET_COLUMNS = (
+    "spread",
+    "game_total",
+    "implied_team_total",
+    "implied_opponent_total",
 )
 
 
@@ -169,6 +196,71 @@ def _team_history(panel: pd.DataFrame) -> pd.DataFrame:
     ):
         out[name] = _prior(
             weeks, ["team"], weeks[column].astype(float), how="ewm", alpha=TEAM_ALPHA
+        )
+    return out
+
+
+def _defense_phase_history(panel: pd.DataFrame) -> pd.DataFrame:
+    """Lagged run and pass defence, kept apart, in volume *and* efficiency.
+
+    "Good against the run" is two claims and a running back cares about both.
+    A defence can hold rushing yards down because it is hard to run on, or
+    because game script means nobody runs on it -- and those point in opposite
+    directions for a back's workload. So the volume conceded (carries, targets)
+    and the efficiency conceded (yards per carry, EPA per play) are separate
+    columns rather than one points-allowed aggregate.
+
+    Splitting by phase is the other half. Points allowed to running backs mixes
+    a defence's run front with its coverage of backs out of the backfield, and a
+    defence is routinely good at one and poor at the other. Keyed on the defence
+    alone rather than defence-by-position, because that is what a phase is.
+    """
+    rows = panel[panel["opponent"].notna()].copy()
+    per_game = (
+        rows.groupby(["season", "week", "opponent"], as_index=False)
+        .agg(
+            rush_att=("rush_att", "sum"),
+            rush_yds=("rush_yds", "sum"),
+            rush_epa=("rush_epa", "sum"),
+            targets=("targets", "sum"),
+            rec_yds=("rec_yds", "sum"),
+            rec_epa=("rec_epa", "sum"),
+        )
+        .rename(columns={"opponent": "defense"})
+        .sort_values(["defense", "season", "week"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+    # Efficiency is formed before lagging, so each is a ratio of two numbers
+    # from the same game rather than a lagged total over a lagged count.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        per_game["rush_ypc"] = np.divide(
+            per_game["rush_yds"], per_game["rush_att"],
+            out=np.full(len(per_game), np.nan), where=per_game["rush_att"] > 0,
+        )
+        per_game["rush_epa_play"] = np.divide(
+            per_game["rush_epa"], per_game["rush_att"],
+            out=np.full(len(per_game), np.nan), where=per_game["rush_att"] > 0,
+        )
+        per_game["rec_epa_play"] = np.divide(
+            per_game["rec_epa"], per_game["targets"],
+            out=np.full(len(per_game), np.nan), where=per_game["targets"] > 0,
+        )
+    out = per_game[["season", "week", "defense"]].copy()
+    for column, name in (
+        ("rush_att", "def_rush_att_allowed"),
+        ("rush_yds", "def_rush_yds_allowed"),
+        ("rush_ypc", "def_rush_ypc_allowed"),
+        ("rush_epa_play", "def_rush_epa_allowed"),
+        ("targets", "def_targets_allowed"),
+        ("rec_yds", "def_rec_yds_allowed"),
+        ("rec_epa_play", "def_rec_epa_allowed"),
+    ):
+        out[name] = _prior(
+            per_game,
+            ["defense"],
+            per_game[column].astype(float),
+            how="ewm",
+            alpha=TEAM_ALPHA,
         )
     return out
 
@@ -272,6 +364,22 @@ def add_features(panel: pd.DataFrame) -> pd.DataFrame:
         masked = pd.Series(values, index=frame.index).where(frame["played"].eq(1))
         frame[name] = _prior(frame, keys, masked, how="ewm", alpha=HISTORY_ALPHA)
 
+    if "adp_rank" in frame.columns:
+        rank = pd.to_numeric(frame["adp_rank"], errors="coerce")
+        drafted = pd.to_numeric(
+            frame.get("adp_drafted", rank.notna().astype(float)), errors="coerce"
+        ).fillna(0.0)
+        # Undrafted is a value, not a gap: a player the board declined to rank is
+        # placed one past the deepest rank it published rather than imputed to
+        # the middle of it, which would assert an average draft position for
+        # somebody nobody drafted. This is the season layer's encoding.
+        deepest = float(rank.max()) if rank.notna().any() else 300.0
+        frame["adp_log_rank"] = np.log(rank.fillna(deepest + 1.0).clip(lower=1.0))
+        frame["adp_drafted"] = drafted
+        early = frame["week"].le(EARLY_SEASON_WEEKS).astype(float)
+        frame["adp_log_rank_early"] = frame["adp_log_rank"] * early
+        frame["adp_drafted_early"] = frame["adp_drafted"] * early
+
     team = _team_history(frame)
     frame = frame.merge(team, on=["season", "week", "team"], how="left")
 
@@ -280,6 +388,32 @@ def add_features(panel: pd.DataFrame) -> pd.DataFrame:
         defense,
         left_on=["season", "week", "opponent", "position"],
         right_on=["season", "week", "defense", "position"],
+        how="left",
+    ).drop(columns=["defense"], errors="ignore")
+
+    phase = _defense_phase_history(frame)
+    frame = frame.merge(
+        phase,
+        left_on=["season", "week", "opponent"],
+        right_on=["season", "week", "defense"],
+        how="left",
+    ).drop(columns=["defense"], errors="ignore")
+
+    # The player's *own* defence, from the same table. A team that cannot get
+    # off the field plays from behind and throws to keep up, which is a fact
+    # about its offence's volume and is invisible in the offence's own history
+    # until it has already happened.
+    own = phase.rename(
+        columns={
+            column: column.replace("def_", "own_def_")
+            for column in phase.columns
+            if column.startswith("def_")
+        }
+    )
+    frame = frame.merge(
+        own,
+        left_on=["season", "week", "team"],
+        right_on=["season", "week", "defense"],
         how="left",
     ).drop(columns=["defense"], errors="ignore")
 

@@ -52,9 +52,11 @@ import pandas as pd
 
 from ffmodel.weekly.fitting import LocalResiduals, Logistic, Ridge
 from ffmodel.weekly.nextweek import (
+    ADP_FEATURES,
     AVAILABILITY_FEATURES,
     LOGISTIC_PENALTY,
     MAGNITUDE_FEATURES,
+    PHASE_FEATURES,
     RIDGE_PENALTY,
     TEAM_FEATURES,
     _design,
@@ -159,14 +161,24 @@ class DirectTotal:
 
     name: str = "direct-total"
     use_team: bool = True
+    use_phase: bool = False
+    use_adp: bool = False
     model: Ridge | None = None
     residuals: LocalResiduals | None = None
     medians: pd.Series | None = None
 
     @property
     def features(self) -> tuple[str, ...]:
-        return MAGNITUDE_FEATURES + AVAILABILITY_FEATURES + (
-            TEAM_FEATURES if self.use_team else ()
+        return (
+            MAGNITUDE_FEATURES
+            + AVAILABILITY_FEATURES
+            + (TEAM_FEATURES if self.use_team else ())
+            + (PHASE_FEATURES if self.use_phase else ())
+            + (ADP_FEATURES if self.use_adp else ())
+            # Game script is deliberately absent even when requested. A spread is
+            # published for one game; the rest-of-season response spans up to
+            # seventeen, and this week's line says nothing about week twelve's.
+            # Only the season-long part of the context travels.
         )
 
     def _design(self, frame: pd.DataFrame) -> np.ndarray:
@@ -324,8 +336,15 @@ class HierarchicalSeason:
 
 def rest_of_season_ladder() -> list:
     """The ladder, in the order the document reports it."""
+    from ffmodel.weekly.market import WeeklyRankCurve
+
     return [
+        WeeklyRankCurve(name="adp-curve", per_game=False, offset=OFFSET),
         DirectTotal(name="direct-total", use_team=True),
+        DirectTotal(name="direct-total+phase", use_team=True, use_phase=True),
+        DirectTotal(
+            name="direct-total+phase+adp", use_team=True, use_phase=True, use_adp=True
+        ),
         HierarchicalSeason(name="independent-weeks", persistent=False),
         HierarchicalSeason(name="hierarchical", persistent=True),
     ]

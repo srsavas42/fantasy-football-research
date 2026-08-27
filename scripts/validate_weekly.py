@@ -21,6 +21,7 @@ import pandas as pd
 from ffmodel.weekly.evaluate import report, walk_forward
 from ffmodel.weekly.features import add_features
 from ffmodel.weekly.frame import load_panel
+from ffmodel.weekly.market import attach_adp
 from ffmodel.weekly.nextweek import next_week_ladder
 from ffmodel.weekly.restofseason import (
     OFFSET,
@@ -71,7 +72,9 @@ def main(argv=None) -> int:
         frame = pd.read_pickle(args.features)
     else:
         panel = load_panel(range(args.seasons[0], args.seasons[1] + 1))
-        frame = add_features(panel)
+        # ADP is attached before the features so the market curve and every
+        # model see exactly the same rows.
+        frame = add_features(attach_adp(panel))
         args.features.parent.mkdir(parents=True, exist_ok=True)
         frame.to_pickle(args.features)
     print(f"panel {frame.shape[0]} rows, seasons {frame.season.min()}-{frame.season.max()}")
@@ -80,13 +83,20 @@ def main(argv=None) -> int:
 
     if args.only in (None, "next-week"):
         weekly = walk_forward(
-            frame,
+            add_rest_of_season_target(frame),
             next_week_ladder(),
             target="points",
             holdouts=args.holdouts,
             draws=args.draws,
         )
-        _show(weekly, "Model 1: next week")
+        # Broken out by week because the ADP baseline goes stale as the season
+        # runs: in week 1 the board knows everything anyone knows, and by week
+        # 12 the model has eleven weeks the board has never seen.
+        _show(
+            weekly,
+            "Model 1: next week",
+            populations=("relevant", "panel", "relevant_early", "relevant_mid", "relevant_late"),
+        )
         payload["next_week"] = weekly
 
     if args.only in (None, "rest-of-season"):

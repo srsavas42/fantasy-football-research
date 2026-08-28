@@ -222,3 +222,73 @@ def test_chunking_does_not_change_the_answer(frame) -> None:
     # what must not differ is the distribution they come from.
     assert abs(a.mean() - b.mean()) < 0.15 * max(a.mean(), 1.0)
     assert abs(a.std() - b.std()) < 0.20 * max(a.std(), 1.0)
+
+
+def test_the_drift_term_widens_without_moving_the_mean(frame) -> None:
+    """A fitted error term must add spread, not level.
+
+    The recursion generates uncertainty about scoring and cannot generate
+    uncertainty about role, so the remainder is estimated from the simulator's
+    own shortfall and injected. If it ever starts moving the mean it has stopped
+    being a variance correction and become a bias.
+    """
+    from ffmodel.weekly.restofseason import RecursiveSeason
+
+    seasonal = add_rest_of_season_target(frame)
+    rows = seasonal[seasonal["week"] == 2].head(120)
+    target = seasonal["points"].to_numpy(float)
+
+    plain = RecursiveSeason(use_team=True, calibrate=False).fit(seasonal, target)
+    fitted = RecursiveSeason(use_team=True, calibrate=True).fit(seasonal, target)
+    assert fitted.drift_sd >= 0.0
+
+    a = plain.predict_samples(rows, draws=300, seed=4)
+    b = fitted.predict_samples(rows, draws=300, seed=4)
+    if fitted.drift_sd > 0:
+        assert b.std(axis=1).mean() > a.std(axis=1).mean()
+    assert abs(a.mean() - b.mean()) < 0.20 * max(a.mean(), 1.0)
+
+
+def test_the_drift_term_is_a_standard_deviation_not_a_variance(frame) -> None:
+    """Guards the units: the shift is drawn at ``drift_sd`` per game.
+
+    A drift fitted in variance units and used as a standard deviation would be
+    wrong by a square root and still look entirely plausible. The signature that
+    catches it is the scaling: variance added by a per-game level shift goes as
+    ``drift_sd ** 2``, so doubling the drift must roughly quadruple it.
+
+    Scaling is the right thing to assert rather than an absolute constant.
+    Switching the drift on changes how the generator is consumed, so two runs are
+    not paired and their variance difference carries Monte Carlo noise; a ratio of
+    two such differences cancels most of it.
+    """
+    from ffmodel.weekly.restofseason import RecursiveSeason
+
+    seasonal = add_rest_of_season_target(frame)
+    rows = seasonal[seasonal["week"] == 2].head(150)
+    target = seasonal["points"].to_numpy(float)
+
+    def spread(drift: float) -> float:
+        model = RecursiveSeason(use_team=True, calibrate=False, drift_sd=drift)
+        model.fit(seasonal, target)
+        return float(model.predict_samples(rows, draws=600, seed=6).var(axis=1).mean())
+
+    base = spread(0.0)
+    single = spread(3.0) - base
+    double = spread(6.0) - base
+    assert single > 0
+    # Quadratic, not linear: a standard-deviation parameter gives ~4x here,
+    # a variance parameter would give ~2x.
+    assert 2.8 < double / single < 5.5
+
+
+def test_drift_calibration_declines_without_enough_history(frame) -> None:
+    """One season cannot support an inner holdout; return zero, not a guess."""
+    from ffmodel.weekly.restofseason import RecursiveSeason
+
+    seasonal = add_rest_of_season_target(frame)
+    single = seasonal[seasonal["season"] == seasonal["season"].min()]
+    model = RecursiveSeason(use_team=True, calibrate=True).fit(
+        single, single["points"].to_numpy(float)
+    )
+    assert model.drift_sd == 0.0

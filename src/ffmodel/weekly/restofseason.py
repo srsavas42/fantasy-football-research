@@ -380,6 +380,12 @@ def rest_of_season_ladder() -> list:
         RecursiveSeason(
             name="recursive-weekly",
             use_team=True, use_phase=True, use_adp=True, use_role=True,
+            calibrate=False,
+        ),
+        RecursiveSeason(
+            name="recursive+drift",
+            use_team=True, use_phase=True, use_adp=True, use_role=True,
+            calibrate=True,
         ),
         HierarchicalSeason(
             name="aggregated-weekly",
@@ -488,12 +494,19 @@ class RecursiveSeason:
     use_phase: bool = False
     use_adp: bool = False
     use_role: bool = False
+    # Per-game level shift, drawn once per draw and held for every remaining
+    # game. Zero disables it; the default is estimated in ``fit``. See
+    # ``_calibrate_drift``.
+    drift_sd: float = 0.0
+    calibrate: bool = True
     availability: Logistic | None = None
     magnitude: Ridge | None = None
     residuals: LocalResiduals | None = None
     availability_medians: pd.Series | None = None
     magnitude_medians: pd.Series | None = None
     chunk: int = 2000
+    calibration_rows: int = 1500
+    calibration_draws: int = 200
 
     @property
     def magnitude_features(self) -> tuple[str, ...]:
@@ -530,7 +543,77 @@ class RecursiveSeason:
         self.residuals = LocalResiduals.fit(
             self.magnitude.predict(magnitude_design), weekly[on_field]
         )
+        if self.calibrate:
+            self.drift_sd = self._calibrate_drift(frame)
         return self
+
+    def _calibrate_drift(self, frame: pd.DataFrame) -> float:
+        """Size the variance the recursion cannot generate, from training data.
+
+        The recursion propagates uncertainty about *scoring*, because points are
+        what it simulates. It cannot propagate uncertainty about *role*: usage
+        shares, snap share and the offence around the player stay frozen at week
+        ``w``, and simulating them means simulating the whole team. Role change is
+        the largest single source of weekly error and is mostly unannounced, so
+        the missing spread is not a modelling detail -- it is most of what is
+        unknown about a season.
+
+        What cannot be generated can still be measured. Simulate the most recent
+        training season with the drift switched off, and compare the spread the
+        simulator produced against the spread the outcomes actually had. A level
+        shift of ``d`` per game moves a total over ``G`` games by ``G * d``, so
+
+            Var(observed - predicted) = Var_simulated + G^2 * drift^2
+
+        and the remainder identifies ``drift`` directly. The estimate is a method
+        of moments on the simulator's own shortfall, in the same spirit as the
+        Beta concentration and the persistent-SD estimators above -- but measured
+        against this construction rather than assumed from weekly residuals,
+        which is the whole point: those weekly residuals are exactly what the
+        recursion already reproduces.
+
+        Fitted on the last training season only, never on a holdout, so the
+        confirmation stays out of sample. A negative remainder means the
+        simulator was already wide enough and returns zero rather than a
+        nonsensical negative standard deviation.
+        """
+        if TARGET not in frame.columns:
+            return 0.0
+        seasons = sorted(frame["season"].unique().tolist())
+        if len(seasons) < 2:
+            return 0.0
+        inner = frame[frame["season"] == seasons[-1]]
+        inner = inner[np.isfinite(pd.to_numeric(inner[TARGET], errors="coerce"))]
+        if len(inner) < 200:
+            return 0.0
+        # A subsample keeps the cost of fitting bounded; the quantity being
+        # estimated is a single scalar and does not need every row.
+        rng = np.random.default_rng(0)
+        if len(inner) > self.calibration_rows:
+            inner = inner.iloc[
+                rng.choice(len(inner), self.calibration_rows, replace=False)
+            ]
+
+        previous, self.drift_sd = self.drift_sd, 0.0
+        try:
+            samples = self.predict_samples(
+                inner, draws=self.calibration_draws, seed=917
+            )
+        finally:
+            self.drift_sd = previous
+
+        observed = pd.to_numeric(inner[TARGET], errors="coerce").to_numpy(float)
+        games = (
+            pd.to_numeric(inner[OFFSET], errors="coerce")
+            .fillna(1.0)
+            .to_numpy(float)
+        )
+        residual = observed - samples.mean(axis=1)
+        simulated = samples.var(axis=1)
+        usable = games > 0
+        remainder = (residual[usable] ** 2 - simulated[usable]) / games[usable] ** 2
+        drift = float(np.mean(remainder))
+        return float(np.sqrt(drift)) if drift > 0 else 0.0
 
     def predict_samples(
         self, frame: pd.DataFrame, draws: int, seed: int = 0
@@ -581,6 +664,14 @@ class RecursiveSeason:
             return np.repeat(filled[:, None], draws, axis=1)
 
         state = {name: start(name, 0.0) for name in RECURSIVE_STATE}
+        # One shift per draw, fixed before the first game and shared by all of
+        # them: role uncertainty is persistent, not week-to-week noise, so it
+        # must not average out across the season.
+        drift = (
+            rng.normal(0.0, self.drift_sd, size=(rows, draws)).astype(np.float32)
+            if self.drift_sd > 0
+            else np.zeros((rows, draws), dtype=np.float32)
+        )
         base = {name: state[name][:, :1].copy() for name in RECURSIVE_STATE}
         # Counters the running averages need, as floats so the updates vectorise.
         play_count = start("prior_games", 0.0)
@@ -607,7 +698,7 @@ class RecursiveSeason:
             )
             noise = self.residuals.draw(base_mu, draws, rng)
             plays = rng.random((rows, draws)) < probability
-            drawn = np.where(plays, mu + noise, 0.0)
+            drawn = np.where(plays, mu + noise + drift, 0.0)
             totals[live] += drawn[live]
 
             # Update the state exactly as a real week would have.

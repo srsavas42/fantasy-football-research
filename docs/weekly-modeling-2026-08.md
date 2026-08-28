@@ -245,10 +245,54 @@ The idea is right, it is the first thing to move a number that three rounds of
 feature work left untouched, and it costs about 2% of MAE for it: the wider draws
 push slightly more mass against the zero floor.
 
+### Fitting the error the recursion cannot generate
+
+The recursion propagates uncertainty about **scoring**, because points are what
+it simulates. It cannot propagate uncertainty about **role**, because usage and
+the offence stay frozen. What cannot be generated can still be measured.
+
+`_calibrate_drift` simulates the most recent training season with the drift
+switched off and compares the spread the simulator produced against the spread
+the outcomes actually had. A level shift of `d` per game moves a `G`-game total
+by `G · d`, so
+
+```
+Var(observed − predicted) = Var_simulated + G² · drift²
+```
+
+and the remainder identifies `drift` directly — a method of moments on the
+simulator's own shortfall, in the same spirit as the Beta concentration and
+persistent-SD estimators, but measured against *this* construction rather than
+assumed from weekly residuals. Those weekly residuals are exactly what the
+recursion already reproduces, which is why the term has to be fitted here and not
+inherited. It is estimated on the last training season only, never on a holdout,
+and a negative remainder returns zero rather than a nonsensical negative SD.
+
+The fitted value is stable across folds: **2.12, 2.17 and 2.48 points per game**,
+about 36–42 points of season-total standard deviation.
+
+| arm | MAE | CRPS | cov80 | cov95 | PIT dev |
+|---|---:|---:|---:|---:|---:|
+| direct total + everything | **30.09** | **21.27** | **0.790** | **0.945** | 0.148 |
+| **recursive + drift** | 31.01 | 22.18 | 0.769 | 0.907 | **0.140** |
+| recursive weekly | 30.99 | 22.61 | 0.673 | 0.854 | 0.298 |
+| aggregated weekly | 30.28 | 23.23 | 0.575 | 0.752 | 0.475 |
+
+The full progression on 80% coverage against a nominal 0.80 is **0.575 → 0.673 →
+0.769**, and on PIT deviation **0.475 → 0.298 → 0.140**. The drift term improves
+coverage at both levels and CRPS on **3/3 folds**, and leaves MAE untouched
+(30.99 → 31.01), which is what a variance correction should do.
+
+**On distributional shape the simulator now edges the regression**: PIT deviation
+0.140 against 0.148, and in weeks 1–4 it wins both PIT (0.229 against 0.237) and
+80% coverage (0.725 against 0.718). Two rounds ago it covered 0.443 there.
+
 ### And it still loses to the regression
 
-CRPS 22.61 against 21.27 — **6.3% worse, on 3/3 folds** — with coverage 0.673
-against 0.790. So it does not change what ships.
+Even with the drift term, CRPS is 22.18 against 21.27 — **4.3% worse, on 3/3
+folds**. So it does not change what ships. The gap is now entirely the mean: the
+simulator's MAE is 3.1% worse (31.01 against 30.09), and CRPS pays for that even
+though the simulator's distributional shape is the better of the two.
 
 The reason is visible in what the recursion can and cannot carry. It propagates
 uncertainty about a player's **scoring**, because points are what it simulates.

@@ -50,7 +50,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from ffmodel.weekly.features import HISTORY_ALPHA
+from ffmodel.weekly.features import HISTORY_ALPHA, LEVEL_ALPHA
+from ffmodel.weekly.usage import UsageProcess, expit, logit
 from ffmodel.weekly.fitting import LocalResiduals, Logistic, Ridge
 from ffmodel.weekly.nextweek import (
     ADP_FEATURES,
@@ -387,6 +388,11 @@ def rest_of_season_ladder() -> list:
             use_team=True, use_phase=True, use_adp=True, use_role=True,
             calibrate=True,
         ),
+        RecursiveSeason(
+            name="recursive+usage",
+            use_team=True, use_phase=True, use_adp=True, use_role=True,
+            simulate_usage=True, calibrate=True,
+        ),
         HierarchicalSeason(
             name="aggregated-weekly",
             # Same feature surface as the shipped weekly model, minus the
@@ -407,6 +413,18 @@ def rest_of_season_ladder() -> list:
 # and defensive context, ADP, the injury report -- is held at its week-``w``
 # value, because simulating it would mean simulating the offence around the
 # player as well.
+# Feature columns that a simulated share feeds. The primary share routes by
+# position -- carries for backs, targets for everyone else -- so an RB row moves
+# the rush columns and leaves the target columns frozen, and vice versa.
+USAGE_COLUMNS = (
+    "prior_rush_share_recent",
+    "prior_rush_share_last",
+    "prior_target_share_recent",
+    "prior_target_share_last",
+    "prior_snap_share_recent",
+    "prior_snap_share_last",
+)
+
 RECURSIVE_STATE = (
     "prior_points_recent",
     "prior_points_last",
@@ -499,6 +517,11 @@ class RecursiveSeason:
     # ``_calibrate_drift``.
     drift_sd: float = 0.0
     calibrate: bool = True
+    # Carry the player's *role* forward as well as his scoring: his share of the
+    # team's carries or targets, and his share of its snaps, evolve as a fitted
+    # mean-reverting process instead of sitting frozen at week ``w``.
+    simulate_usage: bool = False
+    usage: UsageProcess | None = None
     availability: Logistic | None = None
     magnitude: Ridge | None = None
     residuals: LocalResiduals | None = None
@@ -543,6 +566,8 @@ class RecursiveSeason:
         self.residuals = LocalResiduals.fit(
             self.magnitude.predict(magnitude_design), weekly[on_field]
         )
+        if self.simulate_usage:
+            self.usage = UsageProcess().fit(frame)
         if self.calibrate:
             self.drift_sd = self._calibrate_drift(frame)
         return self
@@ -654,6 +679,14 @@ class RecursiveSeason:
         base_mu = self.magnitude.predict(magnitude_design)
         eta_delta = _linear_deltas(self.availability, self.availability_features)
         mu_delta = _linear_deltas(self.magnitude, self.magnitude_features)
+        mu_delta_usage = {
+            name: float(
+                self.magnitude.coefficients[index]
+                / self.magnitude.standardizer.scale[index]
+            )
+            for name in USAGE_COLUMNS
+            if (index := _column_index(self.magnitude_features, name)) is not None
+        }
 
         # Starting state, taken from the player's real history at week w.
         def start(name: str, fallback: float) -> np.ndarray:
@@ -664,6 +697,10 @@ class RecursiveSeason:
             return np.repeat(filled[:, None], draws, axis=1)
 
         state = {name: start(name, 0.0) for name in RECURSIVE_STATE}
+
+        usage = None
+        if self.simulate_usage and self.usage is not None:
+            usage = self._usage_state(block, draws)
         # One shift per draw, fixed before the first game and shared by all of
         # them: role uncertainty is persistent, not week-to-week noise, so it
         # must not average out across the season.
@@ -696,6 +733,8 @@ class RecursiveSeason:
                 coefficient * (state[name] - base[name])
                 for name, coefficient in mu_delta.items()
             )
+            if usage is not None:
+                mu = mu + self._usage_delta(usage, mu_delta_usage)
             noise = self.residuals.draw(base_mu, draws, rng)
             plays = rng.random((rows, draws)) < probability
             drawn = np.where(plays, mu + noise + drift, 0.0)
@@ -727,6 +766,8 @@ class RecursiveSeason:
                 + (1.0 - alpha) * state["prior_points_recent_given_played"],
                 state["prior_points_recent_given_played"],
             ).astype(np.float32)
+            if usage is not None:
+                self._advance_usage(usage, plays, rng)
             given_count = given_count + played
             state["prior_points_given_played"] = np.where(
                 plays,
@@ -735,3 +776,108 @@ class RecursiveSeason:
                 state["prior_points_given_played"],
             ).astype(np.float32)
         return totals
+
+    def _usage_state(self, block: pd.DataFrame, draws: int) -> dict:
+        """Starting role, taken from what the player's usage actually was.
+
+        Two shares are carried: his primary opportunity share -- carries for a
+        back, targets for everyone else -- and his snap share. Each has a current
+        value, which the dynamics step forward, and a standing level, which they
+        revert toward and which itself drifts slowly with the simulated weeks.
+        """
+        rows = len(block)
+        is_back = block["position"].eq("RB").to_numpy()
+        position = block["position"].astype(str).to_numpy()
+
+        def column(name: str, fallback: float) -> np.ndarray:
+            values = pd.to_numeric(block.get(name), errors="coerce")
+            if values is None:
+                return np.full(rows, fallback)
+            return values.fillna(fallback).to_numpy(float)
+
+        primary = np.where(
+            is_back,
+            column("prior_rush_share_recent", 0.02),
+            column("prior_target_share_recent", 0.02),
+        )
+        snap = column("prior_snap_share_recent", 0.3)
+        state = {
+            "is_back": is_back,
+            "position": position,
+            "primary_base": primary,
+            "snap_base": snap,
+            "primary": np.repeat(logit(primary)[:, None], draws, axis=1),
+            "snap": np.repeat(logit(snap)[:, None], draws, axis=1),
+            "primary_level": np.repeat(
+                logit(column("prior_primary_share_level", 0.02))[:, None], draws, axis=1
+            ),
+            "snap_level": np.repeat(
+                logit(column("prior_snap_share_level", 0.3))[:, None], draws, axis=1
+            ),
+        }
+        # The exponentially weighted averages the model actually reads, which
+        # start where the real ones are and then follow the simulated shares.
+        state["primary_ewma"] = expit(state["primary"].copy())
+        state["snap_ewma"] = expit(state["snap"].copy())
+        state["primary_last"] = state["primary_ewma"].copy()
+        state["snap_last"] = state["snap_ewma"].copy()
+        return state
+
+    def _advance_usage(self, usage: dict, plays: np.ndarray, rng) -> None:
+        """One week of the fitted share process, applied only to weeks he played.
+
+        A week on the sideline is not evidence his role changed, so the share
+        state is held rather than stepped -- the same convention the feature layer
+        uses when it masks its usage averages to played weeks.
+        """
+        shape = usage["primary"].shape
+        for name, key, level_key in (
+            ("primary_share", "primary", "primary_level"),
+            ("snap_share", "snap", "snap_level"),
+        ):
+            stepped = np.empty(shape, dtype=float)
+            for spot in ("QB", "RB", "WR", "TE"):
+                want = usage["position"] == spot
+                if not want.any():
+                    continue
+                dynamics = self.usage.get(name, spot)
+                stepped[want] = dynamics.step(
+                    usage[key][want],
+                    usage[level_key][want],
+                    rng.standard_normal((int(want.sum()), shape[1])),
+                )
+            usage[key] = np.where(plays, stepped, usage[key])
+            usage[level_key] = np.where(
+                plays,
+                LEVEL_ALPHA * usage[key] + (1.0 - LEVEL_ALPHA) * usage[level_key],
+                usage[level_key],
+            )
+            share = expit(usage[key])
+            ewma, last = f"{key}_ewma", f"{key}_last"
+            usage[ewma] = np.where(
+                plays,
+                HISTORY_ALPHA * share + (1.0 - HISTORY_ALPHA) * usage[ewma],
+                usage[ewma],
+            )
+            usage[last] = np.where(plays, share, usage[last])
+
+    @staticmethod
+    def _usage_delta(usage: dict, coefficients: dict) -> np.ndarray:
+        """Move the projection by however much the simulated role has moved."""
+        total = np.zeros_like(usage["primary_ewma"])
+        back = usage["is_back"][:, None]
+        pairs = (
+            ("prior_rush_share_recent", "primary_ewma", "primary_base", back),
+            ("prior_rush_share_last", "primary_last", "primary_base", back),
+            ("prior_target_share_recent", "primary_ewma", "primary_base", ~back),
+            ("prior_target_share_last", "primary_last", "primary_base", ~back),
+            ("prior_snap_share_recent", "snap_ewma", "snap_base", None),
+            ("prior_snap_share_last", "snap_last", "snap_base", None),
+        )
+        for column, current, base, mask in pairs:
+            coefficient = coefficients.get(column)
+            if coefficient is None:
+                continue
+            moved = coefficient * (usage[current] - usage[base][:, None])
+            total += moved if mask is None else np.where(mask, moved, 0.0)
+        return total

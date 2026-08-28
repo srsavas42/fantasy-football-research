@@ -70,6 +70,11 @@ TEAM_ALPHA = 1.0 - 0.5 ** (1.0 / TEAM_HALFLIFE)
 # it is not a third boundary invented for one feature.
 EARLY_SEASON_WEEKS = 4
 
+# The standing-role level the usage process reverts toward: deliberately slow,
+# because it is what a player's role has been rather than what it did last week.
+LEVEL_HALFLIFE = 12.0
+LEVEL_ALPHA = 1.0 - 0.5 ** (1.0 / LEVEL_HALFLIFE)
+
 PLAYER_ORDER = ["player_key", "season", "week"]
 
 # Volume columns whose lagged rate the models are allowed to read.
@@ -99,6 +104,8 @@ FEATURE_COLUMNS = (
     "prior_snap_share_last",
     "prior_target_share_last",
     "prior_rush_share_last",
+    "prior_primary_share_level",
+    "prior_snap_share_level",
     "team_pass_att_recent",
     "team_rush_att_recent",
     "defense_points_allowed_recent",
@@ -446,6 +453,22 @@ def add_features(
         early = frame["week"].le(EARLY_SEASON_WEEKS).astype(float)
         frame["adp_log_rank_early"] = frame["adp_log_rank"] * early
         frame["adp_drafted_early"] = frame["adp_drafted"] * early
+
+    # The slow "standing role" level the usage process reverts toward. Kept
+    # separate from the fast averages above: that one is recent form, this one is
+    # what his role has been, and the fitted dynamics use both.
+    for name, values in (
+        ("prior_primary_share_level", np.where(
+            frame["position"].eq("RB").to_numpy(), rush_share, target_share
+        )),
+        ("prior_snap_share_level", pd.to_numeric(
+            frame.get("snap_share"), errors="coerce"
+        ).to_numpy(float) if "snap_share" in frame.columns else None),
+    ):
+        if values is None:
+            continue
+        masked = pd.Series(values, index=frame.index).where(frame["played"].eq(1))
+        frame[name] = _prior(frame, keys, masked, how="ewm", alpha=LEVEL_ALPHA)
 
     team = _team_history(frame)
     frame = frame.merge(team, on=["season", "week", "team"], how="left")

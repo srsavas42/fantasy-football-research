@@ -287,6 +287,73 @@ coverage at both levels and CRPS on **3/3 folds**, and leaves MAE untouched
 0.140 against 0.148, and in weeks 1–4 it wins both PIT (0.229 against 0.237) and
 80% coverage (0.725 against 0.718). Two rounds ago it covered 0.443 there.
 
+### Simulating usage jointly: right where the horizon is long, a wash elsewhere
+
+The drift term is a scalar: every player gets the same per-game allowance for
+role uncertainty. `UsageProcess` replaces the assumption with a fitted process.
+A share is bounded, so it is modelled in logit space as an AR(1) reverting toward
+the player's **own** standing level rather than the population's:
+
+```
+logit(s_t) = a + b · logit(s_{t-1}) + c · L_{t-1} + e
+```
+
+Fitted per position, for the primary opportunity share (carries for backs,
+targets for everyone else) and for snap share. The estimates are sensible —
+persistence 0.32–0.55, reversion 0.31–0.65, both rising for backs, whose carry
+share is the stickiest thing in the panel:
+
+| share | position | persistence | reversion | innovation |
+|---|---|---:|---:|---:|
+| primary | RB | 0.448 | 0.496 | 1.275 |
+| primary | WR | 0.317 | 0.595 | 0.918 |
+| snap | RB | 0.491 | 0.435 | 1.084 |
+| snap | WR | 0.505 | 0.460 | 1.249 |
+
+The simulator carries both shares as state, steps them each played week, and the
+projection moves through the same linear channel as everything else. The
+mechanism is not a no-op and was checked as one: across draws the primary share
+fans out from 0.061 to 0.092 standard deviations over eight weeks, moving the
+projection by about 0.9 points a game.
+
+| arm | MAE | CRPS | cov80 | PIT | **bias** | **top-24** |
+|---|---:|---:|---:|---:|---:|---:|
+| recursive + drift | 31.01 | **22.18** | **0.769** | **0.140** | +1.44 | 0.381 |
+| recursive + usage | 31.12 | 22.24 | 0.765 | 0.142 | **+0.29** | **0.396** |
+
+**Pooled it is a wash, and slightly negative**: CRPS 0.3% worse on 3/3 folds,
+coverage and PIT fractionally worse. The falsifiable prediction failed — if the
+process were generating the role uncertainty the scalar was injecting, the fitted
+drift would have fallen toward zero. It moved 2.12 → 2.11.
+
+The reason is that the fitted process is **stationary**. Persistence and
+reversion put next week between last week and a standing level, so the deviation
+does not accumulate; over seventeen games it contributes on the order of
+`sqrt(G)` rather than `G`. Season-total uncertainty needs the *persistent* kind
+of role change — a role that moves and stays moved — and a mean-reverting AR
+around a slowly-updating level cannot produce much of it. The scalar drift, which
+is a permanent per-game shift, is a cruder object that happens to have exactly the
+right accumulation.
+
+**Where it does pay is the long horizon, which is where the mechanism should
+matter.** In weeks 1–4, projecting seventeen games, it improves CRPS on **3/3
+folds** (37.11 → 36.98 pooled) and reduces the absolute bias on **3/3**
+(8.63 → 6.14). And it gives the best top-24 hit rate of any arm anywhere in this
+document — 0.396 pooled, 0.434 early, against the board's 0.384 and the direct
+fit's 0.369 — improving on 2/3 folds with one tie.
+
+One honest caveat on the headline bias figure: pooled it falls from +1.44 to
++0.29, but per fold the absolute bias improves only 2 of 3 (2024 moves −2.23 →
+−3.55). Much of the pooled improvement is sign cancellation across folds, not a
+uniformly smaller error.
+
+So: the right mechanism, fitted honestly, and it buys ordering and long-horizon
+accuracy rather than the calibration it was built for. If the aim is to generate
+season-total spread from first principles rather than inject it, the missing
+ingredient is a **non-stationary** level — letting a player's standing role take a
+random walk rather than only deviating around one. That is a change to the
+process, not to the simulator, and it is untested.
+
 ### And it still loses to the regression
 
 Even with the drift term, CRPS is 22.18 against 21.27 — **4.3% worse, on 3/3

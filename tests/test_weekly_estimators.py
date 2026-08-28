@@ -164,3 +164,61 @@ def test_logistic_separates_a_clean_boundary() -> None:
     probability = fitted.predict_proba(x)
     assert probability[x[:, 0] > 1].mean() > 0.9
     assert probability[x[:, 0] < -1].mean() < 0.1
+
+
+def test_the_recursive_simulator_carries_outcomes_forward(frame) -> None:
+    """The whole point: a drawn week must change the next week's projection.
+
+    If the state updates were dropped, this collapses back into the frozen-feature
+    simulator and the extra dispersion -- the only thing that has moved this
+    model's calibration -- disappears silently, with the means still looking right.
+    """
+    from ffmodel.weekly.restofseason import HierarchicalSeason, RecursiveSeason
+
+    seasonal = add_rest_of_season_target(frame)
+    rows = seasonal[seasonal["week"] == 2].head(80)
+    weekly_target = seasonal["points"].to_numpy(float)
+
+    recursive = RecursiveSeason(use_team=True).fit(seasonal, weekly_target)
+    frozen = HierarchicalSeason(persistent=True, use_team=True).fit(
+        seasonal, weekly_target
+    )
+    a = recursive.predict_samples(rows, draws=300, seed=7)
+    b = frozen.predict_samples(rows, draws=300, seed=7)
+
+    # Wider, because trajectory uncertainty is added rather than assumed away.
+    assert a.std(axis=1).mean() > b.std(axis=1).mean()
+    # And not by running away: the level has to stay comparable.
+    assert abs(a.mean() - b.mean()) < 0.30 * max(b.mean(), 1.0)
+    assert np.isfinite(a).all()
+    assert (a >= 0).all()
+
+
+def test_the_recursive_simulator_is_reproducible(frame) -> None:
+    from ffmodel.weekly.restofseason import RecursiveSeason
+
+    seasonal = add_rest_of_season_target(frame)
+    rows = seasonal[seasonal["week"] == 3].head(40)
+    model = RecursiveSeason(use_team=True).fit(
+        seasonal, seasonal["points"].to_numpy(float)
+    )
+    first = model.predict_samples(rows, draws=64, seed=11)
+    second = model.predict_samples(rows, draws=64, seed=11)
+    np.testing.assert_array_equal(first, second)
+
+
+def test_chunking_does_not_change_the_answer(frame) -> None:
+    """Rows are simulated in blocks for memory; the blocks must not interact."""
+    from ffmodel.weekly.restofseason import RecursiveSeason
+
+    seasonal = add_rest_of_season_target(frame)
+    rows = seasonal[seasonal["week"] == 3].head(60)
+    target = seasonal["points"].to_numpy(float)
+    whole = RecursiveSeason(use_team=True, chunk=10_000).fit(seasonal, target)
+    split = RecursiveSeason(use_team=True, chunk=7).fit(seasonal, target)
+    a = whole.predict_samples(rows, draws=48, seed=5)
+    b = split.predict_samples(rows, draws=48, seed=5)
+    # Different chunkings consume the generator differently, so the draws differ;
+    # what must not differ is the distribution they come from.
+    assert abs(a.mean() - b.mean()) < 0.15 * max(a.mean(), 1.0)
+    assert abs(a.std() - b.std()) < 0.20 * max(a.std(), 1.0)

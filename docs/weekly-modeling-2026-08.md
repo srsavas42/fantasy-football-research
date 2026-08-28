@@ -354,6 +354,74 @@ ingredient is a **non-stationary** level — letting a player's standing role ta
 random walk rather than only deviating around one. That is a change to the
 process, not to the simulator, and it is untested.
 
+### The non-stationary level: refuted before it was built
+
+The previous section ended by proposing one: let a player's standing role take a
+random walk rather than only deviate around a slowly-updating anchor, since a
+stationary process contributes about `sqrt(G)` to a `G`-game total and a
+wandering one contributes `G`. That is the right diagnosis of the mechanism and
+the wrong theory about the data.
+
+A mean-reverting process and a random walk are indistinguishable one week apart
+and obvious twelve weeks apart, so the horizon is the identifying variable. For an
+AR(1) around a fixed level the variance of the `h`-week change has a ceiling; for
+a random walk it grows linearly in `h` forever. Measured within player-seasons on
+2016–2022, as a ratio to the one-week variance:
+
+| quantity | h=1 | h=4 | h=8 | h=12 |
+|---|---:|---:|---:|---:|
+| **primary share** (carries/targets, logit) | 1.00 | 1.20 | 1.27 | **1.19** |
+| snap share (logit) | 1.00 | 1.27 | 1.36 | 1.39 |
+| **team plays** | 1.00 | 1.06 | 1.07 | **1.04** |
+| **points per game** | 1.00 | 1.12 | 1.26 | **1.35** |
+| points per opportunity | 1.00 | 1.03 | 1.03 | 1.15 |
+
+**Opportunity share does not wander.** It plateaus by eight weeks and turns down
+by twelve; the fitted random-walk innovation comes out at exactly 0.0000. Team
+volume is flatter still, at 1.04. The proposed process does not exist to be
+built, and building it would have added variance the data says is not there.
+
+**The thing that does keep accumulating is scoring.** Points per game is the only
+quantity still climbing at twelve weeks, and points per opportunity carries the
+tail of it. So the accumulating uncertainty in a season total is not about how
+much work a player gets — that reverts — but about what he does with it.
+
+Which retires the standing criticism of the drift term. It was described as a
+crude scalar standing in for role drift; it is nothing of the kind. It is applied
+to the **points level**, which the variance ratio identifies as exactly where the
+accumulation lives. The sophisticated usage process was solving a problem that
+does not exist, and the blunt instrument was already pointed at the one that does.
+
+One caveat on reading the table: only stable players survive twelve consecutive
+weeks, so the long horizons are survivorship-thinned. That affects every row
+equally, though, and the *contrast* is what carries the argument — points per game
+rises on the same population where share falls.
+
+`estimate_random_walk` and its test remain in the package. The test builds two
+series with known answers, one mean-reverting and one wandering, and asserts the
+estimator tells them apart; a measurement that decided a design question should be
+demonstrably able to decide it.
+
+### Scaling the drift with the projection: also nothing
+
+If the accumulation is in scoring, the next refinement is obvious — a twenty-point
+back and a five-point backup should not carry the same absolute allowance. The
+same moment condition solves for `drift_i = a + b · mu_i` by regressing the
+remaining variance on `mu²`.
+
+The fitted slope is **0.010**. A twenty-point projection earns two tenths of a
+point a game more drift than a replacement-level one, on a base of 2.02. On the
+full walk-forward the two arms are identical to the fourth decimal:
+
+| arm | MAE | CRPS | cov80 | PIT dev |
+|---|---:|---:|---:|---:|
+| recursive + drift | 31.011 | **22.177** | **0.769** | **0.140** |
+| recursive + scaled drift | **31.005** | 22.185 | 0.765 | 0.143 |
+
+The allowance is genuinely close to homoskedastic in absolute terms, which is not
+what intuition suggests and is what the estimate says. Kept in the code behind
+`drift_scales`, defaulting off, as a measured null.
+
 ### And it still loses to the regression
 
 Even with the drift term, CRPS is 22.18 against 21.27 — **4.3% worse, on 3/3

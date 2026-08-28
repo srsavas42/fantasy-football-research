@@ -181,3 +181,70 @@ class UsageProcess:
                 }
             )
         return pd.DataFrame(rows)
+
+
+# Horizons used to separate a wandering level from mean-reverting noise. The
+# short ones are dominated by the stationary part; the long ones are where a
+# random walk shows itself.
+VARIANCE_HORIZONS = (1, 2, 4, 6, 8, 10, 12)
+
+# Below this the long-horizon variance is estimated from too few pairs to
+# support a slope, and the random-walk term is reported as zero.
+MIN_PAIRS = 300
+
+
+def estimate_random_walk(
+    frame: pd.DataFrame, column: str = "primary_share"
+) -> tuple[float, pd.DataFrame]:
+    """How much of a player's role wanders permanently, by variance ratio.
+
+    A mean-reverting process and a random walk look identical one week apart and
+    completely different ten weeks apart, which is what makes the horizon the
+    identifying variable. For an AR(1) around a fixed level the variance of the
+    ``h``-week change flattens out as ``h`` grows -- there is a ceiling, set by
+    how far the process ever strays from its level. For a random walk it keeps
+    growing, linearly in ``h``, forever.
+
+    So measure ``Var(logit s_{t+h} - logit s_t)`` within a player-season across
+    several horizons and read the two components off the shape:
+
+        Var(h) = ceiling * (1 - rho^h) + h * sigma_rw^2
+
+    The slope of the long-horizon end estimates ``sigma_rw^2`` per week directly,
+    without having to pin down the stationary part. Fitted on the horizons from
+    six weeks out, where the stationary term has essentially finished growing and
+    anything still accumulating is the walk.
+
+    This is the quantity the previous round was missing. A stationary process
+    contributes about ``sqrt(G)`` to a ``G``-game total and a wandering level
+    contributes ``G``, which is why an AR(1) fitted around a slowly-updating
+    anchor generated so little season-total spread and a flat scalar drift
+    generated the right amount by accident.
+    """
+    work = UsageProcess.observed_shares(frame)
+    values = pd.to_numeric(work[column], errors="coerce")
+    usable = values.notna()
+    logits = pd.Series(np.nan, index=work.index)
+    logits[usable] = logit(values[usable].to_numpy())
+
+    rows = []
+    grouped = logits.groupby([work["player_key"], work["season"]], sort=False)
+    for horizon in VARIANCE_HORIZONS:
+        change = grouped.diff(horizon)
+        clean = change.dropna()
+        if len(clean) < MIN_PAIRS:
+            continue
+        rows.append(
+            {"horizon": horizon, "pairs": int(len(clean)), "variance": float(clean.var(ddof=1))}
+        )
+    table = pd.DataFrame(rows)
+    if len(table) < 3:
+        return 0.0, table
+
+    tail = table[table["horizon"] >= 6]
+    if len(tail) < 2:
+        return 0.0, table
+    design = np.column_stack([np.ones(len(tail)), tail["horizon"].to_numpy(float)])
+    beta, *_ = np.linalg.lstsq(design, tail["variance"].to_numpy(float), rcond=None)
+    slope = float(beta[1])
+    return (float(np.sqrt(slope)) if slope > 0 else 0.0), table

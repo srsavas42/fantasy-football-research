@@ -104,3 +104,76 @@ def test_shares_are_masked_to_weeks_he_played() -> None:
     panel.loc[panel["week"] == 3, ["played", "targets", "rush_att"]] = 0
     observed = UsageProcess.observed_shares(panel)
     assert (observed["week"] != 3).all()
+
+
+def test_a_random_walk_is_detected_and_a_stationary_process_is_not() -> None:
+    """The variance-ratio test, on two constructed series with known answers.
+
+    This is the measurement that decided the role question, so it needs to be
+    demonstrably able to tell the two cases apart rather than merely to run. A
+    mean-reverting share and a wandering one look identical one week apart; the
+    horizon is what separates them, and a test that only checked one horizon
+    would pass on either.
+    """
+    from ffmodel.weekly.usage import estimate_random_walk
+
+    def panel(walk_sd: float, seed: int) -> pd.DataFrame:
+        rng = np.random.default_rng(seed)
+        rows = []
+        for player in range(90):
+            level = rng.uniform(-2.0, -0.5)
+            for season in (2020, 2021):
+                state = level
+                for week in range(1, 17):
+                    # Mean-reverting around a level that may itself wander.
+                    level = level + rng.normal(0.0, walk_sd)
+                    state = level + 0.5 * (state - level) + rng.normal(0.0, 0.35)
+                    share = float(1.0 / (1.0 + np.exp(-state)))
+                    rows.append(
+                        {
+                            "player_key": f"P{player}",
+                            "season": season,
+                            "week": week,
+                            "position": "WR",
+                            "played": 1,
+                            "targets": share * 30.0,
+                            "team_targets": 30.0,
+                            "rush_att": 0.0,
+                            "team_rush_att": 25.0,
+                            "snap_share": 0.5,
+                        }
+                    )
+        return pd.DataFrame(rows)
+
+    stationary, _ = estimate_random_walk(panel(0.0, 1), "primary_share")
+    wandering, table = estimate_random_walk(panel(0.30, 2), "primary_share")
+
+    assert wandering > stationary
+    assert wandering > 0.10, "a real random walk was not detected"
+    assert stationary < 0.10, "a stationary process was reported as wandering"
+    # The wandering series must still be climbing at the long horizons, which is
+    # the shape the estimator reads.
+    tail = table[table["horizon"] >= 6].sort_values("horizon")
+    assert tail["variance"].iloc[-1] > tail["variance"].iloc[0]
+
+
+def test_the_estimator_declines_without_enough_pairs() -> None:
+    from ffmodel.weekly.usage import estimate_random_walk
+
+    tiny = pd.DataFrame(
+        {
+            "player_key": ["A"] * 6,
+            "season": [2020] * 6,
+            "week": range(1, 7),
+            "position": ["WR"] * 6,
+            "played": [1] * 6,
+            "targets": [5.0] * 6,
+            "team_targets": [30.0] * 6,
+            "rush_att": [0.0] * 6,
+            "team_rush_att": [25.0] * 6,
+            "snap_share": [0.5] * 6,
+        }
+    )
+    value, table = estimate_random_walk(tiny, "primary_share")
+    assert value == 0.0
+    assert len(table) < 3

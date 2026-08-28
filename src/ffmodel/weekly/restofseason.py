@@ -389,6 +389,11 @@ def rest_of_season_ladder() -> list:
             calibrate=True,
         ),
         RecursiveSeason(
+            name="recursive+scaled-drift",
+            use_team=True, use_phase=True, use_adp=True, use_role=True,
+            calibrate=True, drift_scales=True,
+        ),
+        RecursiveSeason(
             name="recursive+usage",
             use_team=True, use_phase=True, use_adp=True, use_role=True,
             simulate_usage=True, calibrate=True,
@@ -522,6 +527,12 @@ class RecursiveSeason:
     # mean-reverting process instead of sitting frozen at week ``w``.
     simulate_usage: bool = False
     usage: UsageProcess | None = None
+    # Scale the drift with the player's own projected level instead of handing
+    # every player the same allowance. A twenty-point back and a five-point
+    # backup do not carry the same absolute uncertainty about their scoring, and
+    # the variance-ratio evidence says scoring is where the accumulation is.
+    drift_scales: bool = False
+    drift_slope: float = 0.0
     availability: Logistic | None = None
     magnitude: Ridge | None = None
     residuals: LocalResiduals | None = None
@@ -619,13 +630,14 @@ class RecursiveSeason:
                 rng.choice(len(inner), self.calibration_rows, replace=False)
             ]
 
-        previous, self.drift_sd = self.drift_sd, 0.0
+        previous, previous_slope = self.drift_sd, self.drift_slope
+        self.drift_sd, self.drift_slope = 0.0, 0.0
         try:
             samples = self.predict_samples(
                 inner, draws=self.calibration_draws, seed=917
             )
         finally:
-            self.drift_sd = previous
+            self.drift_sd, self.drift_slope = previous, previous_slope
 
         observed = pd.to_numeric(inner[TARGET], errors="coerce").to_numpy(float)
         games = (
@@ -637,8 +649,19 @@ class RecursiveSeason:
         simulated = samples.var(axis=1)
         usable = games > 0
         remainder = (residual[usable] ** 2 - simulated[usable]) / games[usable] ** 2
-        drift = float(np.mean(remainder))
-        return float(np.sqrt(drift)) if drift > 0 else 0.0
+        if not self.drift_scales:
+            drift = float(np.mean(remainder))
+            return float(np.sqrt(drift)) if drift > 0 else 0.0
+
+        # Let the allowance grow with the projection: solve the same moment
+        # condition with ``drift_i = a + b * mu_i`` by regressing the remaining
+        # variance on ``mu^2``. Both parts are held at zero if the regression
+        # wants a negative one, which is the same guard as the scalar case.
+        level = np.maximum(samples.mean(axis=1)[usable], 0.0)
+        design = np.column_stack([np.ones(len(level)), level**2])
+        beta, *_ = np.linalg.lstsq(design, remainder, rcond=None)
+        self.drift_slope = float(np.sqrt(beta[1])) if beta[1] > 0 else 0.0
+        return float(np.sqrt(beta[0])) if beta[0] > 0 else 0.0
 
     def predict_samples(
         self, frame: pd.DataFrame, draws: int, seed: int = 0
@@ -704,9 +727,10 @@ class RecursiveSeason:
         # One shift per draw, fixed before the first game and shared by all of
         # them: role uncertainty is persistent, not week-to-week noise, so it
         # must not average out across the season.
+        scale = self.drift_sd + self.drift_slope * np.maximum(base_mu, 0.0)
         drift = (
-            rng.normal(0.0, self.drift_sd, size=(rows, draws)).astype(np.float32)
-            if self.drift_sd > 0
+            (rng.standard_normal((rows, draws)) * scale[:, None]).astype(np.float32)
+            if (self.drift_sd > 0 or self.drift_slope > 0)
             else np.zeros((rows, draws), dtype=np.float32)
         )
         base = {name: state[name][:, :1].copy() for name in RECURSIVE_STATE}

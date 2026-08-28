@@ -35,6 +35,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
+from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.market import attach_adp
@@ -97,7 +98,7 @@ def main(argv=None) -> int:
     parser.add_argument("--draws", type=int, default=500)
     parser.add_argument("--threshold", type=float, default=0.10)
     parser.add_argument(
-        "--features", type=Path, default=Path(".cache/weekly_features_2016_2025.pkl")
+        "--features", type=Path, default=FEATURES_CACHE
     )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)

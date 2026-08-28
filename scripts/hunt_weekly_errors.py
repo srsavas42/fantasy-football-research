@@ -44,6 +44,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.evaluation.metrics import empirical_crps
+from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.features import relevant_population
 from ffmodel.weekly.nextweek import Hurdle
 
@@ -161,7 +162,7 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--features",
         type=Path,
-        default=Path(".cache/weekly_features_news_2016_2025.pkl"),
+        default=FEATURES_CACHE,
     )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)

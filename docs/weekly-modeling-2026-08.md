@@ -201,6 +201,92 @@ Ranked by share of error, and none of it is a decay-rate question:
    unused.
 3. **Everything else.** No segment above accounts for more than 3.5%.
 
+## Does aggregating the weekly model up to a season work now? (2026-08-28)
+
+The composition test was last run with the original weekly components. Since
+then the weekly model has gained the injury report, snap share, ADP, per-position
+fits and a much faster decay, and is 30% better than the draft board. The
+question is whether any of that carries to a season total.
+
+`aggregated-weekly` is the hierarchical simulator given the same feature surface
+as the shipped weekly model — minus the per-position fits, which are not
+implemented there, and minus the single-game script terms, which are deliberately
+excluded because a spread describes one game and this response spans seventeen.
+
+Relevant population, three holdouts, n = 13,859:
+
+| arm | MAE | CRPS | cov80 | ρ | top-24 | PIT |
+|---|---:|---:|---:|---:|---:|---:|
+| ADP curve | 35.08 | 24.83 | 0.668 | 0.687 | 0.384 | 0.305 |
+| direct total | 31.51 | 22.33 | 0.784 | 0.763 | 0.305 | 0.160 |
+| **direct total + everything** | **30.09** | **21.27** | **0.790** | **0.780** | 0.369 | **0.148** |
+| aggregated weekly | 30.28 | 23.23 | 0.575 | 0.751 | **0.386** | 0.475 |
+| hierarchical (original features) | 30.45 | 23.07 | 0.579 | 0.774 | 0.353 | 0.481 |
+
+**The mean caught up. The distribution did not.** Aggregation is now within 0.6%
+of the direct fit on MAE and splits the folds on it (winning 2023, losing 2024
+and 2025), and it has the best top-24 hit rate of any arm. Its 80% interval
+covers **0.575 against a nominal 0.80**, its CRPS is **9.2% worse**, and the
+direct fit wins CRPS on 3/3 folds. Early in the season it is worse on everything:
+MAE 51.85 against 48.16, CRPS 40.73 against 34.03, coverage 0.44 against 0.72.
+
+**And almost none of the weekly gains transferred.** Against the same simulator
+carrying the original feature set, the upgraded one moves MAE 30.45 → 30.28
+(−0.6%) and CRPS 23.07 → 23.23 (**0.7% worse**). Everything that bought 8% on the
+weekly response bought nothing here.
+
+That is not mysterious once stated: the features that made the weekly model
+better are short-horizon by construction. This week's injury status, last week's
+snap share and a one-game decay describe the next game. Over seventeen games a
+one-game decay is noisier than a four-game one, a Friday game status is nearly
+irrelevant by November, and the useful quantity is a stable level rather than a
+current state. The direct fit regresses the season total on the same columns and
+learns the season-appropriate weighting from season-length data; the simulator
+inherits the weekly weighting and compounds it.
+
+Fourth time in this package: **fit the thing you are going to be scored on.** The
+rank curve beat the season pipeline, composition cost nothing over projecting
+points directly, the simulator lost to a regression, and now an improved
+simulator still loses to the same regression by the same margin.
+
+The one place aggregation is genuinely competitive is the top-24 hit rate
+(0.386, best of any arm including the board's 0.384). If the question is "name
+the best players" rather than "how many points", simulating forward is not a bad
+way to ask it — and that is a narrow enough win, on a noisy metric, that it is
+recorded rather than acted on.
+
+### A stale-cache bug worth recording
+
+The blend re-run after all these changes returned byte-identical numbers, which
+looked like a clean null and was not. Two feature caches existed — a plain build
+and a `+news` build — and `blend_weekly_with_market.py` still defaulted to the
+plain one, so it had been scoring a pre-news, pre-snap, half-life-four frame
+through an entire round of changes. There is now one canonical path,
+`ffmodel.weekly.FEATURES_CACHE`, and every script reads it.
+
+Two consequences for the numbers above the fold: the blend figures in the ADP
+section were produced on that stale frame and have been re-run here, and the
+error-attribution and role-signal diagnostics were run at intermediate
+configurations. Their qualitative findings do not depend on the model version —
+the role-signal ceiling is a fact about the feeds, and the error segmentation
+reproduces — but the exact biases quoted there belong to the configuration
+current when each was run, not to the shipped model.
+
+Blend, drafted pool, on the corrected frame:
+
+| fold | arm | MAE | CRPS | cov80 |
+|---|---|---:|---:|---:|
+| 2024 | curve | 36.98 | 26.75 | 0.636 |
+| 2024 | model | 36.57 | 26.09 | 0.779 |
+| 2024 | **blend** | **35.77** | **25.31** | **0.793** |
+| 2025 | curve | 35.89 | 25.59 | 0.661 |
+| 2025 | model | 34.17 | 24.12 | 0.805 |
+| 2025 | **blend** | **33.34** | **23.29** | **0.825** |
+
+It still beats both components on both folds, and in weeks 1–4 still beats the
+curve where the model alone does not (2025: blend 54.14 MAE against the curve's
+56.48 and the model's 57.25).
+
 ## Snaps, the decay, and what is left (2026-08-28)
 
 Three pieces of work following the role-change diagnosis: the leading indicator

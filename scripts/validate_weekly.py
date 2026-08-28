@@ -18,6 +18,7 @@ warnings.filterwarnings("ignore")
 
 import pandas as pd
 
+from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.evaluate import report, walk_forward
 from ffmodel.weekly.features import add_features
 from ffmodel.weekly.frame import load_panel
@@ -61,7 +62,7 @@ def main(argv=None) -> int:
     parser.add_argument("--seasons", type=int, nargs=2, default=[2016, 2025])
     parser.add_argument("--draws", type=int, default=800)
     parser.add_argument(
-        "--features", type=Path, default=Path(".cache/weekly_features_2016_2025.pkl")
+        "--features", type=Path, default=FEATURES_CACHE
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(

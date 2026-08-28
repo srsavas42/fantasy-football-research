@@ -40,6 +40,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.evaluation.metrics import interval_coverage, pit_calibration
+from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.nextweek import Hurdle, HistoryMean
@@ -72,7 +73,7 @@ def main(argv=None) -> int:
     parser.add_argument("--holdouts", type=int, nargs="+", default=[2023, 2024, 2025])
     parser.add_argument("--draws", type=int, default=800)
     parser.add_argument(
-        "--features", type=Path, default=Path(".cache/weekly_features_2016_2025.pkl")
+        "--features", type=Path, default=FEATURES_CACHE
     )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)

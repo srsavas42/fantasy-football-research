@@ -54,6 +54,9 @@ from ffmodel.weekly.fitting import LocalResiduals, Logistic, Ridge
 from ffmodel.weekly.nextweek import (
     ADP_FEATURES,
     AVAILABILITY_FEATURES,
+    NEWS_AVAILABILITY_FEATURES,
+    RECENT_FEATURES,
+    SNAP_FEATURES,
     LOGISTIC_PENALTY,
     MAGNITUDE_FEATURES,
     PHASE_FEATURES,
@@ -163,6 +166,7 @@ class DirectTotal:
     use_team: bool = True
     use_phase: bool = False
     use_adp: bool = False
+    use_role: bool = False
     model: Ridge | None = None
     residuals: LocalResiduals | None = None
     medians: pd.Series | None = None
@@ -175,6 +179,14 @@ class DirectTotal:
             + (TEAM_FEATURES if self.use_team else ())
             + (PHASE_FEATURES if self.use_phase else ())
             + (ADP_FEATURES if self.use_adp else ())
+            # Snap share, the last observation, and the injury report. All three
+            # describe a role or a body rather than a single game, so they carry
+            # over a multi-week horizon in a way a spread does not.
+            + (
+                SNAP_FEATURES + RECENT_FEATURES + NEWS_AVAILABILITY_FEATURES
+                if self.use_role
+                else ()
+            )
             # Game script is deliberately absent even when requested. A spread is
             # published for one game; the rest-of-season response spans up to
             # seventeen, and this week's line says nothing about week twelve's.
@@ -228,6 +240,9 @@ class HierarchicalSeason:
 
     name: str = "hierarchical"
     use_team: bool = True
+    use_phase: bool = False
+    use_role: bool = False
+    use_adp: bool = False
     persistent: bool = True
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -244,7 +259,19 @@ class HierarchicalSeason:
 
     @property
     def magnitude_features(self) -> tuple[str, ...]:
-        return MAGNITUDE_FEATURES + (TEAM_FEATURES if self.use_team else ())
+        return (
+            MAGNITUDE_FEATURES
+            + (TEAM_FEATURES if self.use_team else ())
+            + (PHASE_FEATURES if self.use_phase else ())
+            + (ADP_FEATURES if self.use_adp else ())
+            + (SNAP_FEATURES + RECENT_FEATURES if self.use_role else ())
+        )
+
+    @property
+    def availability_features(self) -> tuple[str, ...]:
+        return AVAILABILITY_FEATURES + (
+            NEWS_AVAILABILITY_FEATURES if self.use_role else ()
+        )
 
     def fit(self, frame: pd.DataFrame, target: np.ndarray) -> "HierarchicalSeason":
         """Fitted on weekly outcomes, not on the totals it predicts.
@@ -256,7 +283,7 @@ class HierarchicalSeason:
         played = pd.to_numeric(frame["played"], errors="coerce").fillna(0).to_numpy(int)
         weekly = pd.to_numeric(frame["points"], errors="coerce").to_numpy(float)
 
-        design, self.availability_medians = _design(frame, AVAILABILITY_FEATURES)
+        design, self.availability_medians = _design(frame, self.availability_features)
         self.availability = Logistic.fit(design, played, penalty=LOGISTIC_PENALTY)
         probability = self.availability.predict_proba(design)
         season_key = (
@@ -292,7 +319,7 @@ class HierarchicalSeason:
         if self.availability is None or self.magnitude is None:
             raise RuntimeError("fit before predicting")
         rng = np.random.default_rng(seed)
-        design, _ = _design(frame, AVAILABILITY_FEATURES, self.availability_medians)
+        design, _ = _design(frame, self.availability_features, self.availability_medians)
         probability = np.clip(self.availability.predict_proba(design), 1e-4, 1 - 1e-4)
         magnitude_design, _ = _design(
             frame, self.magnitude_features, self.magnitude_medians
@@ -344,6 +371,20 @@ def rest_of_season_ladder() -> list:
         DirectTotal(name="direct-total+phase", use_team=True, use_phase=True),
         DirectTotal(
             name="direct-total+phase+adp", use_team=True, use_phase=True, use_adp=True
+        ),
+        DirectTotal(
+            name="direct-total+everything",
+            use_team=True, use_phase=True, use_adp=True, use_role=True,
+        ),
+        HierarchicalSeason(
+            name="aggregated-weekly",
+            # Same feature surface as the shipped weekly model, minus the
+            # per-position fits and the single-game script terms. The first is
+            # unimplemented here rather than judged unhelpful; the second is
+            # deliberate, since a spread describes one game and this response
+            # spans up to seventeen.
+            persistent=True, use_team=True, use_phase=True, use_adp=True,
+            use_role=True,
         ),
         HierarchicalSeason(name="independent-weeks", persistent=False),
         HierarchicalSeason(name="hierarchical", persistent=True),

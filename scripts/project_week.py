@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.models.market_blend import blend_samples
+from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.news import add_news_features
@@ -45,7 +46,7 @@ from ffmodel.weekly.restofseason import (
     add_rest_of_season_target,
 )
 
-DEFAULT_FEATURES = Path(".cache/weekly_features_news_2016_2025.pkl")
+DEFAULT_FEATURES = FEATURES_CACHE
 
 
 def main(argv=None) -> int:
@@ -112,7 +113,9 @@ def main(argv=None) -> int:
         # 80% interval covered 0.59 against a nominal 0.80, while this one
         # covered 0.80. See docs/weekly-modeling-2026-08.md.
         def build():
-            return DirectTotal(use_team=True, use_phase=True, use_adp=True)
+            return DirectTotal(
+                use_team=True, use_phase=True, use_adp=True, use_role=True
+            )
 
         model = build().fit(train, train[TARGET].to_numpy(float))
         label = "rest_of_season_points"

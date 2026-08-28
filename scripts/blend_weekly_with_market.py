@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.models.market_blend import blend_samples, slope_weight
+from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.evaluate import score
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
@@ -64,7 +65,7 @@ def main(argv=None) -> int:
     parser.add_argument("--holdouts", type=int, nargs="+", default=[2023, 2024, 2025])
     parser.add_argument("--draws", type=int, default=800)
     parser.add_argument(
-        "--features", type=Path, default=Path(".cache/weekly_features_2016_2025.pkl")
+        "--features", type=Path, default=FEATURES_CACHE
     )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)
@@ -96,7 +97,7 @@ def main(argv=None) -> int:
         labels = _bucket_labels(week)
         position = test["position"].astype(str).to_numpy()
 
-        model = DirectTotal(use_team=True, use_phase=True, use_adp=True).fit(
+        model = DirectTotal(use_team=True, use_phase=True, use_adp=True, use_role=True).fit(
             train, train[TARGET].to_numpy(float)
         )
         curve = WeeklyRankCurve(per_game=False, offset=OFFSET).fit(

@@ -61,7 +61,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--no-snaps", action="store_true")
     parser.add_argument(
-        "--panel", type=Path, default=Path(".cache/weekly_panel_2016_2025.pkl")
+        "--panel", type=Path, default=PANEL_CACHE
     )
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args(argv)

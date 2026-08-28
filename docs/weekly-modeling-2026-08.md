@@ -803,6 +803,89 @@ an open question this measurement cannot answer, and the remaining early-season
 gap is now one ordering metric at −5.9%. That is a small target to spend a new
 data source on.
 
+## Every input, and what is deliberately absent (2026-08-28)
+
+### What the shipped next-week model reads
+
+43 magnitude features and 13 availability features, plus four position dummies
+and a missing-history flag on each.
+
+| group | n | columns |
+|---|---:|---|
+| player scoring history | 3 | career mean, recency mean, recency mean given played |
+| player usage history | 5 | targets, carries, pass attempts, target share, carry share — all recency-weighted |
+| **last observation** | 4 | points, target share, carry share, snap share — the previous played week |
+| snaps | 2 | recency-weighted snap share, and its step |
+| availability history | 4 | play rate, recency play rate, weeks since played, prior games |
+| team context | 4 | plays, points, pass attempts, carries — recency-weighted |
+| opponent, coarse | 1 | points allowed to this position |
+| opponent, phase-split | 7 | carries/yards/YPC/EPA allowed rushing; targets/yards/EPA allowed receiving |
+| game script | 7 | spread, total, implied team and opponent totals, own defence EPA and yards allowed |
+| draft board | 4 | log rank, drafted flag, both interacted with an early-season indicator |
+| pre-game news → availability | 3 | injury report status, practice status, ruled-out flag |
+| pre-game news → magnitude | 6 | injury status and practice, depth rank, depth promotion, someone-ahead-out, position group out |
+| pedigree | 4 | draft round, log overall pick, undrafted flag, years of experience |
+
+### Where each of those comes from
+
+| source | what it supplies | span |
+|---|---|---|
+| nflverse `player_stats` (weekly) | points, all volume, EPA; team aggregates | 1999–2025 |
+| nflverse `rosters_weekly` | panel membership and the honest zeros; the PFR↔GSIS bridge; years of experience | 2011–2025 |
+| nflverse `snap_counts` | snap share (92.9% of played rows) | 2014–2025 |
+| nflverse `injuries` | game-status and practice reports, median 28h pre-kickoff | 2009–2025 |
+| nflverse `depth_charts` | weekly positional rank | 2016–2025 |
+| nflverse `schedules` | closing spread and total; actual scores for diagnostics only | all |
+| nflverse `draft_picks` | round and overall pick, 99.6% GSIS coverage | all |
+| FantasyPros ADP CSVs (`ADP/`) | the draft board and the baseline curve | 2015–2026 |
+
+Everything except the closing line, the two pre-game reports and the draft board
+is a transform of something that already happened on a field.
+
+### What is available and not used
+
+Play-by-play, participation and personnel packages, FTN charting, Next Gen Stats,
+contracts, `ff_opportunity`, combine athleticism, Vegas *season win totals*,
+weather, and coaching continuity. Red-zone usage was built from play-by-play and
+measured at season level: it does not help there (+0.11% to +0.49% across four
+targets) because the trait does not persist, which is a fact about the trait
+rather than the cadence.
+
+### Would the season pipeline's projections help as an input?
+
+Probably not much, and the cheapest version of the test says so.
+
+The projection itself is expensive: the posteriors are gitignored build outputs,
+so using it means refitting three folds of a sampler that takes 700–1400s each.
+And it is a **preseason** quantity competing with ADP, which this layer already
+reads — while that pipeline's own headline finding is that it *loses* to the
+draft board on drafted players. Importing it as a level would be importing
+something weaker than a signal already present.
+
+There is one measured reason to think it still carries information: the season
+work found that about **41% of that model's disagreement with the board is
+correct** (a +0.409 slope), which is exactly why blending it with ADP worked. So
+the question is real rather than rhetorical.
+
+The cheap proxy is to import the season pipeline's distinctive *inputs* instead
+of its output. Two of them — draft capital and career stage — join cleanly and
+are genuinely exogenous: nothing else in this feature set says what a club
+thought of a player before he took a snap. The marginal relationship is strong,
+9.37 points a game for first-rounders against 2.04 for the undrafted.
+
+Conditioned on everything else, it is **−0.19% CRPS and −0.13% MAE**, improving
+on 3/3 folds but below the 0.25% materiality floor this package uses. Consistent
+in sign, immaterial in size. Kept, because it is free and points the right way,
+and reported as a tie rather than a win.
+
+That is evidence — not proof — that the information behind a season projection is
+already priced here by ADP and by usage history. It does not settle the question:
+the projection is a nonlinear combination of far more than these two columns
+(coaching continuity, combine athleticism, win totals, cross-season pathways,
+team-level structure), and a null on two inputs does not rule out the whole. What
+it does establish is that the *obvious* channel — pedigree the box scores cannot
+see — is not where the remaining error lives.
+
 ## The panel, and why it starts in 2016
 
 A stat feed contains rows for players who recorded something. Modelling on those

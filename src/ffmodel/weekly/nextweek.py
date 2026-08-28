@@ -146,6 +146,17 @@ RECENT_FEATURES = (
     "prior_snap_share_last",
 )
 
+# What a player was before he played: draft capital and career stage. The only
+# inputs here that are not a transform of an on-field event, a market price or a
+# pre-game report -- and the cheap test of whether the season pipeline's extra
+# information would be worth importing.
+PEDIGREE_FEATURES = (
+    "draft_round",
+    "draft_log_overall",
+    "undrafted",
+    "years_exp",
+)
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -269,6 +280,7 @@ class Hurdle:
     use_news: bool = False
     use_snaps: bool = False
     use_recent: bool = False
+    use_pedigree: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -292,6 +304,7 @@ class Hurdle:
             + (NEWS_MAGNITUDE_FEATURES if self.use_news else ())
             + (SNAP_FEATURES if self.use_snaps else ())
             + (RECENT_FEATURES if self.use_recent else ())
+            + (PEDIGREE_FEATURES if self.use_pedigree else ())
         )
 
     @property
@@ -301,6 +314,7 @@ class Hurdle:
             + (NEWS_AVAILABILITY_FEATURES if self.use_news else ())
             + (SNAP_FEATURES if self.use_snaps else ())
             + (RECENT_FEATURES if self.use_recent else ())
+            + (PEDIGREE_FEATURES if self.use_pedigree else ())
         )
 
     def _fit_magnitude(
@@ -443,6 +457,12 @@ def next_week_ladder() -> list:
             use_phase=True,
             use_script=True,
             by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+pedigree/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, by_position=True,
         ),
         Hurdle(
             name="hurdle+everything+recent/position",

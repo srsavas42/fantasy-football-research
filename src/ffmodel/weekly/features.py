@@ -30,10 +30,24 @@ Ordering team-weeks by (season, week) and decaying across the boundary gives
 week 1 last year's late-season offense, which is the best available answer and
 is never missing.
 
-The decay rate is fixed a priori at a four-game half-life rather than tuned. The
-season layer's analogous constant is 0.50 on a one-year step; four games is the
-same instinct at this cadence, and choosing it by holdout score would spend the
-holdout on a nuisance parameter.
+The decay was originally fixed a priori at four games and has since been selected
+properly. ``scripts/sweep_history_halflife.py`` scores candidates on 2021-2022 --
+strictly earlier than any reported holdout, so the confirmation stays out of
+sample -- and finds a monotone curve with an interior optimum at **one game**, on
+a plateau running from 0.5 to 1.5. One game is 3.36% better on CRPS than four.
+
+That looks wrong next to the same feature measured on its own, where a six-game
+window is clearly best (MAE 5.797 against 6.183 at one game). Both are right. The
+model already carries a long-run level in the expanding career averages, which no
+decay touches; given that level, the most useful thing an additional feature can
+supply is not a second, slightly different average but the most recent
+observation. Carrying both timescales explicitly recovers about a third of the
+gap and no more, which is the same statement.
+
+A warning for anyone re-running that sweep: ``relevant_population`` reads a
+feature built at the half-life under test, so scoring each candidate on "its own"
+relevant rows silently compares different populations and reverses the answer.
+The sweep fixes the population once at a reference half-life.
 """
 
 from __future__ import annotations
@@ -41,8 +55,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# Half-life of four games, fixed a priori. See the module docstring.
-HISTORY_HALFLIFE = 4.0
+# One game, selected on 2021-2022 and confirmed on 2023-2025. See the docstring.
+HISTORY_HALFLIFE = 1.0
 HISTORY_ALPHA = 1.0 - 0.5 ** (1.0 / HISTORY_HALFLIFE)
 
 # Team offences move more slowly than a single player's week-to-week usage, and
@@ -79,6 +93,12 @@ FEATURE_COLUMNS = (
     "prior_rush_share_recent",
     "team_plays_recent",
     "team_points_recent",
+    "prior_snap_share_recent",
+    "prior_snap_share_step",
+    "prior_points_last",
+    "prior_snap_share_last",
+    "prior_target_share_last",
+    "prior_rush_share_last",
     "team_pass_att_recent",
     "team_rush_att_recent",
     "defense_points_allowed_recent",
@@ -300,8 +320,16 @@ def _defense_history(panel: pd.DataFrame) -> pd.DataFrame:
     ]
 
 
-def add_features(panel: pd.DataFrame) -> pd.DataFrame:
-    """Attach every prior-only feature to the panel, in panel order."""
+def add_features(
+    panel: pd.DataFrame, *, halflife: float = HISTORY_HALFLIFE
+) -> pd.DataFrame:
+    """Attach every prior-only feature to the panel, in panel order.
+
+    ``halflife`` sets the decay on the player-history averages, in games. The
+    default is the a-priori four; ``scripts/sweep_history_halflife.py`` selects
+    it on seasons before the holdouts so the choice never touches them.
+    """
+    alpha = 1.0 - 0.5 ** (1.0 / float(halflife))
     frame = panel.sort_values(PLAYER_ORDER, kind="mergesort").reset_index(drop=True)
     keys = ["player_key"]
 
@@ -313,13 +341,13 @@ def add_features(panel: pd.DataFrame) -> pd.DataFrame:
     frame["prior_games"] = _prior(frame, keys, played, how="sum").fillna(0.0)
     frame["prior_play_rate"] = _prior(frame, keys, played, how="mean")
     frame["recent_play_rate"] = _prior(
-        frame, keys, played, how="ewm", alpha=HISTORY_ALPHA
+        frame, keys, played, how="ewm", alpha=alpha
     )
     frame["weeks_since_played"] = _weeks_since_played(frame)
 
     frame["prior_points_mean"] = _prior(frame, keys, points, how="mean")
     frame["prior_points_recent"] = _prior(
-        frame, keys, points, how="ewm", alpha=HISTORY_ALPHA
+        frame, keys, points, how="ewm", alpha=alpha
     )
     frame["prior_points_sd"] = _prior(frame, keys, points, how="std")
 
@@ -331,15 +359,51 @@ def add_features(panel: pd.DataFrame) -> pd.DataFrame:
         frame, keys, played_points, how="mean"
     )
     frame["prior_points_recent_given_played"] = _prior(
-        frame, keys, played_points, how="ewm", alpha=HISTORY_ALPHA
+        frame, keys, played_points, how="ewm", alpha=alpha
     )
+
+    # Snap share is usage like any other and is lagged the same way. It is kept
+    # in its own feature so the ladder can rule it in or out on its own.
+    if "snap_share" in frame.columns:
+        masked = pd.to_numeric(frame["snap_share"], errors="coerce").where(
+            frame["played"].eq(1)
+        )
+        frame["prior_snap_share_recent"] = _prior(
+            frame, keys, masked, how="ewm", alpha=alpha
+        )
+        # The change in snap share is the leading edge of a role change: it moves
+        # a week before the ball follows. Lagged like everything else, so this is
+        # last week's move, not this week's.
+        step = masked - _prior(frame, keys, masked, how="ewm", alpha=alpha)
+        frame["prior_snap_share_step"] = _prior(
+            frame, keys, step, how="ewm", alpha=alpha
+        )
+
+    # The most recent observation, alongside the smoothed average rather than
+    # instead of it. Sweeping the half-life produced a curve that improved
+    # monotonically as the window shrank towards one game, while the same feature
+    # measured on its own is clearly best around six -- the two are reconciled by
+    # noting that a single decay forces one compromise between reacting to a role
+    # change and averaging away a noisy week. Carrying both timescales lets the
+    # fit weight them separately, which is what it was trying to buy by
+    # collapsing the window.
+    for column, source in (
+        ("prior_points_last", points),
+        ("prior_snap_share_last", pd.to_numeric(frame.get("snap_share"), errors="coerce")
+         if "snap_share" in frame.columns else None),
+    ):
+        if source is None:
+            continue
+        frame[column] = _prior(
+            frame, keys, source.where(frame["played"].eq(1)), how="ewm", alpha=1.0
+        )
 
     for column in VOLUME_COLUMNS:
         if column == "receptions":
             continue
         masked = frame[column].astype(float).where(frame["played"].eq(1))
         frame[f"prior_{column}_recent"] = _prior(
-            frame, keys, masked, how="ewm", alpha=HISTORY_ALPHA
+            frame, keys, masked, how="ewm", alpha=alpha
         )
 
     # Shares are formed before lagging, so each is a ratio of two numbers from
@@ -362,7 +426,10 @@ def add_features(panel: pd.DataFrame) -> pd.DataFrame:
         ("prior_rush_share_recent", rush_share),
     ):
         masked = pd.Series(values, index=frame.index).where(frame["played"].eq(1))
-        frame[name] = _prior(frame, keys, masked, how="ewm", alpha=HISTORY_ALPHA)
+        frame[name] = _prior(frame, keys, masked, how="ewm", alpha=alpha)
+        frame[name.replace("_recent", "_last")] = _prior(
+            frame, keys, masked, how="ewm", alpha=1.0
+        )
 
     if "adp_rank" in frame.columns:
         rank = pd.to_numeric(frame["adp_rank"], errors="coerce")

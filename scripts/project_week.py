@@ -99,6 +99,8 @@ def main(argv=None) -> int:
             use_script=True,
             use_adp=True,
             use_news=True,
+            use_snaps=True,
+            use_recent=True,
             by_position=True,
         ).fit(train, weekly_target)
         label = "points"

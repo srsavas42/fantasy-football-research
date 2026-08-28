@@ -129,6 +129,23 @@ NEWS_MAGNITUDE_FEATURES = (
     "position_group_out",
 )
 
+# Snap share: how much field time he got, as opposed to what he did with it.
+# Kept separate so it can be ruled in or out on its own.
+SNAP_FEATURES = (
+    "prior_snap_share_recent",
+    "prior_snap_share_step",
+)
+
+# The most recent observation, carried alongside the smoothed one. See the
+# feature layer: a single decay cannot both react to a role change and average
+# away a noisy week, and the fit does better given both than given either.
+RECENT_FEATURES = (
+    "prior_points_last",
+    "prior_target_share_last",
+    "prior_rush_share_last",
+    "prior_snap_share_last",
+)
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -250,6 +267,8 @@ class Hurdle:
     use_script: bool = False
     use_adp: bool = False
     use_news: bool = False
+    use_snaps: bool = False
+    use_recent: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -271,12 +290,17 @@ class Hurdle:
             + (SCRIPT_FEATURES if self.use_script else ())
             + (ADP_FEATURES if self.use_adp else ())
             + (NEWS_MAGNITUDE_FEATURES if self.use_news else ())
+            + (SNAP_FEATURES if self.use_snaps else ())
+            + (RECENT_FEATURES if self.use_recent else ())
         )
 
     @property
     def availability_features(self) -> tuple[str, ...]:
-        return AVAILABILITY_FEATURES + (
-            NEWS_AVAILABILITY_FEATURES if self.use_news else ()
+        return (
+            AVAILABILITY_FEATURES
+            + (NEWS_AVAILABILITY_FEATURES if self.use_news else ())
+            + (SNAP_FEATURES if self.use_snaps else ())
+            + (RECENT_FEATURES if self.use_recent else ())
         )
 
     def _fit_magnitude(
@@ -418,6 +442,23 @@ def next_week_ladder() -> list:
             use_matchup=True,
             use_phase=True,
             use_script=True,
+            by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+recent/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+context+adp+news+snaps/position",
+            use_team=True,
+            use_matchup=True,
+            use_phase=True,
+            use_script=True,
+            use_adp=True,
+            use_news=True,
+            use_snaps=True,
             by_position=True,
         ),
         Hurdle(

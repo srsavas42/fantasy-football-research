@@ -1,0 +1,288 @@
+{
+  "summary": {
+    "next_week": {
+      "model": "hurdle+context+adp+news+snaps/position",
+      "drafted": [
+        {
+          "metric": "mae",
+          "model": 5.4404,
+          "adp": 6.6671,
+          "margin": "+18.40%",
+          "verdict": "win"
+        },
+        {
+          "metric": "rmse",
+          "model": 7.2185,
+          "adp": 8.5196,
+          "margin": "+15.27%",
+          "verdict": "win"
+        },
+        {
+          "metric": "crps",
+          "model": 3.7557,
+          "adp": 5.0925,
+          "margin": "+26.25%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_80",
+          "model": 0.8644,
+          "adp": 0.4595,
+          "margin": "+81.09%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_95",
+          "model": 0.9707,
+          "adp": 0.6545,
+          "margin": "+93.00%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_spearman",
+          "model": 0.5764,
+          "adp": 0.2491,
+          "margin": "+131.38%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_top_k",
+          "model": 0.1329,
+          "adp": 0.0918,
+          "margin": "+44.79%",
+          "verdict": "win"
+        }
+      ],
+      "drafted_early": [
+        {
+          "metric": "mae",
+          "model": 5.4538,
+          "adp": 6.0164,
+          "margin": "+9.35%",
+          "verdict": "win"
+        },
+        {
+          "metric": "rmse",
+          "model": 7.1386,
+          "adp": 7.8,
+          "margin": "+8.48%",
+          "verdict": "win"
+        },
+        {
+          "metric": "crps",
+          "model": 3.8024,
+          "adp": 4.529,
+          "margin": "+16.04%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_80",
+          "model": 0.8764,
+          "adp": 0.5059,
+          "margin": "+74.03%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_95",
+          "model": 0.9719,
+          "adp": 0.7023,
+          "margin": "+91.14%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_spearman",
+          "model": 0.5027,
+          "adp": 0.3307,
+          "margin": "+52.01%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_top_k",
+          "model": 0.3059,
+          "adp": 0.3328,
+          "margin": "-8.06%",
+          "verdict": "LOSS"
+        }
+      ],
+      "drafted_mid": [
+        {
+          "metric": "mae",
+          "model": 5.3881,
+          "adp": 6.6653,
+          "margin": "+19.16%",
+          "verdict": "win"
+        },
+        {
+          "metric": "rmse",
+          "model": 7.1417,
+          "adp": 8.4639,
+          "margin": "+15.62%",
+          "verdict": "win"
+        },
+        {
+          "metric": "crps",
+          "model": 3.7253,
+          "adp": 5.0784,
+          "margin": "+26.64%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_80",
+          "model": 0.8676,
+          "adp": 0.458,
+          "margin": "+80.23%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_95",
+          "model": 0.9689,
+          "adp": 0.6509,
+          "margin": "+93.67%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_spearman",
+          "model": 0.5819,
+          "adp": 0.2678,
+          "margin": "+117.31%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_top_k",
+          "model": 0.2742,
+          "adp": 0.2303,
+          "margin": "+19.06%",
+          "verdict": "win"
+        }
+      ],
+      "drafted_late": [
+        {
+          "metric": "mae",
+          "model": 5.472,
+          "adp": 6.9952,
+          "margin": "+21.77%",
+          "verdict": "win"
+        },
+        {
+          "metric": "rmse",
+          "model": 7.3104,
+          "adp": 8.8913,
+          "margin": "+17.78%",
+          "verdict": "win"
+        },
+        {
+          "metric": "crps",
+          "model": 3.7544,
+          "adp": 5.3857,
+          "margin": "+30.29%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_80",
+          "model": 0.8561,
+          "adp": 0.4373,
+          "margin": "+84.54%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_95",
+          "model": 0.9714,
+          "adp": 0.6331,
+          "margin": "+93.26%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_spearman",
+          "model": 0.5947,
+          "adp": 0.197,
+          "margin": "+201.92%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_top_k",
+          "model": 0.2287,
+          "adp": 0.1503,
+          "margin": "+52.24%",
+          "verdict": "win"
+        }
+      ],
+      "relevant": [
+        {
+          "metric": "mae",
+          "model": 4.6971,
+          "adp": 6.1272,
+          "margin": "+23.34%",
+          "verdict": "win"
+        },
+        {
+          "metric": "rmse",
+          "model": 6.5232,
+          "adp": 7.8496,
+          "margin": "+16.90%",
+          "verdict": "win"
+        },
+        {
+          "metric": "crps",
+          "model": 3.195,
+          "adp": 4.5589,
+          "margin": "+29.92%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_80",
+          "model": 0.871,
+          "adp": 0.4666,
+          "margin": "+78.71%",
+          "verdict": "win"
+        },
+        {
+          "metric": "coverage_95",
+          "model": 0.9703,
+          "adp": 0.7356,
+          "margin": "+90.51%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_spearman",
+          "model": 0.6798,
+          "adp": 0.3992,
+          "margin": "+70.29%",
+          "verdict": "win"
+        },
+        {
+          "metric": "within_group_top_k",
+          "model": 0.1252,
+          "adp": 0.0915,
+          "margin": "+36.85%",
+          "verdict": "win"
+        }
+      ],
+      "folds_drafted_crps": [
+        {
+          "holdout": 2023,
+          "model": 3.7518,
+          "adp": 5.1306,
+          "margin": "+26.88%",
+          "verdict": "win"
+        },
+        {
+          "holdout": 2024,
+          "model": 3.8791,
+          "adp": 5.1655,
+          "margin": "+24.90%",
+          "verdict": "win"
+        },
+        {
+          "holdout": 2025,
+          "model": 3.6382,
+          "adp": 4.984,
+          "margin": "+27.00%",
+          "verdict": "win"
+        }
+      ]
+    }
+  },
+  "losses": [
+    "next_week/drafted_early/within_group_top_k (-8.06%)"
+  ]
+}

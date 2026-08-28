@@ -194,6 +194,57 @@ def _market_lines(seasons: Iterable[int]) -> pd.DataFrame:
     )
 
 
+def _snap_counts(seasons: Iterable[int]) -> pd.DataFrame:
+    """Offensive snaps and snap share per player-week, keyed like the panel.
+
+    The most direct measure of role there is: targets and carries say what a
+    player did with the field time he got, snaps say how much field time he got.
+    It moves first — a promotion shows up in snap share the week it happens,
+    while target share needs the ball to actually come his way.
+
+    The feed is keyed on Pro-Football-Reference ids, which nothing else in this
+    package uses. The bridge is the weekly roster, which carries ``pfr_id`` and
+    ``gsis_id`` on the same row, and it is pooled across every season rather than
+    matched within one: a player's identifiers do not change between years, so
+    a season where he happens to be missing from one feed can still be resolved
+    from another. That takes the join from 95.3% to what the bridge can reach.
+    """
+    seasons = list(seasons)
+    try:
+        rosters = ingest.load_weekly_rosters(seasons)
+        snaps = ingest.load_snap_counts(seasons)
+    except Exception:
+        return pd.DataFrame(columns=["season", "week", "player_key", "snap_share"])
+    if snaps.empty or rosters.empty:
+        return pd.DataFrame(columns=["season", "week", "player_key", "snap_share"])
+    if "pfr_id" not in rosters.columns or "pfr_player_id" not in snaps.columns:
+        return pd.DataFrame(columns=["season", "week", "player_key", "snap_share"])
+
+    bridge = (
+        rosters[["gsis_id", "pfr_id"]]
+        .dropna()
+        .drop_duplicates(subset=["pfr_id"], keep="last")
+        .rename(columns={"pfr_id": "pfr_player_id"})
+    )
+    keep = snaps
+    if "game_type" in keep.columns:
+        keep = keep[keep["game_type"] == "REG"]
+    keep = keep[keep["position"].isin(PANEL_POSITIONS)]
+    merged = keep.merge(bridge, on="pfr_player_id", how="inner")
+    out = pd.DataFrame(
+        {
+            "season": pd.to_numeric(merged["season"], errors="coerce"),
+            "week": pd.to_numeric(merged["week"], errors="coerce"),
+            "player_key": merged["gsis_id"].astype(str),
+            "snap_share": pd.to_numeric(merged["offense_pct"], errors="coerce"),
+            "offense_snaps": pd.to_numeric(merged["offense_snaps"], errors="coerce"),
+        }
+    ).dropna(subset=["season", "week"])
+    out["season"] = out["season"].astype(int)
+    out["week"] = out["week"].astype(int)
+    return out.groupby(["season", "week", "player_key"], as_index=False).max()
+
+
 def _roster_weeks(seasons: Iterable[int]) -> pd.DataFrame:
     """Skill-position players under contract, one row per club-week."""
     rosters = ingest.load_weekly_rosters(list(seasons))
@@ -319,6 +370,17 @@ def build_panel(
             panel[column] = np.nan
 
     panel["player_key"] = panel["player_id"].astype(str)
+    snaps = _snap_counts(seasons)
+    if not snaps.empty:
+        panel = panel.merge(snaps, on=["season", "week", "player_key"], how="left")
+    else:
+        panel["snap_share"] = np.nan
+        panel["offense_snaps"] = np.nan
+    # A week he did not play is zero snaps, not an unknown number of them.
+    for column in ("snap_share", "offense_snaps"):
+        panel[column] = np.where(
+            panel["played"].eq(0), 0.0, panel[column]
+        )
     panel["scoring"] = scoring
     panel = panel.sort_values(["player_key", "season", "week"], kind="mergesort")
     return panel.reset_index(drop=True)

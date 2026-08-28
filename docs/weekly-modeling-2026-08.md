@@ -201,6 +201,105 @@ Ranked by share of error, and none of it is a decay-rate question:
    unused.
 3. **Everything else.** No segment above accounts for more than 3.5%.
 
+## Snaps, the decay, and what is left (2026-08-28)
+
+Three pieces of work following the role-change diagnosis: the leading indicator
+that was blocked on a join, the one parameter this layer had never tuned, and a
+hunt for error sources outside role and absence.
+
+### Snap counts, finally joined
+
+The feed is keyed on Pro-Football-Reference ids, which nothing else here uses.
+The bridge is the weekly roster, which carries `pfr_id` and `gsis_id` on the same
+row; pooling it across every season rather than matching within one lands
+**92.9% of played rows** (0.79 in 2016 rising to 0.99 by 2024).
+
+Snap share is the most direct role measure available — targets say what a player
+did with his field time, snaps say how much he got — and it moves first. It is
+worth **−0.67% CRPS, improving on 3/3 folds**, with MAE flat. Real, consistent,
+and much smaller than its billing as "the largest known gap". Being first to move
+is not the same as moving far enough ahead to matter.
+
+### The decay: one game, not four, and the sweep has a trap in it
+
+`HISTORY_HALFLIFE` was set at four games a priori and never tuned. Selected
+properly — candidates scored on 2021–2022, strictly earlier than any reported
+holdout — the curve is monotone with an interior optimum at **one game**, on a
+plateau from 0.5 to 1.5, worth **3.36% CRPS** against the a-priori four.
+
+**The first run of that sweep gave the opposite answer and it was a bug worth
+recording.** `relevant_population` reads
+`prior_points_recent_given_played`, which is itself an average at the half-life
+under test. Scoring each candidate on "its own" relevant rows compared different
+populations: the eight-game arm admitted 10% more rows (11,492 against 10,425),
+those extra rows were marginal players who are easier to project, and the result
+was a spurious 0.93% win for the *longest* decay — the exact reverse of the
+truth. Fixing the population at a reference half-life flips it.
+
+A second check looked like a contradiction and is not. The same feature measured
+on its own clearly prefers a six-game window (MAE 5.797 against 6.183 at one
+game, fixed rows). Both are right: the model already carries a long-run level in
+the expanding career averages, which no decay touches, and *given* that level the
+most useful thing another feature can add is not a second slightly different
+average but the most recent observation. Carrying both timescales explicitly
+recovers about a third of the gap (3.192 → 3.168 against one-game's 3.085) and
+adds nothing once the half-life is already short, which is the same statement
+from the other side. The last-observation columns ship anyway: they are worth a
+further **−0.38% CRPS on 3/3 folds**.
+
+### What is left, and how much of it is anybody's to fix
+
+`scripts/hunt_weekly_errors.py`, on the shipped model:
+
+| segment | n | share of error | bias |
+|---|---:|---:|---:|
+| **offence beat its implied total by 10+** | 2,607 | 19.1% | **−2.44** |
+| **offence missed its implied total by 10+** | 2,090 | 10.8% | **+2.18** |
+| projected top 10% | 1,712 | 15.6% | −0.45 |
+| big underdog (spread ≥ +7) | 2,238 | 13.5% | −0.41 |
+| high total (≥ 48) | 3,252 | 21.0% | −0.40 |
+| big favourite (spread ≤ −7) | 2,192 | 12.3% | +0.24 |
+| position TE / RB | — | 14% / 26% | −0.31 / −0.27 |
+
+**The largest remaining source is the game itself, and it is a floor rather than
+a defect.** On 27% of rows a team's actual scoring misses the closing line's
+implied total by ten points or more, and the model's error tracks that miss
+almost one-for-one in the corresponding direction. Together those rows are ~30%
+of all absolute error. The closing line is the best forecast of a game anyone
+publishes and it is wrong by ten points more than a quarter of the time; nothing
+in a player model recovers that.
+
+**Touchdown regression: refuted.** Splitting on the touchdown share of a player's
+recent scoring gives no monotone bias trend (−0.30, −0.33, −0.22 across the three
+populated buckets; the >60% bucket holds 51 rows and says nothing). The lumpiness
+of touchdowns is real but the model is not systematically fooled by it.
+
+**A mild shrinkage signature.** The top projected decile is under-projected by
+0.45 against an observed 17.4 — about 2.6% — and carries 15.6% of the error.
+Small, consistent, and the population where lineup decisions are actually made.
+
+**Game script is not fully captured even though the line is in the model.** Big
+underdogs are under-projected by 0.41 and big favourites over-projected by 0.24,
+which is the direction the mechanism predicts: a trailing team throws. The linear
+spread term gets some of this and not all of it.
+
+### Where that leaves the ladder
+
+Relevant population, three holdouts, half-life one:
+
+| arm | MAE | CRPS | ρ | top-24 |
+|---|---:|---:|---:|---:|
+| ADP curve | 6.127 | 4.559 | 0.399 | 0.092 |
+| recency mean | 5.313 | 3.627 | 0.573 | 0.071 |
+| hurdle | 5.131 | 3.459 | 0.607 | 0.090 |
+| + context, per position | 5.049 | 3.423 | 0.615 | 0.104 |
+| + ADP + news + snaps | 4.697 | 3.195 | 0.680 | 0.125 |
+| **+ last observation (ships)** | **4.693** | **3.183** | **0.681** | **0.126** |
+
+Against ADP on the drafted pool the shipped arm now fails **one** metric —
+early-season top-24 hit rate at −4.42%, the best that number has been — and wins
+everything else, CRPS by 27% on all three folds individually.
+
 ## Is role change a season boundary or a weekly one? (2026-08-27)
 
 `scripts/decompose_role_change.py`. The two possibilities want opposite work: a

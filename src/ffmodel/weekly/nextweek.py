@@ -157,6 +157,19 @@ PEDIGREE_FEATURES = (
     "years_exp",
 )
 
+# What the opportunities were worth before the bounce, and how much the bounce
+# added. With a one-game half-life the heaviest input to a projection is last
+# Sunday's points, which are mostly touchdown variance; these are the same signal
+# with that variance separated out. Measured as a null -- the usage features
+# below already carry 81.5% of it -- so the rung exists to keep that measurable,
+# not because the shipped model turns it on.
+EXPECTED_FEATURES = (
+    "prior_points_exp_recent",
+    "prior_points_exp_last",
+    "prior_luck_recent",
+    "prior_luck_last",
+)
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -281,6 +294,7 @@ class Hurdle:
     use_snaps: bool = False
     use_recent: bool = False
     use_pedigree: bool = False
+    use_expected: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -305,6 +319,7 @@ class Hurdle:
             + (SNAP_FEATURES if self.use_snaps else ())
             + (RECENT_FEATURES if self.use_recent else ())
             + (PEDIGREE_FEATURES if self.use_pedigree else ())
+            + (EXPECTED_FEATURES if self.use_expected else ())
         )
 
     @property
@@ -315,6 +330,7 @@ class Hurdle:
             + (SNAP_FEATURES if self.use_snaps else ())
             + (RECENT_FEATURES if self.use_recent else ())
             + (PEDIGREE_FEATURES if self.use_pedigree else ())
+            + (EXPECTED_FEATURES if self.use_expected else ())
         )
 
     def _fit_magnitude(
@@ -457,6 +473,12 @@ def next_week_ladder() -> list:
             use_phase=True,
             use_script=True,
             by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+xfp/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_expected=True, by_position=True,
         ),
         Hurdle(
             name="hurdle+everything+pedigree/position",

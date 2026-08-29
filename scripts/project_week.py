@@ -32,6 +32,7 @@ from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.news import add_news_features
+from ffmodel.weekly.expected import attach_expected
 from ffmodel.weekly.pedigree import add_pedigree_features
 from ffmodel.weekly.market import (
     WeeklyRankCurve,
@@ -77,7 +78,7 @@ def main(argv=None) -> int:
         frame = pd.read_pickle(args.features)
     else:
         frame = add_pedigree_features(
-            add_news_features(add_features(attach_adp(load_panel(range(2016, args.season + 1)))))
+            add_news_features(add_features(attach_expected(attach_adp(load_panel(range(2016, args.season + 1))))))
         )
     if "inj_status" not in frame.columns:
         frame = add_news_features(frame)

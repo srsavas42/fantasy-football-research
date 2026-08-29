@@ -845,11 +845,12 @@ is a transform of something that already happened on a field.
 ### What is available and not used
 
 Play-by-play, participation and personnel packages, FTN charting, Next Gen Stats,
-contracts, `ff_opportunity`, combine athleticism, Vegas *season win totals*,
-weather, and coaching continuity. Red-zone usage was built from play-by-play and
-measured at season level: it does not help there (+0.11% to +0.49% across four
-targets) because the trait does not persist, which is a fact about the trait
-rather than the cadence.
+contracts, combine athleticism, Vegas *season win totals*, weather, and coaching
+continuity. Red-zone usage was built from play-by-play and measured at season
+level: it does not help there (+0.11% to +0.49% across four targets) because the
+trait does not persist, which is a fact about the trait rather than the cadence.
+`ff_opportunity` was joined and measured at this cadence and is a null — see
+*Expected points: the better column that adds nothing* below.
 
 ### Would the season pipeline's projections help as an input?
 
@@ -885,6 +886,93 @@ the projection is a nonlinear combination of far more than these two columns
 team-level structure), and a null on two inputs does not rule out the whole. What
 it does establish is that the *obvious* channel — pedigree the box scores cannot
 see — is not where the remaining error lives.
+
+## Expected points: the better column that adds nothing (2026-08-29)
+
+`ff_opportunity` prices every play from its context — down, distance, field
+position, air yards — and reports what a week's opportunities *should* have been
+worth. This layer had a specific reason to want it that the season layer did not.
+The decay on player history was selected at a **one-game half-life**, so the
+single most heavily weighted input to any projection is what happened last
+Sunday — and last Sunday's points are substantially touchdown variance. Expected
+points are the same signal with that variance removed, which is exactly the
+substitution a one-game window should reward and a season average should not.
+
+The season layer already tested this and it failed there: on 2,047 consecutive
+player-season pairs, prior actual points per game beat prior expected points at
+every position. That is a statement about a *year-long* average, where a season
+of touchdowns is most of the way to its own expectation. Over one week it is not,
+which is why the question was worth re-asking rather than inheriting.
+
+### It joins well and it is the stronger column
+
+The feed covers **98.5%** of relevant played rows and 90.3% of played rows over
+the whole panel, 2016–2025 — better coverage than snap counts. And as a single
+predictor it is clearly better than the thing it would replace:
+
+| lagged column | correlation with next week's points |
+|---|---:|
+| actual points, last played week | 0.3112 |
+| **expected points, last played week** | **0.3798** |
+
+A 22% stronger raw signal, in the column the half-life sweep says the model leans
+on hardest. On that basis it should have been the largest gain since the injury
+report.
+
+### In the full model it is a null
+
+Walk-forward 2023/2024/2025, relevant population, n = 13,859, identical rows:
+
+| rung | MAE | CRPS | ρ | top-24 |
+|---|---:|---:|---:|---:|
+| hurdle+everything+pedigree/position | 4.6866 | **3.1768** | 0.6817 | 0.1238 |
+| hurdle+everything+**xfp**/position | 4.6883 | 3.1775 | 0.6817 | 0.1249 |
+
++0.04% MAE and +0.02% CRPS — marginally *worse* than the rung it sits on, and far
+inside the 0.25% materiality floor. Not a small win. Nothing at all.
+
+### Why, measured rather than asserted
+
+The two results only look contradictory if expected points are treated as new
+information. They are not. Regressing lagged expected points on the usage
+features the model already reads — targets, carries, pass attempts, target
+share, carry share, snap share — recovers most of the column:
+
+```
+xFP(last) explained by usage features already in the model:  R² = 0.815
+corr(points, xFP-last)                                    = 0.3798
+corr(points, xFP-last | usage removed)                    = 0.0442
+corr(points, actual-last | usage removed)                 = 0.0720
+```
+
+Expected points *are* a weighted sum of opportunities, and this model reads the
+opportunities directly. Once usage is partialled out, what remains of the feed
+correlates **less** with next week than the residual of raw actual points does —
+the touchdown noise that expected points strips out was carrying a little signal
+of its own, presumably about scoring role near the goal line.
+
+So the strong marginal correlation is real and the model's indifference to it is
+also real, and the reconciliation is redundancy rather than either measurement
+being wrong. This is the season document's method note reappearing: *a probe run
+against a subset of the model's inputs measures the subset, not the model.* The
+0.3798 is what expected points beat when the comparison is one column against
+one column. The full feature set is not one column.
+
+### What ships
+
+Nothing. `src/ffmodel/weekly/expected.py` and the `EXPECTED_FEATURES` group stay
+in the tree so the rung stays measurable and so the next person asking this
+question gets the answer in a ladder run instead of a week of work, but
+`scripts/project_week.py` does not turn it on.
+
+The transferable claim is narrower than "expected points do not help" and worth
+stating carefully: **an efficiency-stripped restatement of usage cannot beat
+usage in a model that already reads usage.** That predicts the same null for the
+other "over expected" families — rush yards over expected, CPOE, expected
+completion percentage — to the extent that they are also functions of
+opportunity and context the panel already carries. It does not predict a null for
+anything measuring a *player attribute* the box score cannot see, which is a
+different kind of column and untested here.
 
 ## The panel, and why it starts in 2016
 

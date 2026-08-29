@@ -101,6 +101,10 @@ FEATURE_COLUMNS = (
     "prior_snap_share_recent",
     "prior_snap_share_step",
     "prior_points_last",
+    "prior_points_exp_recent",
+    "prior_points_exp_last",
+    "prior_luck_recent",
+    "prior_luck_last",
     "prior_snap_share_last",
     "prior_target_share_last",
     "prior_rush_share_last",
@@ -368,6 +372,20 @@ def add_features(
     frame["prior_points_recent_given_played"] = _prior(
         frame, keys, played_points, how="ewm", alpha=alpha
     )
+
+    # Expected points and the luck term are lagged exactly like actual points,
+    # so the fit sees all three on the same footing and can weigh them against
+    # each other rather than being told which to trust.
+    for source, stem in (("points_exp", "prior_points_exp"), ("points_luck", "prior_luck")):
+        if source not in frame.columns:
+            continue
+        masked = pd.to_numeric(frame[source], errors="coerce").where(
+            frame["played"].eq(1)
+        )
+        frame[f"{stem}_recent"] = _prior(
+            frame, keys, masked, how="ewm", alpha=alpha
+        )
+        frame[f"{stem}_last"] = _prior(frame, keys, masked, how="ewm", alpha=1.0)
 
     # Snap share is usage like any other and is lagged the same way. It is kept
     # in its own feature so the ladder can rule it in or out on its own.

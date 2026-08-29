@@ -56,6 +56,7 @@ from ffmodel.weekly.fitting import LocalResiduals, Logistic, Ridge
 from ffmodel.weekly.nextweek import (
     ADP_FEATURES,
     AVAILABILITY_FEATURES,
+    CHARTING_FEATURES,
     NEWS_AVAILABILITY_FEATURES,
     RECENT_FEATURES,
     SNAP_FEATURES,
@@ -169,6 +170,7 @@ class DirectTotal:
     use_phase: bool = False
     use_adp: bool = False
     use_role: bool = False
+    use_charting: bool = False
     model: Ridge | None = None
     residuals: LocalResiduals | None = None
     medians: pd.Series | None = None
@@ -189,6 +191,10 @@ class DirectTotal:
                 if self.use_role
                 else ()
             )
+            # NGS tracking metrics: these measure player-ability that may persist
+            # over multi-week horizons, though their predictive power at season scale
+            # (multiple weeks) is unknown compared to single-week predictions.
+            + (CHARTING_FEATURES if self.use_charting else ())
             # Game script is deliberately absent even when requested. A spread is
             # published for one game; the rest-of-season response spans up to
             # seventeen, and this week's line says nothing about week twelve's.
@@ -245,6 +251,7 @@ class HierarchicalSeason:
     use_phase: bool = False
     use_role: bool = False
     use_adp: bool = False
+    use_charting: bool = False
     persistent: bool = True
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -267,6 +274,7 @@ class HierarchicalSeason:
             + (PHASE_FEATURES if self.use_phase else ())
             + (ADP_FEATURES if self.use_adp else ())
             + (SNAP_FEATURES + RECENT_FEATURES if self.use_role else ())
+            + (CHARTING_FEATURES if self.use_charting else ())
         )
 
     @property
@@ -378,6 +386,11 @@ def rest_of_season_ladder() -> list:
             name="direct-total+everything",
             use_team=True, use_phase=True, use_adp=True, use_role=True,
         ),
+        DirectTotal(
+            name="direct-total+everything+ngs",
+            use_team=True, use_phase=True, use_adp=True, use_role=True,
+            use_charting=True,
+        ),
         RecursiveSeason(
             name="recursive-weekly",
             use_team=True, use_phase=True, use_adp=True, use_role=True,
@@ -408,8 +421,17 @@ def rest_of_season_ladder() -> list:
             persistent=True, use_team=True, use_phase=True, use_adp=True,
             use_role=True,
         ),
+        HierarchicalSeason(
+            name="aggregated-weekly+ngs",
+            persistent=True, use_team=True, use_phase=True, use_adp=True,
+            use_role=True, use_charting=True,
+        ),
         HierarchicalSeason(name="independent-weeks", persistent=False),
         HierarchicalSeason(name="hierarchical", persistent=True),
+        HierarchicalSeason(
+            name="hierarchical+ngs",
+            persistent=True, use_charting=True,
+        ),
     ]
 
 
@@ -517,6 +539,7 @@ class RecursiveSeason:
     use_phase: bool = False
     use_adp: bool = False
     use_role: bool = False
+    use_charting: bool = False
     # Per-game level shift, drawn once per draw and held for every remaining
     # game. Zero disables it; the default is estimated in ``fit``. See
     # ``_calibrate_drift``.
@@ -550,6 +573,7 @@ class RecursiveSeason:
             + (PHASE_FEATURES if self.use_phase else ())
             + (ADP_FEATURES if self.use_adp else ())
             + (SNAP_FEATURES + RECENT_FEATURES if self.use_role else ())
+            + (CHARTING_FEATURES if self.use_charting else ())
         )
 
     @property

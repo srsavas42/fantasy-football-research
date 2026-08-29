@@ -33,6 +33,8 @@ from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.news import add_news_features
 from ffmodel.weekly.expected import attach_expected
+from ffmodel.weekly.tendency import attach_tendency
+from ffmodel.weekly.charting import attach_charting
 from ffmodel.weekly.pedigree import add_pedigree_features
 from ffmodel.weekly.market import (
     WeeklyRankCurve,
@@ -78,7 +80,7 @@ def main(argv=None) -> int:
         frame = pd.read_pickle(args.features)
     else:
         frame = add_pedigree_features(
-            add_news_features(add_features(attach_expected(attach_adp(load_panel(range(2016, args.season + 1))))))
+            add_news_features(add_features(attach_charting(attach_expected(attach_tendency(attach_adp(load_panel(range(2016, args.season + 1))))))))
         )
     if "inj_status" not in frame.columns:
         frame = add_news_features(frame)
@@ -109,6 +111,10 @@ def main(argv=None) -> int:
             use_snaps=True,
             use_recent=True,
             use_pedigree=True,
+            # Tracking efficiency costs 0.3% MAE and buys 13% top-24 hit rate,
+            # which is the metric the start/sit question actually asks and the
+            # only one still losing to the draft board.
+            use_charting=True,
             by_position=True,
         ).fit(train, weekly_target)
         label = "points"

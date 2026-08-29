@@ -31,7 +31,7 @@ BASELINE = "adp-curve"
 # direct regression, so comparing it against ADP would be comparing something
 # nobody runs.
 SHIPPED = {
-    "next_week": "hurdle+everything+recent/position",
+    "next_week": "hurdle+everything+ngs/position",
     "rest_of_season": "direct-total+phase+adp",
 }
 

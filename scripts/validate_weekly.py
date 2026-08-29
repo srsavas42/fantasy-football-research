@@ -25,6 +25,8 @@ from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.market import attach_adp
 from ffmodel.weekly.news import add_news_features
 from ffmodel.weekly.expected import attach_expected
+from ffmodel.weekly.tendency import attach_tendency
+from ffmodel.weekly.charting import attach_charting
 from ffmodel.weekly.pedigree import add_pedigree_features
 from ffmodel.weekly.nextweek import next_week_ladder
 from ffmodel.weekly.restofseason import (
@@ -79,7 +81,7 @@ def main(argv=None) -> int:
         # ADP is attached before the features so the market curve and every
         # model see exactly the same rows.
         frame = add_pedigree_features(
-            add_news_features(add_features(attach_expected(attach_adp(panel))))
+            add_news_features(add_features(attach_charting(attach_expected(attach_tendency(attach_adp(panel))))))
         )
         args.features.parent.mkdir(parents=True, exist_ok=True)
         frame.to_pickle(args.features)

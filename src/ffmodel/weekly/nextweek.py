@@ -170,6 +170,46 @@ EXPECTED_FEATURES = (
     "prior_luck_last",
 )
 
+# What a coach wants to do, with the scoreboard divided out. Distinct from the
+# team's realized pass attempts already in TEAM_FEATURES: that column mixes
+# identity with deficit, and only the identity carries to next Sunday. Both
+# sides are read -- this offence's tendency, and what opponents have done against
+# this defence.
+TENDENCY_FEATURES = (
+    "team_proe_recent",
+    "team_xpass_recent",
+    "def_proe_faced_recent",
+    "def_xpass_faced_recent",
+)
+
+# Tracking-derived efficiency. Unlike expected points these are not a
+# restatement of usage -- the usage features explain 0.5% to 9.5% of them -- so
+# they are the one "over expected" family with something of its own to say. The
+# `_tracked` columns price the median fill on the roughly half of rows the
+# league does not publish.
+CHARTING_FEATURES = (
+    "prior_rush_yards_over_expected_per_att_recent",
+    "prior_rush_pct_over_expected_recent",
+    "prior_efficiency_recent",
+    "prior_avg_yac_above_expectation_recent",
+    "prior_avg_expected_yac_recent",
+    "prior_avg_separation_recent",
+    "prior_completion_percentage_above_expectation_recent",
+    "prior_expected_completion_percentage_recent",
+    "prior_avg_time_to_throw_recent",
+)
+
+# The tracking flags alone. Being published by the league is a volume threshold
+# in disguise, so this rung separates "the efficiency metrics helped" from "the
+# fact of being measured helped", which the model could learn from carries.
+TRACKED_FEATURES = (
+    "prior_rushing_tracked_recent",
+    "prior_receiving_tracked_recent",
+    "prior_passing_tracked_recent",
+)
+
+CHARTING_FEATURES = CHARTING_FEATURES + TRACKED_FEATURES
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -295,6 +335,9 @@ class Hurdle:
     use_recent: bool = False
     use_pedigree: bool = False
     use_expected: bool = False
+    use_tendency: bool = False
+    use_charting: bool = False
+    use_tracked_only: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -320,6 +363,9 @@ class Hurdle:
             + (RECENT_FEATURES if self.use_recent else ())
             + (PEDIGREE_FEATURES if self.use_pedigree else ())
             + (EXPECTED_FEATURES if self.use_expected else ())
+            + (TENDENCY_FEATURES if self.use_tendency else ())
+            + (CHARTING_FEATURES if self.use_charting else ())
+            + (TRACKED_FEATURES if self.use_tracked_only else ())
         )
 
     @property
@@ -331,6 +377,9 @@ class Hurdle:
             + (RECENT_FEATURES if self.use_recent else ())
             + (PEDIGREE_FEATURES if self.use_pedigree else ())
             + (EXPECTED_FEATURES if self.use_expected else ())
+            + (TENDENCY_FEATURES if self.use_tendency else ())
+            + (CHARTING_FEATURES if self.use_charting else ())
+            + (TRACKED_FEATURES if self.use_tracked_only else ())
         )
 
     def _fit_magnitude(
@@ -473,6 +522,24 @@ def next_week_ladder() -> list:
             use_phase=True,
             use_script=True,
             by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+ngs/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_charting=True, by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+ngsflags/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_tracked_only=True, by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+proe/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_tendency=True, by_position=True,
         ),
         Hurdle(
             name="hurdle+everything+xfp/position",

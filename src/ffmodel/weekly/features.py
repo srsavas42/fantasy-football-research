@@ -55,6 +55,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ffmodel.weekly.charting import CHARTING_COLUMNS, TRACKED_COLUMNS
+from ffmodel.weekly.tendency import TENDENCY_COLUMNS
+
 # One game, selected on 2021-2022 and confirmed on 2023-2025. See the docstring.
 HISTORY_HALFLIFE = 1.0
 HISTORY_ALPHA = 1.0 - 0.5 ** (1.0 / HISTORY_HALFLIFE)
@@ -112,6 +115,22 @@ FEATURE_COLUMNS = (
     "prior_snap_share_level",
     "team_pass_att_recent",
     "team_rush_att_recent",
+    "team_proe_recent",
+    "team_xpass_recent",
+    "prior_rush_yards_over_expected_per_att_recent",
+    "prior_rush_pct_over_expected_recent",
+    "prior_efficiency_recent",
+    "prior_avg_yac_above_expectation_recent",
+    "prior_avg_expected_yac_recent",
+    "prior_avg_separation_recent",
+    "prior_completion_percentage_above_expectation_recent",
+    "prior_expected_completion_percentage_recent",
+    "prior_avg_time_to_throw_recent",
+    "prior_rushing_tracked_recent",
+    "prior_receiving_tracked_recent",
+    "prior_passing_tracked_recent",
+    "def_proe_faced_recent",
+    "def_xpass_faced_recent",
     "defense_points_allowed_recent",
     "def_rush_att_allowed",
     "def_rush_yds_allowed",
@@ -296,6 +315,53 @@ def _defense_phase_history(panel: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _tendency_history(panel: pd.DataFrame) -> pd.DataFrame:
+    """Lagged play-calling tendency, for the offence and for the defence facing it.
+
+    Two keyings of the same team-week table. On the ``team`` key it says what
+    this offence does with the ball; on the ``defense`` key it says what
+    opponents have done against this defence, which is the same number read from
+    the other side and is not the same claim -- a defence that cannot stop the
+    run sees fewer passes than its opponents' own identities would suggest.
+    """
+    columns = [c for c in TENDENCY_COLUMNS if c in panel.columns]
+    if not columns:
+        return pd.DataFrame(columns=["season", "week", "team"])
+    weeks = (
+        panel[["season", "week", "team", *columns]]
+        .drop_duplicates(subset=["season", "week", "team"])
+        .sort_values(["team", "season", "week"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+    out = weeks[["season", "week", "team"]].copy()
+    for column in columns:
+        out[f"team_{column}_recent"] = _prior(
+            weeks, ["team"], weeks[column].astype(float), how="ewm", alpha=TEAM_ALPHA
+        )
+    return out
+
+
+def _tendency_faced(panel: pd.DataFrame) -> pd.DataFrame:
+    """The same tendency table, lagged on the defence that faced it."""
+    columns = [c for c in TENDENCY_COLUMNS if c in panel.columns]
+    rows = panel[panel["opponent"].notna()]
+    if not columns or rows.empty:
+        return pd.DataFrame(columns=["season", "week", "defense"])
+    weeks = (
+        rows[["season", "week", "opponent", *columns]]
+        .drop_duplicates(subset=["season", "week", "opponent"])
+        .rename(columns={"opponent": "defense"})
+        .sort_values(["defense", "season", "week"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+    out = weeks[["season", "week", "defense"]].copy()
+    for column in columns:
+        out[f"def_{column}_faced_recent"] = _prior(
+            weeks, ["defense"], weeks[column].astype(float), how="ewm", alpha=TEAM_ALPHA
+        )
+    return out
+
+
 def _defense_history(panel: pd.DataFrame) -> pd.DataFrame:
     """Lagged points a defence has allowed to each position.
 
@@ -386,6 +452,31 @@ def add_features(
             frame, keys, masked, how="ewm", alpha=alpha
         )
         frame[f"{stem}_last"] = _prior(frame, keys, masked, how="ewm", alpha=1.0)
+
+    # Tracking-derived efficiency, lagged like everything else and masked to the
+    # weeks it was actually published: an untracked week is not a zero-separation
+    # week, so it must leave the average alone rather than pull it down.
+    for source in CHARTING_COLUMNS:
+        if source not in frame.columns:
+            continue
+        masked = pd.to_numeric(frame[source], errors="coerce").where(
+            frame["played"].eq(1)
+        )
+        frame[f"prior_{source}_recent"] = _prior(
+            frame, keys, masked, how="ewm", alpha=alpha
+        )
+    # How often he has been tracked at all, which is the fill's own honesty
+    # check: a player the league never measures is a player the median describes.
+    for source in TRACKED_COLUMNS:
+        if source not in frame.columns:
+            continue
+        frame[f"prior_{source}_recent"] = _prior(
+            frame,
+            keys,
+            pd.to_numeric(frame[source], errors="coerce").where(frame["played"].eq(1)),
+            how="ewm",
+            alpha=alpha,
+        )
 
     # Snap share is usage like any other and is lagged the same way. It is kept
     # in its own feature so the ladder can rule it in or out on its own.
@@ -490,6 +581,20 @@ def add_features(
 
     team = _team_history(frame)
     frame = frame.merge(team, on=["season", "week", "team"], how="left")
+
+    # Play-calling tendency, if the panel was built with it: what this offence
+    # does with the ball, and what opponents have done against this defence.
+    tendency = _tendency_history(frame)
+    if not tendency.empty:
+        frame = frame.merge(tendency, on=["season", "week", "team"], how="left")
+    faced = _tendency_faced(frame)
+    if not faced.empty:
+        frame = frame.merge(
+            faced,
+            left_on=["season", "week", "opponent"],
+            right_on=["season", "week", "defense"],
+            how="left",
+        ).drop(columns=["defense"], errors="ignore")
 
     defense = _defense_history(frame)
     frame = frame.merge(

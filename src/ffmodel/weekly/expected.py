@@ -35,13 +35,14 @@ points, so the model sees them on the same footing and can weigh them against
 each other rather than being told which to trust.
 
 **The hypothesis was wrong, and this module is kept for the record rather than
-because it ships.** Expected points really are the better single column -- they
-correlate 0.3798 with next week against 0.3112 for actual points, a 22% stronger
-raw signal. Conditioned on the usage features the model already reads, that
-advantage is gone: usage explains 81.5% of expected points, and the residual
-correlation falls to 0.0442, below actual points' own 0.0720. The feed prices
-opportunities, and this model already reads the opportunities. See
-`docs/weekly-modeling-2026-08.md`.
+because it ships.** Expected points really are the better single column: they
+correlate 0.365 with next week against 0.331 for actual points. Conditioned on
+the usage features the model already reads, the advantage reverses -- usage
+explains 80% of expected points against 46% of actual, and the residual
+correlation falls to 0.071, below actual points' own 0.126. The feed prices
+opportunities and this model already reads the opportunities. Run
+`scripts/probe_over_expected.py` for the numbers; see
+`docs/weekly-modeling-2026-08.md` for the ladder.
 """
 
 from __future__ import annotations

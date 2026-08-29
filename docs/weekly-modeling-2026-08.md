@@ -807,8 +807,9 @@ data source on.
 
 ### What the shipped next-week model reads
 
-43 magnitude features and 13 availability features, plus four position dummies
-and a missing-history flag on each.
+59 magnitude features and 29 availability features, plus four position dummies
+and a missing-history flag on each. (The count stood at 43/13 when this section
+was first written, before draft capital and tracking efficiency were added.)
 
 | group | n | columns |
 |---|---:|---|
@@ -825,6 +826,7 @@ and a missing-history flag on each.
 | pre-game news → availability | 3 | injury report status, practice status, ruled-out flag |
 | pre-game news → magnitude | 6 | injury status and practice, depth rank, depth promotion, someone-ahead-out, position group out |
 | pedigree | 4 | draft round, log overall pick, undrafted flag, years of experience |
+| tracking efficiency | 12 | rush yards and rush % over expected, rushing efficiency; YAC above expectation, expected YAC, separation; completion % over expected, expected completion %, time to throw; three tracked flags |
 
 ### Where each of those comes from
 
@@ -837,6 +839,7 @@ and a missing-history flag on each.
 | nflverse `depth_charts` | weekly positional rank | 2016–2025 |
 | nflverse `schedules` | closing spread and total; actual scores for diagnostics only | all |
 | nflverse `draft_picks` | round and overall pick, 99.6% GSIS coverage | all |
+| nflverse `nextgen_stats` | tracking efficiency, above a volume threshold (52% of RB, 38% of WR/TE, 92% of QB played rows) | 2016–2025 |
 | FantasyPros ADP CSVs (`ADP/`) | the draft board and the baseline curve | 2015–2026 |
 
 Everything except the closing line, the two pre-game reports and the draft board
@@ -844,13 +847,15 @@ is a transform of something that already happened on a field.
 
 ### What is available and not used
 
-Play-by-play, participation and personnel packages, FTN charting, Next Gen Stats,
-contracts, combine athleticism, Vegas *season win totals*, weather, and coaching
-continuity. Red-zone usage was built from play-by-play and measured at season
+Participation and personnel packages, FTN charting, contracts, combine
+athleticism, Vegas *season win totals*, weather, and coaching continuity.
+Red-zone usage was built from play-by-play and measured at season
 level: it does not help there (+0.11% to +0.49% across four targets) because the
 trait does not persist, which is a fact about the trait rather than the cadence.
-`ff_opportunity` was joined and measured at this cadence and is a null — see
-*Expected points: the better column that adds nothing* below.
+Three sources previously on this list have since been joined and measured, and
+the results are below: `ff_opportunity` (expected points) is a null,
+play-by-play's `pass_oe` (pass rate over expected) is a null with a ceiling
+argument behind it, and Next Gen Stats **ships**.
 
 ### Would the season pipeline's projections help as an input?
 
@@ -934,22 +939,33 @@ inside the 0.25% materiality floor. Not a small win. Nothing at all.
 ### Why, measured rather than asserted
 
 The two results only look contradictory if expected points are treated as new
-information. They are not. Regressing lagged expected points on the usage
+information. They are not. Regressing lagged expected points on the nine usage
 features the model already reads — targets, carries, pass attempts, target
-share, carry share, snap share — recovers most of the column:
+share, carry share, snap share — recovers most of the column. From
+`scripts/probe_over_expected.py`, on relevant rows with all four columns
+present (n = 42,262):
 
-```
-xFP(last) explained by usage features already in the model:  R² = 0.815
-corr(points, xFP-last)                                    = 0.3798
-corr(points, xFP-last | usage removed)                    = 0.0442
-corr(points, actual-last | usage removed)                 = 0.0720
-```
+| lagged column | explained by usage (R²) | corr with next week | corr, usage removed |
+|---|---:|---:|---:|
+| expected points, last week | 0.805 | 0.365 | **0.071** |
+| actual points, last week | 0.458 | 0.331 | **0.126** |
+| expected points, recency | 0.886 | 0.415 | **0.137** |
+| actual points, recency | 0.416 | 0.543 | **0.393** |
 
-Expected points *are* a weighted sum of opportunities, and this model reads the
-opportunities directly. Once usage is partialled out, what remains of the feed
-correlates **less** with next week than the residual of raw actual points does —
-the touchdown noise that expected points strips out was carrying a little signal
-of its own, presumably about scoring role near the goal line.
+Read the last column, not the middle one. Expected points beat actual points on
+the marginal correlation and lose on the residual one, in both the last-week and
+the recency-weighted pairing, and lose by a wide margin in the second. Expected
+points *are* a weighted sum of opportunities, and this model reads the
+opportunities directly — 80% to 89% of the column is already in the design
+before it is added. What is left correlates **less** with next week than the
+residual of raw actual points does: the touchdown noise that expected points
+strips out was carrying signal of its own, presumably about scoring role near
+the goal line, and stripping it is a loss rather than a cleanup.
+
+The same ordering holds on the narrower set of rows the ladder actually scores
+(2023–25 holdouts, n = 13,859): R² = 0.815, residual correlation 0.044 for
+expected points against 0.072 for actual. Different population, same verdict,
+which is why the ladder shows nothing.
 
 So the strong marginal correlation is real and the model's indifference to it is
 also real, and the reconciliation is redundancy rather than either measurement
@@ -967,12 +983,205 @@ question gets the answer in a ladder run instead of a week of work, but
 
 The transferable claim is narrower than "expected points do not help" and worth
 stating carefully: **an efficiency-stripped restatement of usage cannot beat
-usage in a model that already reads usage.** That predicts the same null for the
-other "over expected" families — rush yards over expected, CPOE, expected
-completion percentage — to the extent that they are also functions of
-opportunity and context the panel already carries. It does not predict a null for
-anything measuring a *player attribute* the box score cannot see, which is a
-different kind of column and untested here.
+usage in a model that already reads usage.**
+
+The tempting wider claim — that the other "over expected" families fail for the
+same reason — was written here and then tested, and it is wrong. Next Gen Stats'
+tracking metrics are barely explained by usage at all (R² 0.005–0.095 against
+0.805 here) and they do move a metric. The dividing line is not the name of the
+family but whether the column restates opportunity or measures a player. See
+*Next Gen Stats: the first "over expected" family that is not usage* below.
+
+## Next Gen Stats: the first "over expected" family that is not usage (2026-08-29)
+
+Expected points and pass rate over expected both failed, and the tidy conclusion
+would have been that the whole "over expected" idea is a restatement of things
+the model already reads. **That conclusion is wrong, and this is the measurement
+that shows it.**
+
+Tracking data is different in kind. Separation, yards after catch above
+expectation and completion percentage over expected describe an athlete and a
+scheme, and a box score does not contain them. Regressed on the same nine usage
+features that swallowed 80% of expected points, the tracking columns give up
+almost nothing:
+
+| lagged column | explained by usage (R²) | corr with next week | corr, usage removed |
+|---|---:|---:|---:|
+| completion % over expected (QB) | 0.020 | 0.160 | **0.135** |
+| rush yards over expected /att (RB) | 0.032 | 0.060 | **0.060** |
+| YAC above expectation (WR/TE) | 0.009 | 0.045 | **0.042** |
+| *for contrast:* expected fantasy points | 0.805 | 0.365 | 0.071 |
+
+The residual correlations are modest, but they are almost the whole of the
+marginal correlation — these columns are nearly orthogonal to everything the
+model has. That is the opposite of the expected-points result and the reason
+this one earned a ladder run.
+
+### Coverage is the real problem, and it is not random
+
+The league publishes tracking summaries only above a volume threshold, so the
+missingness is selection on precisely the variable that drives fantasy points:
+
+| feed | covered rows | uncovered rows |
+|---|---|---|
+| rushing | 16.0 carries/wk, 15.3 pts (n=4,548) | 4.5 carries, 6.1 pts (n=4,197) |
+| receiving | 7.9 targets/wk, 13.7 pts (n=10,677) | 2.7 targets, 7.7 pts (n=17,515) |
+| passing | 33.3 attempts/wk, 16.6 pts (n=4,583) | 5.1 attempts, 2.7 pts (n=391) |
+
+Half of running back weeks and nearly two thirds of receiver weeks are simply not
+measured, and they are the low-volume half. The design fills a missing feature
+with the training median, which reads here as "league-average efficiency for a
+player nobody tracked" — defensible precisely *because* the volume that caused
+the missingness is already a feature. A `_tracked` flag is carried alongside so
+the fit can price the fill.
+
+### The result is a trade, not a win and not a null
+
+Walk-forward 2023/2024/2025, relevant population, n = 13,859:
+
+| rung | MAE | CRPS | ρ | top-24 |
+|---|---:|---:|---:|---:|
+| hurdle+everything+pedigree/position | **4.6866** | **3.1768** | 0.6817 | 0.1238 |
+| hurdle+everything+**ngs**/position | 4.7016 | 3.1830 | 0.6804 | **0.1403** |
+
+MAE +0.32% and CRPS +0.20% *worse*, on 3/3 folds each. Top-24 hit rate **+13.3%
+better**, on 3/3 folds and on 3/3 phases of the season (+4.8% early, +4.8% mid,
++6.5% late). Both directions are consistent, so both are real. Within-position
+Spearman is flat-to-slightly-worse, which locates the effect precisely: this does
+not order the position better in general, it identifies the top of it better.
+
+### The control that makes the attribution honest
+
+Being published by the league *is* a volume threshold, so the `_tracked` flags
+alone could have produced the whole effect — and volume is something the model
+could learn from carries without touching this feed at all. The ladder carries a
+flags-only rung to settle it:
+
+| rung | MAE | CRPS | top-24 |
+|---|---:|---:|---:|
+| pedigree (reference) | 4.6866 | 3.1768 | 0.1238 |
+| **+ tracking flags only** | 4.6974 | 3.1800 | 0.1238 |
+| + full tracking metrics | 4.7016 | 3.1830 | **0.1403** |
+
+The flags on their own reproduce the reference top-24 hit rate to four decimals
+and carry most of the accuracy cost. **The top-24 gain is the efficiency metrics
+themselves**, not the fact of being measured.
+
+### It ships, and here is the argument
+
+The standing requirement for this layer is that every metric beat the naive draft
+board. One metric has never met it: top-24 hit rate in weeks 1–4 on the drafted
+pool, where a consensus board built by people concentrating on the players who go
+early stays sharper than a model reading box scores. Tracking efficiency is the
+first thing tried that moves it:
+
+| next-week model | early top-24 vs ADP |
+|---|---:|
+| without tracking | 0.3098 vs 0.3328 — **−6.00%** |
+| **with tracking** | 0.3240 vs 0.3328 — **−2.64%** |
+
+More than halved, with every other metric on every other population still a win
+by 8% to 200%. `scripts/project_week.py` turns it on.
+
+The cost is stated rather than buried: this is the first rung in either ladder
+accepted while making MAE and CRPS *worse*, and it is accepted because the
+next-week model exists to answer start/sit, which is a top-k question, and
+because it is the only lever found for the one bar the layer does not clear.
+Anyone who wants the sharper point estimate instead sets `use_charting=False` and
+gets 0.3% back on both loss metrics.
+
+### What this changes about the earlier conclusions
+
+The generalisation written after the expected-points null — that over-expected
+metrics should all fail the same way — was too broad, and this is the correction.
+The right rule is narrower: **a metric fails here when it is a restatement of
+usage, not because it is "over expected".** Expected points are a weighted sum of
+opportunities (R² 0.805 against usage) and had nothing left. Tracking metrics are
+a measurement of a player (R² 0.005–0.095) and had something. The test is the
+residual correlation in `scripts/probe_over_expected.py`, not the name of the
+family.
+
+## Pass rate over expected: right idea, no room to move (2026-08-29)
+
+Expected points failed because they restate usage the model already reads. Pass
+rate over expected is the one column in the "over expected" family that is not a
+restatement of anything in the panel, which is why it got its own build rather
+than inheriting that verdict.
+
+The argument is specific. The panel carries a team's recent pass attempts, and
+that column is two things at once: a team that threw 45 times last week either
+likes throwing or was down three scores. Only the first carries to next Sunday.
+nflverse prices every snap's pass probability from down, distance, field
+position, score and clock; the residual, averaged over a team-week, is
+play-calling identity with the game state divided out. `src/ffmodel/weekly/tendency.py`.
+
+### At team level it is exactly what it claims to be
+
+Over 4,883 team-weeks, 2016–2025, full coverage — every team-week in the panel
+has a priced play in it:
+
+| quantity | week-to-week correlation with itself |
+|---|---:|
+| team pass attempts | 0.244 |
+| **pass rate over expected** | **0.400** |
+
+The tendency is 64% more persistent than the counts it corrects. And it adds on
+top of what the model already has, predicting next week's team volume:
+
+| predictors of next week's team… | pass attempts (R²) | pass share (R²) |
+|---|---:|---:|
+| prior pass attempts + spread + total | 0.077 | 0.076 |
+| **+ prior PROE** | **0.090** | **0.103** |
+| + prior PROE + prior expected pass rate | 0.093 | 0.105 |
+
+A 37% relative gain on pass share. On its own terms the column works.
+
+### At player level it is nothing
+
+Walk-forward 2023/2024/2025, relevant population, n = 13,859:
+
+| rung | MAE | CRPS | ρ | top-24 |
+|---|---:|---:|---:|---:|
+| hurdle+everything+pedigree/position | 4.6866 | **3.1768** | 0.6817 | 0.1238 |
+| hurdle+everything+**proe**/position | **4.6853** | 3.1781 | 0.6816 | 0.1294 |
+
+MAE −0.03%, CRPS +0.04%. Both are two orders of magnitude inside the 0.25%
+materiality floor and they disagree in sign, which is what a null looks like.
+Top-24 hit rate appears to gain 4.5% pooled, and that is noise rather than
+signal: split by phase of season it is +0.2% early, **−4.0% mid**, +7.8% late. A
+metric that swings both ways across windows on 3,139–6,268 rows is not reporting
+an effect.
+
+### The ceiling says the channel was always too narrow
+
+Rather than assert dilution, measure the whole channel. Give the model perfect
+foreknowledge of the quantity PROE is trying to predict — this week's *actual*
+team pass and rush attempts, which no model can have — and see what an oracle
+would be worth (n = 37,346 relevant rows):
+
+| magnitude design | R² on weekly points |
+|---|---:|
+| the model's 47 magnitude features | 0.3702 |
+| + lagged PROE and expected pass rate | 0.3702 |
+| **+ this week's actual team pass and rush attempts** | **0.3862** |
+
+Perfect knowledge of team volume is worth **+0.016 R²**, total. PROE captures
+about 1.4 points of team-volume variance beyond what the model has, so the share
+of that oracle it could ever claim is on the order of a hundredth of it. The
+feature is not diluted on its way to the player; there was never enough there.
+
+This is the more useful half of the finding, because it retires a whole family of
+ideas rather than one column. Team play-calling, pace, and pass-rate features are
+a standing suggestion in fantasy modelling, and the oracle bound says the entire
+category is worth 1.6 points of R² *before* anyone has to predict it. An
+individual player's week is dominated by his share of the team, not the team's
+volume, and his share is already read directly.
+
+### What ships
+
+Nothing, again, and for a different reason than expected points: not redundancy
+but a ceiling. `src/ffmodel/weekly/tendency.py` and the ladder rung stay so the
+measurement is reproducible; `scripts/project_week.py` does not turn them on.
 
 ## The panel, and why it starts in 2016
 

@@ -49,6 +49,7 @@ from ffmodel.features.season_injury import (
     INJURY_AVAILABILITY_FEATURES,
     add_season_injury_features,
 )
+from ffmodel.features.suspensions import classify_suspension
 from ffmodel.features.season_pathways import (
     PLAYER_PATHWAY_FEATURES,
     add_player_pathway_features,
@@ -61,7 +62,11 @@ from ffmodel.features.volume import (
 
 TEAM_KEYS = ["season", "team"]
 PLAYER_KEYS = ["season", "team", "player_key"]
-ROSTER_STATUSES = frozenset({"ACT", "RES", "INA", "EXE"})
+# ``SUS`` is the pre-2020 encoding of a suspension; from 2020 the same event is
+# ``RES`` carrying reason code ``R40``. Without ``SUS`` here the older rows were
+# not merely mislabelled but dropped, so a suspended player left the snapshot
+# entirely in one half of the training window and stayed in it in the other.
+ROSTER_STATUSES = frozenset({"ACT", "RES", "INA", "EXE", "SUS"})
 
 # Realized current-season quantities. On a projection season these do not exist,
 # and the label merge zero-fills them, so they are restored to missing. ``games``
@@ -179,6 +184,31 @@ def preseason_roster_snapshot(
     ).astype(int)
     out["roster_active"] = out["roster_status"].eq("ACT").astype(int)
     out["roster_reserve"] = out["roster_status"].isin({"RES", "INA", "EXE"}).astype(int)
+    # A suspension is not the same availability event as an injury, and the
+    # reserve flag cannot tell them apart -- both arrive as ``RES``. The ban's
+    # length is known when it is announced, so it belongs in the exposure as
+    # arithmetic rather than in the hazard as risk; see ``features.suspensions``.
+    suspension_kind = classify_suspension(
+        all_rosters.rename(columns={"roster_status": "status"})
+    )
+    definite = suspension_kind.eq("definite")
+    banned_weeks = (
+        all_rosters[definite]
+        .groupby(PLAYER_KEYS, dropna=False)["week"]
+        .nunique()
+        .rename("suspended_games")
+        .reset_index()
+    )
+    # Only a ban already in force at the cutoff is knowable at projection time.
+    in_force = all_rosters[definite & all_rosters["week"].le(cutoff_week)][
+        PLAYER_KEYS
+    ].drop_duplicates()
+    out = out.merge(in_force.assign(roster_suspended=1), on=PLAYER_KEYS, how="left")
+    out["roster_suspended"] = out["roster_suspended"].fillna(0).astype(int)
+    out = out.merge(banned_weeks, on=PLAYER_KEYS, how="left")
+    out["suspended_games"] = (
+        out["suspended_games"].where(out["roster_suspended"].eq(1)).fillna(0.0)
+    )
     birth = pd.to_datetime(
         out.get("birth_date", pd.Series(pd.NaT, index=out.index)), errors="coerce"
     )
@@ -205,6 +235,8 @@ def preseason_roster_snapshot(
         "roster_status",
         "roster_active",
         "roster_reserve",
+        "roster_suspended",
+        "suspended_games",
         "depth_rank",
         "qb_depth_rank",
         "qb_listed_starter",

@@ -148,6 +148,29 @@ def _feature_defaults(rows: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _eligible_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
+    """Team games less any games a known suspension already removes.
+
+    A ban whose length was announced before the season is not a hazard to be
+    sampled -- the games are gone with certainty -- so it is subtracted from the
+    exposure the hurdle draws against rather than fed to the regression as a
+    covariate. The denominator is deliberately *not* changed with it: the share
+    layers divide by ``team_games`` to get per-team-game role intensities, and a
+    suspended player is the same player per game he plays. Shrinking both would
+    hold his season totals flat, which is the opposite of the intended effect.
+
+    Defaults to zero, so a frame without the column reproduces the pre-existing
+    behaviour exactly.
+    """
+    suspended = pd.to_numeric(
+        rows.get("suspended_games", pd.Series(0.0, index=rows.index)),
+        errors="coerce",
+    ).fillna(0.0).to_numpy(dtype=float)
+    if (suspended < 0).any():
+        raise ValueError("suspended_games must be nonnegative")
+    return np.clip(team_games - np.rint(suspended).astype(int), 0, None)
+
+
 @dataclass
 class AvailabilityPrediction:
     rows: pd.DataFrame
@@ -417,7 +440,8 @@ class SeasonAvailabilityModel:
                 team_games = np.asarray(team_games, dtype=int)
             if team_games.shape != (len(out),) or (team_games <= 0).any():
                 raise ValueError("team_games must be positive for every player")
-            games_active = rng.binomial(team_games[:, None], probability)
+            eligible = _eligible_games(out, team_games)
+            games_active = rng.binomial(eligible[:, None], probability)
             availability = games_active / team_games[:, None]
             return AvailabilityPrediction(
                 rows=out,
@@ -462,15 +486,19 @@ class SeasonAvailabilityModel:
             team_games = np.asarray(team_games, dtype=int)
         if team_games.shape != (len(out),) or (team_games <= 0).any():
             raise ValueError("team_games must be positive for every player")
-        played = rng.binomial(1, any_probability)
+        eligible = _eligible_games(out, team_games)
+        # A ban covering the whole season leaves no game for the hurdle to
+        # clear, so the "plays at all" draw is forced to zero rather than left
+        # to grant him the guaranteed first appearance the hurdle assumes.
+        played = rng.binomial(1, any_probability) * (eligible > 0)[:, None]
         remaining_games = rng.binomial(
-            np.maximum(team_games - 1, 0)[:, None], conditional_probability
+            np.maximum(eligible - 1, 0)[:, None], conditional_probability
         )
         games_active = played * (1 + remaining_games)
         expected_games = any_probability * (
             1.0
-            + np.maximum(team_games - 1, 0)[:, None] * conditional_probability
-        )
+            + np.maximum(eligible - 1, 0)[:, None] * conditional_probability
+        ) * (eligible > 0)[:, None]
         probability = expected_games / team_games[:, None]
         availability = games_active / team_games[:, None]
         return AvailabilityPrediction(

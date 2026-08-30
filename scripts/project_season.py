@@ -44,6 +44,59 @@ def observed_points(rows: pd.DataFrame, scoring: str) -> np.ndarray:
     return fantasy_points(observed_scoring_rows(rows), scoring).to_numpy(float)
 
 
+def apply_suspension_overrides(rows: pd.DataFrame, path: Path) -> pd.DataFrame:
+    """Set ``suspended_games`` from a hand-maintained file of announced bans.
+
+    The cache reads suspensions out of the roster feed, which only carries a ban
+    once the league has processed the transaction. A ban announced after the
+    cache was built -- or one handed down for a season the feed does not serve
+    yet -- is therefore invisible to it, and this is the seam for entering it.
+
+    The file wins over whatever the feed said, including where it says zero.
+    That is the point: it is the more recent source. It is also unaudited hand
+    input, so every row must match exactly one player and a name that matches
+    none is an error rather than a silent no-op -- a misspelling would otherwise
+    read as "no suspension" and quietly project a banned player at full health.
+
+    Expected columns: ``player_name`` and ``suspended_games``, optionally
+    ``team`` to disambiguate. Rows may carry a ``note`` column, which is ignored.
+    """
+    overrides = pd.read_csv(path)
+    required = {"player_name", "suspended_games"}
+    missing = required - set(overrides.columns)
+    if missing:
+        raise SystemExit(f"{path} is missing columns: {sorted(missing)}")
+    games = pd.to_numeric(overrides["suspended_games"], errors="coerce")
+    if games.isna().any() or (games < 0).any():
+        raise SystemExit(f"{path} has a missing or negative suspended_games")
+
+    out = rows.copy()
+    if "suspended_games" not in out.columns:
+        out["suspended_games"] = 0.0
+    out["suspended_games"] = pd.to_numeric(
+        out["suspended_games"], errors="coerce"
+    ).fillna(0.0)
+    for entry in overrides.itertuples():
+        match = out["player_name"].astype(str).str.casefold().eq(
+            str(entry.player_name).casefold()
+        )
+        if "team" in overrides.columns and not pd.isna(getattr(entry, "team", None)):
+            match &= out["team"].astype(str).str.upper().eq(str(entry.team).upper())
+        count = int(match.sum())
+        if count != 1:
+            raise SystemExit(
+                f"{path}: '{entry.player_name}' matched {count} rows in the "
+                f"{'projection season' if count == 0 else 'frame'}; expected "
+                "exactly one. Add a team column to disambiguate, or fix the name"
+            )
+        out.loc[match, "suspended_games"] = float(entry.suspended_games)
+        print(
+            f"  suspension override: {entry.player_name} "
+            f"-> {float(entry.suspended_games):.0f} games"
+        )
+    return out
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", type=int, default=2026)
@@ -53,6 +106,13 @@ def main(argv=None) -> int:
     parser.add_argument("--chains", type=int, default=4)
     parser.add_argument("--weight", type=float, default=BLEND_WEIGHT)
     parser.add_argument("--out-dir", type=Path, default=Path("projections"))
+    parser.add_argument(
+        "--suspensions",
+        type=Path,
+        default=None,
+        help="CSV of announced bans the roster feed has not caught up with; "
+        "columns player_name, suspended_games, optionally team",
+    )
     args = parser.parse_args(argv)
 
     player_rows = pd.read_pickle(args.cache_dir / "player_rows.pkl")
@@ -67,6 +127,11 @@ def main(argv=None) -> int:
     )
     if test.player_rows.empty:
         raise SystemExit(f"no rows for {args.season} in {args.cache_dir}")
+    if args.suspensions is not None:
+        test = SeasonAverageData(
+            test.team_rows,
+            apply_suspension_overrides(test.player_rows, args.suspensions),
+        )
 
     started = time.perf_counter()
     pipeline = SeasonAverageScoringPipeline()
@@ -115,6 +180,9 @@ def main(argv=None) -> int:
             "p90": np.quantile(blended, 0.90, axis=1),
             "model_only": model.mean(axis=1),
             "projected_games": draw_mean(volume.games_active),
+            "suspended_games": pd.to_numeric(
+                rows.get("suspended_games"), errors="coerce"
+            ).fillna(0.0),
             # Snap share and role.
             "snap_share": draw_mean(volume.snap_share),
             "pass_attempt_share": draw_mean(volume.pass_attempt_share),
@@ -167,6 +235,10 @@ def main(argv=None) -> int:
                 "scoring": args.scoring,
                 "rows": int(len(out)),
                 "blend_weight": float(args.weight),
+                "suspension_overrides": (
+                    None if args.suspensions is None else str(args.suspensions)
+                ),
+                "suspended_players": int((out["suspended_games"] > 0).sum()),
                 "seconds": round(time.perf_counter() - started, 1),
                 "config": {
                     "market_adp_availability": bool(

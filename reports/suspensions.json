@@ -1,0 +1,462 @@
+{
+  "by_kind": {
+    "definite": {
+      "censored": 2,
+      "longest": 16,
+      "mean": 4.093023255813954,
+      "median": 3.0,
+      "spells": 86
+    },
+    "exempt": {
+      "censored": 1,
+      "longest": 6,
+      "mean": 1.6111111111111112,
+      "median": 1.0,
+      "spells": 18
+    },
+    "indefinite": {
+      "censored": 1,
+      "longest": 9,
+      "mean": 7.0,
+      "median": 7.0,
+      "spells": 2
+    }
+  },
+  "open_ended": [
+    {
+      "censored": true,
+      "first_week": 9,
+      "flagged_weeks": 9,
+      "last_week": 18,
+      "player_name": "Calvin Ridley",
+      "preseason_known": false,
+      "roster_absent_weeks": 9,
+      "season": 2022,
+      "susp_kind": "indefinite",
+      "team": "JAX"
+    },
+    {
+      "censored": true,
+      "first_week": 17,
+      "flagged_weeks": 2,
+      "last_week": 18,
+      "player_name": "Andrew Ogletree",
+      "preseason_known": false,
+      "roster_absent_weeks": 1,
+      "season": 2023,
+      "susp_kind": "exempt",
+      "team": "IND"
+    },
+    {
+      "censored": false,
+      "first_week": 1,
+      "flagged_weeks": 2,
+      "last_week": 2,
+      "player_name": "Hassan Haskins",
+      "preseason_known": true,
+      "roster_absent_weeks": 1,
+      "season": 2023,
+      "susp_kind": "exempt",
+      "team": "TEN"
+    },
+    {
+      "censored": false,
+      "first_week": 7,
+      "flagged_weeks": 1,
+      "last_week": 7,
+      "player_name": "Jake Haener",
+      "preseason_known": false,
+      "roster_absent_weeks": 1,
+      "season": 2023,
+      "susp_kind": "exempt",
+      "team": "NO"
+    },
+    {
+      "censored": false,
+      "first_week": 8,
+      "flagged_weeks": 6,
+      "last_week": 15,
+      "player_name": "Justyn Ross",
+      "preseason_known": false,
+      "roster_absent_weeks": 1,
+      "season": 2023,
+      "susp_kind": "exempt",
+      "team": "KC"
+    },
+    {
+      "censored": false,
+      "first_week": 6,
+      "flagged_weeks": 1,
+      "last_week": 6,
+      "player_name": "Zay Jones",
+      "preseason_known": false,
+      "roster_absent_weeks": 1,
+      "season": 2024,
+      "susp_kind": "exempt",
+      "team": "ARI"
+    },
+    {
+      "censored": false,
+      "first_week": 17,
+      "flagged_weeks": 1,
+      "last_week": 17,
+      "player_name": "Josh Williams",
+      "preseason_known": false,
+      "roster_absent_weeks": 1,
+      "season": 2025,
+      "susp_kind": "exempt",
+      "team": "TB"
+    },
+    {
+      "censored": false,
+      "first_week": 1,
+      "flagged_weeks": 1,
+      "last_week": 1,
+      "player_name": "Quinshon Judkins",
+      "preseason_known": true,
+      "roster_absent_weeks": 1,
+      "season": 2025,
+      "susp_kind": "exempt",
+      "team": "CLE"
+    }
+  ],
+  "preseason_definite": [
+    {
+      "player_name": "Nick Boyle",
+      "season": 2016,
+      "suspended_games": 6,
+      "team": "BAL"
+    },
+    {
+      "player_name": "Austin Seferian-Jenkins",
+      "season": 2017,
+      "suspended_games": 2,
+      "team": "NYJ"
+    },
+    {
+      "player_name": "Darren Waller",
+      "season": 2017,
+      "suspended_games": 16,
+      "team": "BAL"
+    },
+    {
+      "player_name": "Geronimo Allison",
+      "season": 2017,
+      "suspended_games": 1,
+      "team": "GB"
+    },
+    {
+      "player_name": "Jaelen Strong",
+      "season": 2017,
+      "suspended_games": 1,
+      "team": "HOU"
+    },
+    {
+      "player_name": "Jalin Marshall",
+      "season": 2017,
+      "suspended_games": 4,
+      "team": "NYJ"
+    },
+    {
+      "player_name": "Josh Gordon",
+      "season": 2017,
+      "suspended_games": 10,
+      "team": "CLE"
+    },
+    {
+      "player_name": "Justin Blackmon",
+      "season": 2017,
+      "suspended_games": 16,
+      "team": "JAX"
+    },
+    {
+      "player_name": "Kenneth Dixon",
+      "season": 2017,
+      "suspended_games": 6,
+      "team": "BAL"
+    },
+    {
+      "player_name": "Michael Floyd",
+      "season": 2017,
+      "suspended_games": 4,
+      "team": "MIN"
+    },
+    {
+      "player_name": "Mike Thomas",
+      "season": 2017,
+      "suspended_games": 4,
+      "team": "LA"
+    },
+    {
+      "player_name": "Walt Powell",
+      "season": 2017,
+      "suspended_games": 4,
+      "team": "BUF"
+    },
+    {
+      "player_name": "Willie Snead",
+      "season": 2017,
+      "suspended_games": 3,
+      "team": "NO"
+    },
+    {
+      "player_name": "Aaron Jones",
+      "season": 2018,
+      "suspended_games": 2,
+      "team": "GB"
+    },
+    {
+      "player_name": "ArDarius Stewart",
+      "season": 2018,
+      "suspended_games": 2,
+      "team": "NYJ"
+    },
+    {
+      "player_name": "Demetrius Harris",
+      "season": 2018,
+      "suspended_games": 1,
+      "team": "KC"
+    },
+    {
+      "player_name": "Eli Rogers",
+      "season": 2018,
+      "suspended_games": 1,
+      "team": "PIT"
+    },
+    {
+      "player_name": "Jameis Winston",
+      "season": 2018,
+      "suspended_games": 3,
+      "team": "TB"
+    },
+    {
+      "player_name": "Julian Edelman",
+      "season": 2018,
+      "suspended_games": 4,
+      "team": "NE"
+    },
+    {
+      "player_name": "Justin Blackmon",
+      "season": 2018,
+      "suspended_games": 16,
+      "team": "JAX"
+    },
+    {
+      "player_name": "Mark Ingram",
+      "season": 2018,
+      "suspended_games": 4,
+      "team": "NO"
+    },
+    {
+      "player_name": "Robert Turbin",
+      "season": 2018,
+      "suspended_games": 4,
+      "team": "IND"
+    },
+    {
+      "player_name": "Victor Bolden",
+      "season": 2018,
+      "suspended_games": 4,
+      "team": "SF"
+    },
+    {
+      "player_name": "Antonio Callaway",
+      "season": 2019,
+      "suspended_games": 4,
+      "team": "CLE"
+    },
+    {
+      "player_name": "Benjamin Watson",
+      "season": 2019,
+      "suspended_games": 4,
+      "team": "NE"
+    },
+    {
+      "player_name": "Chad Kelly",
+      "season": 2019,
+      "suspended_games": 2,
+      "team": "IND"
+    },
+    {
+      "player_name": "Chris Herndon",
+      "season": 2019,
+      "suspended_games": 4,
+      "team": "NYJ"
+    },
+    {
+      "player_name": "De'Anthony Thomas",
+      "season": 2019,
+      "suspended_games": 1,
+      "team": "KC"
+    },
+    {
+      "player_name": "Golden Tate",
+      "season": 2019,
+      "suspended_games": 4,
+      "team": "NYG"
+    },
+    {
+      "player_name": "Justin Blackmon",
+      "season": 2019,
+      "suspended_games": 16,
+      "team": "JAX"
+    },
+    {
+      "player_name": "Kareem Hunt",
+      "season": 2019,
+      "suspended_games": 8,
+      "team": "CLE"
+    },
+    {
+      "player_name": "Lance Kendricks",
+      "season": 2019,
+      "suspended_games": 1,
+      "team": "NE"
+    },
+    {
+      "player_name": "Rico Gathers",
+      "season": 2019,
+      "suspended_games": 1,
+      "team": "CLE"
+    },
+    {
+      "player_name": "Antonio Callaway",
+      "season": 2020,
+      "suspended_games": 6,
+      "team": "MIA"
+    },
+    {
+      "player_name": "Josh Gordon",
+      "season": 2020,
+      "suspended_games": 6,
+      "team": "SEA"
+    },
+    {
+      "player_name": "Justin Blackmon",
+      "season": 2020,
+      "suspended_games": 7,
+      "team": "JAX"
+    },
+    {
+      "player_name": "Davion Davis",
+      "season": 2021,
+      "suspended_games": 2,
+      "team": "CLE"
+    },
+    {
+      "player_name": "Jace Sternberger",
+      "season": 2021,
+      "suspended_games": 2,
+      "team": "GB"
+    },
+    {
+      "player_name": "Will Fuller",
+      "season": 2021,
+      "suspended_games": 1,
+      "team": "MIA"
+    },
+    {
+      "player_name": "DeAndre Hopkins",
+      "season": 2022,
+      "suspended_games": 6,
+      "team": "ARI"
+    },
+    {
+      "player_name": "Deshaun Watson",
+      "season": 2022,
+      "suspended_games": 11,
+      "team": "CLE"
+    },
+    {
+      "player_name": "Kawaan Baker",
+      "season": 2022,
+      "suspended_games": 6,
+      "team": "NO"
+    },
+    {
+      "player_name": "Alvin Kamara",
+      "season": 2023,
+      "suspended_games": 3,
+      "team": "NO"
+    },
+    {
+      "player_name": "D'Wayne Eskridge",
+      "season": 2023,
+      "suspended_games": 6,
+      "team": "SEA"
+    },
+    {
+      "player_name": "Jake Haener",
+      "season": 2023,
+      "suspended_games": 6,
+      "team": "NO"
+    },
+    {
+      "player_name": "Jameson Williams",
+      "season": 2023,
+      "suspended_games": 4,
+      "team": "DET"
+    },
+    {
+      "player_name": "Ronald Jones",
+      "season": 2023,
+      "suspended_games": 2,
+      "team": "DAL"
+    },
+    {
+      "player_name": "Jimmy Garoppolo",
+      "season": 2024,
+      "suspended_games": 2,
+      "team": "LA"
+    },
+    {
+      "player_name": "Zay Jones",
+      "season": 2024,
+      "suspended_games": 5,
+      "team": "ARI"
+    },
+    {
+      "player_name": "Demarcus Robinson",
+      "season": 2025,
+      "suspended_games": 3,
+      "team": "SF"
+    },
+    {
+      "player_name": "Jordan Addison",
+      "season": 2025,
+      "suspended_games": 3,
+      "team": "MIN"
+    },
+    {
+      "player_name": "Rashee Rice",
+      "season": 2025,
+      "suspended_games": 6,
+      "team": "KC"
+    }
+  ],
+  "preseason_length_counts": {
+    "1": 8,
+    "2": 8,
+    "3": 5,
+    "4": 13,
+    "5": 1,
+    "6": 9,
+    "7": 1,
+    "8": 1,
+    "10": 1,
+    "11": 1,
+    "16": 4
+  },
+  "seasons": [
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ]
+}

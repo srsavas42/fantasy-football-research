@@ -1,2 +1,2 @@
 player_name,team,suspended_games,note
-Josh Jacobs,GB,6,"Commissioner's exempt list. OPEN-ENDED with no announced length, so this number is a judgment call rather than a lookup -- edit it. The definite-ban population and the (tiny) open-ended one are in reports/suspensions.json."
+Josh Jacobs,GB,7,"Commissioner's exempt list, placed preseason. No announced length. 7 is the posterior mean from ExemptListModel (median 5, p10 1, p90 18) fitted on 13 conduct-shaped episodes 2016-2025; see reports/exempt_list.json. The estimate swings 3.3-8.9 with the min_weeks identification filter, which is the dominant uncertainty -- revise the moment the case gives you anything concrete. python scripts/model_exempt_list.py"

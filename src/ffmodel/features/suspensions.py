@@ -71,7 +71,18 @@ SKILL_POSITIONS = ("QB", "RB", "WR", "TE", "FB", "HB")
 # Junior Aho account for every occurrence.
 DEFINITE_CODES = frozenset({"R40"})
 INDEFINITE_CODES = frozenset({"R30"})
+
+# The exempt list is identified by its *status*, not its reason code. Before
+# 2020 the code is null on these rows, so requiring ``E02`` silently dropped
+# every pre-2020 placement -- Reuben Foster's 2018 season among them -- while
+# reporting a clean history.
+#
+# These two codes are exempt placements that are not disciplinary and must not
+# be pooled with the ones that are: ``E14`` is the International Pathway
+# exemption (Christian Wade, David Bada, Junior Aho), ``E18`` the 2020
+# COVID-19 exemption.
 EXEMPT_CODES = frozenset({"E02"})
+EXEMPT_NONDISCIPLINARY_CODES = frozenset({"E14", "E18"})
 
 # Pre-2020 encoding: the ban is the top-level status, with no reason code.
 LEGACY_DEFINITE_STATUS = "SUS"
@@ -105,7 +116,10 @@ def classify_suspension(rosters: pd.DataFrame) -> pd.Series:
         code = pd.Series(pd.NA, index=rosters.index, dtype="string")
 
     out = pd.Series(pd.NA, index=rosters.index, dtype="string")
-    out = out.mask(code.isin(EXEMPT_CODES) & status.eq(EXEMPT_STATUS), "exempt")
+    out = out.mask(
+        status.eq(EXEMPT_STATUS) & ~code.isin(EXEMPT_NONDISCIPLINARY_CODES),
+        "exempt",
+    )
     out = out.mask(code.isin(INDEFINITE_CODES), "indefinite")
     out = out.mask(code.isin(DEFINITE_CODES), "definite")
     # Legacy rows carry no reason code, so this may only fire where the codes

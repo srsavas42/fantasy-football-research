@@ -10,9 +10,9 @@
     "exempt": {
       "censored": 1,
       "longest": 6,
-      "mean": 1.6111111111111112,
+      "mean": 1.52,
       "median": 1.0,
-      "spells": 18
+      "spells": 25
     },
     "indefinite": {
       "censored": 1,
@@ -23,6 +23,90 @@
     }
   },
   "open_ended": [
+    {
+      "censored": false,
+      "first_week": 5,
+      "flagged_weeks": 1,
+      "last_week": 5,
+      "player_name": "Jalin Marshall",
+      "preseason_known": false,
+      "roster_absent_weeks": 2,
+      "season": 2017,
+      "susp_kind": "exempt",
+      "team": "NYJ"
+    },
+    {
+      "censored": false,
+      "first_week": 15,
+      "flagged_weeks": 1,
+      "last_week": 15,
+      "player_name": "Jeremy Kerley",
+      "preseason_known": false,
+      "roster_absent_weeks": 2,
+      "season": 2017,
+      "susp_kind": "exempt",
+      "team": "NYJ"
+    },
+    {
+      "censored": false,
+      "first_week": 12,
+      "flagged_weeks": 1,
+      "last_week": 12,
+      "player_name": "Josh Gordon",
+      "preseason_known": false,
+      "roster_absent_weeks": 2,
+      "season": 2017,
+      "susp_kind": "exempt",
+      "team": "CLE"
+    },
+    {
+      "censored": false,
+      "first_week": 5,
+      "flagged_weeks": 1,
+      "last_week": 5,
+      "player_name": "Mike Thomas",
+      "preseason_known": false,
+      "roster_absent_weeks": 2,
+      "season": 2017,
+      "susp_kind": "exempt",
+      "team": "LA"
+    },
+    {
+      "censored": false,
+      "first_week": 5,
+      "flagged_weeks": 1,
+      "last_week": 5,
+      "player_name": "Benjamin Watson",
+      "preseason_known": false,
+      "roster_absent_weeks": 2,
+      "season": 2019,
+      "susp_kind": "exempt",
+      "team": "NE"
+    },
+    {
+      "censored": false,
+      "first_week": 6,
+      "flagged_weeks": 1,
+      "last_week": 6,
+      "player_name": "Chris Herndon",
+      "preseason_known": false,
+      "roster_absent_weeks": 2,
+      "season": 2019,
+      "susp_kind": "exempt",
+      "team": "NYJ"
+    },
+    {
+      "censored": false,
+      "first_week": 1,
+      "flagged_weeks": 3,
+      "last_week": 3,
+      "player_name": "Temuchin Hodges",
+      "preseason_known": true,
+      "roster_absent_weeks": 2,
+      "season": 2019,
+      "susp_kind": "exempt",
+      "team": "NYJ"
+    },
     {
       "censored": true,
       "first_week": 9,

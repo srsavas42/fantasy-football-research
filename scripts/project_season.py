@@ -96,6 +96,12 @@ def main(argv=None) -> int:
     named = (
         pd.to_numeric(rows.get("is_replacement_player"), errors="coerce").fillna(0).ne(1)
     ).to_numpy()
+
+    def draw_mean(values: np.ndarray) -> np.ndarray:
+        return np.asarray(values, dtype=float).mean(axis=1)
+
+    volume = prediction.volume
+    efficiency = prediction.efficiency
     out = pd.DataFrame(
         {
             "player_name": rows["player_name"],
@@ -108,7 +114,38 @@ def main(argv=None) -> int:
             "p50": np.quantile(blended, 0.50, axis=1),
             "p90": np.quantile(blended, 0.90, axis=1),
             "model_only": model.mean(axis=1),
-            "projected_games": np.asarray(prediction.volume.games_active, float).mean(axis=1),
+            "projected_games": draw_mean(volume.games_active),
+            # Snap share and role.
+            "snap_share": draw_mean(volume.snap_share),
+            "pass_attempt_share": draw_mean(volume.pass_attempt_share),
+            "target_share": draw_mean(volume.target_share),
+            "carry_share": draw_mean(volume.carry_share),
+            # Volume (season totals).
+            "pass_attempts": draw_mean(volume.pass_attempts),
+            "targets": draw_mean(volume.targets),
+            "carries": draw_mean(volume.carries),
+            # Efficiency (per-opportunity rates).
+            "completion_rate": draw_mean(efficiency.rates["pass_completion_rate"]),
+            "yards_per_attempt": draw_mean(efficiency.rates["pass_yards_per_attempt"]),
+            "pass_td_rate": draw_mean(efficiency.rates["pass_td_rate"]),
+            "pass_int_rate": draw_mean(efficiency.rates["pass_int_rate"]),
+            "catch_rate": draw_mean(efficiency.rates["rec_catch_rate"]),
+            "yards_per_target": draw_mean(efficiency.rates["rec_yards_per_target"]),
+            "rec_td_rate": draw_mean(efficiency.rates["rec_td_rate"]),
+            "yards_per_carry": draw_mean(efficiency.rates["rush_yards_per_carry"]),
+            "rush_td_rate": draw_mean(efficiency.rates["rush_td_rate"]),
+            "fumble_lost_rate": draw_mean(efficiency.rates["fumble_lost_rate"]),
+            # Projected stat lines (season totals, from the coherent draws).
+            "pass_cmp": draw_mean(prediction.pass_cmp),
+            "pass_yds": draw_mean(prediction.pass_yds),
+            "pass_td": draw_mean(prediction.pass_td),
+            "pass_int": draw_mean(prediction.pass_int),
+            "receptions": draw_mean(prediction.receptions),
+            "rec_yds": draw_mean(prediction.rec_yds),
+            "rec_td": draw_mean(prediction.rec_td),
+            "rush_yds": draw_mean(prediction.rush_yds),
+            "rush_td": draw_mean(prediction.rush_td),
+            "fumbles_lost": draw_mean(prediction.fumbles_lost),
         }
     )[named].reset_index(drop=True)
     out = out.sort_values("projection", ascending=False).reset_index(drop=True)

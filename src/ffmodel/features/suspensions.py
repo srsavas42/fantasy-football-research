@@ -47,6 +47,36 @@ ban that actually cost all 17. :func:`suspension_spells` therefore reports
 when it runs to the end of the season, so neither number is mistaken for the
 truth on its own.
 
+**A ban is attenuated twice on its way to the printed projection**, and the
+size of that is worth knowing before trusting the number. Measured end to end
+on a six-game ban for Josh Jacobs in the 2026 build:
+
+    projected games   14.48 -> 9.42   -34.9%   (the ban, less overlap with
+                                                injury risk he already carried)
+    snap_share        0.514 -> 0.334  -34.9%   availability layer: exact
+    carry_share       0.629 -> 0.544  -13.5%   share layer: 1.33x over-allocated
+    model_only        251.9 -> 204.1  -19.0%
+    projection        202.4 -> 186.7   -7.7%   after the market blend
+
+The availability layer does its job exactly -- ``snap_share`` tracks the games
+change to three decimal places. The losses are downstream and neither is this
+module's to fix:
+
+*The roster share models under-reallocate.* ``carry_share`` responds to a 34.9%
+availability cut with a 13.5% cut, where the mechanical answer is 34.9%; the
+Green Bay backups pick up 14 of the roughly 100 carries Jacobs should shed.
+``target_share`` is nearly right (1.05x), so this is specific to the carry
+stream, where a thin depth chart leaves the within-team renormalisation nobody
+obvious to hand the ball to. This is pre-existing behaviour that any
+availability change meets, injuries included -- the suspension work only made
+it legible -- and changing it is a model change needing its own walk-forward.
+
+*The market blend does not know.* Two thirds of the printed number is the ADP
+rank curve, and a ban announced after the board was published leaves the rank
+untouched, so that share of the projection is priced as though nothing
+happened. Adjusting ``adp_rank`` alongside ``suspended_games`` is the
+available lever.
+
 The exempt-list sample also carries a confound that rules out fitting anything
 to it as-is: 11 of the 18 skill-position spells are from 2020, when the list was
 used for COVID-19 roster mechanics rather than discipline. Netting those out

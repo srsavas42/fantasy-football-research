@@ -107,6 +107,12 @@ def main(argv=None) -> int:
     parser.add_argument("--weight", type=float, default=BLEND_WEIGHT)
     parser.add_argument("--out-dir", type=Path, default=Path("projections"))
     parser.add_argument(
+        "--per-game-allocation",
+        action="store_true",
+        help="allocate roster shares week by week instead of multiplying by "
+        "season-average availability; unvalidated, see _per_game_shares",
+    )
+    parser.add_argument(
         "--suspensions",
         type=Path,
         default=None,
@@ -135,6 +141,7 @@ def main(argv=None) -> int:
 
     started = time.perf_counter()
     pipeline = SeasonAverageScoringPipeline()
+    pipeline.volume_model.per_game_allocation = bool(args.per_game_allocation)
     sample_kwargs = {"draws": args.draws, "tune": args.draws, "chains": args.chains}
     pipeline.fit(
         train, volume_sample_kwargs=sample_kwargs, efficiency_sample_kwargs=sample_kwargs
@@ -239,6 +246,7 @@ def main(argv=None) -> int:
                     None if args.suspensions is None else str(args.suspensions)
                 ),
                 "suspended_players": int((out["suspended_games"] > 0).sum()),
+                "per_game_allocation": bool(args.per_game_allocation),
                 "seconds": round(time.perf_counter() - started, 1),
                 "config": {
                     "market_adp_availability": bool(

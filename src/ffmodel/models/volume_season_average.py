@@ -712,6 +712,13 @@ class SeasonRosterShareModel:
     # was chosen before any result and has never been selected against folds.
     # Whatever it is worth, it is the least evidenced number in this feature.
     cold_role_multiplier_cap: float = 6.0
+    # Allocate week by week instead of multiplying by season-average
+    # availability and renormalising once. See ``_per_game_shares`` for what the
+    # default approximation costs and who it costs it to. Opt-in: it changes
+    # every share a low-availability player takes, so it needs its own
+    # walk-forward before it can be the default.
+    per_game_allocation: bool = False
+    allocation_games: int = 17
     idata: object = None
 
     def __post_init__(self):
@@ -1239,6 +1246,7 @@ class SeasonRosterShareModel:
         draws = beta.shape[-1]
         eta = np.log(design["role_prior"])[..., None]
         exposure_samples = snap_samples if snap_samples is not None else availability_samples
+        exposure_matrix: np.ndarray | None = None
         if exposure_samples is None:
             eta = eta + design["availability_offset"][..., None]
         else:
@@ -1247,11 +1255,11 @@ class SeasonRosterShareModel:
                 raise ValueError(
                     "exposure samples must align to roster rows and posterior draws"
                 )
-            eta = eta + np.log(
-                _roster_sample_matrix(
-                    design, np.clip(exposure_samples, 1e-5, 1.0), fill=1.0
-                )
+            exposure_matrix = _roster_sample_matrix(
+                design, np.clip(exposure_samples, 1e-5, 1.0), fill=1.0
             )
+            if not self.per_game_allocation:
+                eta = eta + np.log(exposure_matrix)
         if self.stream == "pass" and starter_probability_samples is not None:
             starter_probability_samples = np.asarray(
                 starter_probability_samples, dtype=float
@@ -1315,7 +1323,15 @@ class SeasonRosterShareModel:
             np.einsum("gkj,gjs->gks", design["innovation_basis"], innovation_z)
             * scale[..., None]
         )
-        if self.mean_preserving_innovation:
+        if self.per_game_allocation and exposure_matrix is not None:
+            probability = _per_game_shares(
+                eta + innovation,
+                live,
+                exposure_matrix,
+                games=int(self.allocation_games),
+                seed=seed + 991,
+            )
+        elif self.mean_preserving_innovation:
             probability = mean_preserving_shares(eta, eta + innovation, live)
         else:
             probability = simplex_shares(eta + innovation, live)
@@ -1426,6 +1442,13 @@ class SeasonAverageVolumePipeline:
     carry_eligibility_model: SeasonCarryEligibilityModel = field(
         default_factory=SeasonCarryEligibilityModel
     )
+    # Allocate roster shares week by week rather than multiplying by
+    # season-average availability and renormalising once. Set together for all
+    # three streams because they share the misspecification and a run with it on
+    # for carries and off for passes is neither of the two models. Off by
+    # default: it moves every low-availability share, so it needs a walk-forward
+    # of its own before it can ship. See ``_per_game_shares``.
+    per_game_allocation: bool = False
     # Experimental role-only challenger. The default baseline is unchanged.
     role_regime_coupling: bool = False
     # Upstream likelihood challenger: out-of-fold regime probabilities enter
@@ -1951,6 +1974,11 @@ class SeasonAverageVolumePipeline:
         self, data: SeasonAverageData, *, games=None, seed: int = 0
     ) -> SeasonAveragePrediction:
         prediction_rows = data.player_rows
+        # Propagate here rather than in ``fit``: the flag only changes how
+        # fitted shares are allocated at prediction time, so a pipeline loaded
+        # from disk honours it too.
+        for share_model in (self.target_model, self.carry_model, self.workload_model):
+            share_model.per_game_allocation = self.per_game_allocation
         regime_probability: np.ndarray | None = None
         if self.regime_likelihood_features:
             if self.regime_model is None:
@@ -2600,6 +2628,51 @@ class SeasonAverageVolumePipeline:
 
 
 PLAYER_ID_COLUMNS = ["season", "team", "player_key"]
+
+
+def _per_game_shares(
+    eta: np.ndarray,
+    live: np.ndarray,
+    exposure: np.ndarray,
+    *,
+    games: int,
+    seed: int,
+) -> np.ndarray:
+    """Season share as the average of per-game allocations, not one allocation.
+
+    The default path forms ``softmax(log w + log e)``: it multiplies a player's
+    weight by his season-average availability and renormalises once. The
+    quantity that stands for is the season average of what happens each week --
+    the players who are actually there split the ball -- and those are not the
+    same number, because softmax is nonlinear and ``softmax(E[presence]) !=
+    E[softmax(presence)]``.
+
+    The gap is signed and it is not small. For a two-player room it is available
+    in closed form: a player whose full-strength share is ``s`` and who is
+    present a fraction ``e`` of games is over-allocated by ``1 / (1 - s(1-e))``.
+    That is 1.05x for a dilute receiver at 10% of a room, 1.45x for a workhorse
+    back at 67%, and 1.72x for a starting quarterback at 92% -- the error grows
+    with concentration, because a player who *is* most of the denominator
+    shrinks the denominator when he sits, and hands himself back most of what he
+    lost.
+
+    Simulating presence removes the approximation rather than tuning it: draw
+    who is available each week, allocate among them, average over weeks. The
+    cost is one softmax per game instead of one per season.
+    """
+    if games <= 0:
+        raise ValueError("allocation_games must be positive")
+    rng = np.random.default_rng(seed)
+    total = np.zeros_like(eta)
+    for _ in range(games):
+        present = rng.random(eta.shape) < exposure
+        # A week in which a room empties has to allocate its carries to
+        # somebody, so fall back to the roster the season-average path would
+        # have used rather than dropping the team's volume on the floor.
+        available = live & present
+        empty = ~available.any(axis=1, keepdims=True)
+        total += simplex_shares(eta, np.where(empty, live, available))
+    return total / games
 
 
 def _roster_sample_matrix(

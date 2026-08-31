@@ -597,6 +597,11 @@ class QBWorkloadShareModel:
     couple_gate_to_availability: bool = True
     hurdle_availability_mean: float = 0.0
     hurdle_availability_scale: float = 1.0
+    # Allocate week by week rather than multiplying by season-average
+    # availability and renormalising once. Opt-in and off by default; see
+    # ``volume_season_average._per_game_shares``.
+    per_game_allocation: bool = False
+    allocation_games: int = 17
     idata: object = None
 
     def _prepare_all(self, rows: pd.DataFrame) -> pd.DataFrame:
@@ -975,8 +980,10 @@ class QBWorkloadShareModel:
                 active = design["mask"][group_i].astype(bool)
                 indices = design["full_index"][group_i, active]
                 availability[group_i, active] = availability_samples[indices]
-            log_availability = np.log(np.clip(availability, 0.03, 1.0))
-            eta = eta + log_availability
+            clipped_availability = np.clip(availability, 0.03, 1.0)
+            log_availability = np.log(clipped_availability)
+            if not self.per_game_allocation:
+                eta = eta + log_availability
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         rng = np.random.default_rng(seed)
         innovation = rng.normal(size=eta.shape) * self.role_innovation_scale
@@ -985,7 +992,21 @@ class QBWorkloadShareModel:
         if gate is not None:
             live = live & gate
         live = np.ascontiguousarray(live)
-        if self.mean_preserving_innovation:
+        if self.per_game_allocation and log_availability is not None:
+            # The most concentrated room in the pipeline, so the room the
+            # season-average softmax is most wrong about: a starter at 92% of
+            # his room is handed back roughly 1.7x what a spell out should cost
+            # him. See ``_per_game_shares``.
+            from ffmodel.models.volume_season_average import _per_game_shares
+
+            probability = _per_game_shares(
+                eta + innovation,
+                live,
+                clipped_availability,
+                games=int(self.allocation_games),
+                seed=seed + 991,
+            )
+        elif self.mean_preserving_innovation:
             probability = mean_preserving_shares(eta, eta + innovation, live)
         else:
             probability = simplex_shares(eta + innovation, live)

@@ -219,21 +219,54 @@ def preseason_roster_snapshot(
         .rename("suspended_games")
         .reset_index()
     )
-    # Only a ban already in force at the cutoff is knowable at projection time.
-    in_force = all_rosters[definite & all_rosters["week"].le(cutoff_week)][
-        PLAYER_KEYS
-    ].drop_duplicates()
+    # A ban in force at the cutoff is knowable, and so is one already handed
+    # down that the player cannot start serving because he is hurt: a
+    # suspension is only served from the active roster, so PUP or
+    # non-football-injury weeks defer it. A player who has not played a game
+    # before his ban begins cannot have earned it in season, so its
+    # announcement predates the season and it belongs in a preseason
+    # projection. See ``features.suspensions.preseason_suspension_games``.
+    first_active = (
+        all_rosters[all_rosters["roster_status"].eq("ACT")]
+        .groupby(PLAYER_KEYS, dropna=False)["week"]
+        .min()
+        .rename("first_active_week")
+    )
+    banned = all_rosters[definite].merge(
+        first_active, on=PLAYER_KEYS, how="left"
+    )
+    banned["first_active_week"] = banned["first_active_week"].fillna(np.inf)
+    deferred = banned.groupby(PLAYER_KEYS, dropna=False).agg(
+        first_ban_week=("week", "min"), first_active_week=("first_active_week", "min")
+    ).reset_index()
+    in_force = deferred[
+        deferred["first_ban_week"].le(cutoff_week)
+        | deferred["first_ban_week"].le(deferred["first_active_week"])
+    ][PLAYER_KEYS].drop_duplicates()
     out = out.merge(in_force.assign(roster_suspended=1), on=PLAYER_KEYS, how="left")
     out["roster_suspended"] = out["roster_suspended"].fillna(0).astype(int)
     out = out.merge(banned_weeks, on=PLAYER_KEYS, how="left")
     out["suspended_games"] = (
         out["suspended_games"].where(out["roster_suspended"].eq(1)).fillna(0.0)
     )
-    # A suspended player arrives as ``RES`` and so was also being counted as
-    # reserve, which double-charges him: the reserve coefficient already
-    # predicts a heavy absence and the ban is then subtracted on top. He is not
-    # hurt, he is banned, and the ban is carried exactly by ``suspended_games``.
-    out.loc[out["roster_suspended"].eq(1), "roster_reserve"] = 0
+    # A player whose week-1 reserve status *is* the ban was being counted twice:
+    # the reserve coefficient already predicts a heavy absence and the ban was
+    # then subtracted on top. He is not hurt, he is banned, and
+    # ``suspended_games`` carries the ban exactly.
+    #
+    # This must key on the week-1 status rather than on ``roster_suspended``,
+    # which now also marks bans deferred by an injury list. Mike Woods in 2023
+    # is on non-football-injury at week 1 with a ban waiting: he is genuinely
+    # hurt, the reserve flag is telling the truth about him, and clearing it
+    # would throw away the injury to avoid a double charge that is not there.
+    banned_at_cutoff = all_rosters[definite & all_rosters["week"].le(cutoff_week)][
+        PLAYER_KEYS
+    ].drop_duplicates()
+    out = out.merge(
+        banned_at_cutoff.assign(_ban_is_the_status=1), on=PLAYER_KEYS, how="left"
+    )
+    out.loc[out["_ban_is_the_status"].eq(1), "roster_reserve"] = 0
+    out = out.drop(columns="_ban_is_the_status")
     # PUP and NFI are the opposite case: a floor, not a length. The player is
     # genuinely unavailable and stays flagged reserve, and the mandatory games
     # are enforced by truncating the outcome rather than by subtraction, so

@@ -265,3 +265,26 @@ def test_a_ban_is_not_served_while_on_pup():
 def test_a_combined_absence_longer_than_the_season_floors_at_zero():
     rows = pd.DataFrame({"suspended_games": [12.0], "mandatory_missed_games": [6.0]})
     assert list(_playable_games(rows, np.array([17]))) == [0]
+
+
+def test_a_ban_deferred_by_an_injury_list_still_counts():
+    """Announced in August, served in November, known either way.
+
+    A player who has not played a game before his ban begins cannot have earned
+    it in season, so the announcement predates the season.
+    """
+    frame = _rosters(
+        [{"week": w, "full_name": "Woods", "status": "RES", "code": "R05"} for w in range(1, 12)]
+        + [{"week": w, "full_name": "Woods", "status": "RES", "code": "R40"} for w in range(12, 19)]
+    )
+    out = preseason_suspension_games(frame)
+    assert out.loc[0, "suspended_games"] == 7
+
+
+def test_a_ban_after_playing_is_still_not_preseason_known():
+    """He was on the field, so the infraction could be an in-season one."""
+    frame = _rosters(
+        [{"week": w, "full_name": "Played", "status": "ACT"} for w in range(1, 8)]
+        + [{"week": w, "full_name": "Played", "status": "RES", "code": "R40"} for w in range(8, 12)]
+    )
+    assert preseason_suspension_games(frame).empty

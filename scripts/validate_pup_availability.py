@@ -68,6 +68,7 @@ def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
 
 def _evaluate(train, test, *, truncate, split, fit_kwargs, seed):
     frame = test.copy()
+    import gc
     if not truncate:
         # The baseline must not see the floor at all, and zeroing the column is
         # how the model is told there is none.
@@ -97,6 +98,11 @@ def _evaluate(train, test, *, truncate, split, fit_kwargs, seed):
         mask = mask.to_numpy()
         if mask.sum() >= 5:
             out[name] = _metrics(observed[mask], samples[mask])
+    # Twelve fits in one process, each holding a posterior and a draw array.
+    # Without this the run dies partway through with no traceback, which reads
+    # as a crash rather than as running out of room.
+    del model, prediction, samples, frame
+    gc.collect()
     return out
 
 
@@ -120,6 +126,22 @@ def main(argv=None) -> int:
             "reserve split, and every arm would silently score as the baseline. "
             "Rebuild with scripts/build_projection_cache.py"
         )
+
+    # The cache carries 300+ columns and the availability layer reads about
+    # twenty. Dragging the rest through twelve fits is most of this script's
+    # memory and none of its result.
+    from ffmodel.models.season_availability import AVAILABILITY_FEATURES
+
+    keep = dict.fromkeys(
+        [
+            "season", "team", "player_key", "player_name", "position",
+            "games", "team_games", "snap_games", "observed_availability",
+            "snap_availability", "suspended_games", "mandatory_missed_games",
+            "roster_suspended", "is_replacement_player",
+            *AVAILABILITY_FEATURES, *RESERVE_KIND_FEATURES,
+        ]
+    )
+    player_rows = player_rows[[c for c in keep if c in player_rows.columns]].copy()
 
     fit_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
     report: dict[str, object] = {"holdouts": args.holdouts, "folds": {}}

@@ -262,6 +262,31 @@ def suspension_spells(
     return spells.sort_values(["season", "player_name"]).reset_index(drop=True)
 
 
+def _never_played_before(
+    rosters: pd.DataFrame, spells: pd.DataFrame, *, max_week: int
+) -> pd.Series:
+    """Was the player on a reserve list, never active, right up to his ban?
+
+    The test for a deferred ban. An active week before the ban means he was
+    playing football and could have earned it in season; an unbroken run of
+    reserve weeks means he could not have, so the ban was already pending.
+    """
+    rows = _regular_season(rosters, max_week=max_week)
+    name = "full_name" if "full_name" in rows.columns else "player_name"
+    status = rows.get("status", pd.Series(pd.NA, index=rows.index))
+    active = status.astype("string").str.upper().eq("ACT")
+    first_active = (
+        rows[active].groupby(["season", name])["week"].min()
+        if active.any()
+        else pd.Series(dtype=float)
+    )
+    keys = list(zip(spells["season"], spells["player_name"]))
+    earliest = pd.Series(
+        [first_active.get(key, np.inf) for key in keys], index=spells.index, dtype=float
+    )
+    return spells["first_week"].to_numpy() <= earliest.to_numpy()
+
+
 def preseason_suspension_games(
     rosters: pd.DataFrame,
     *,
@@ -276,24 +301,28 @@ def preseason_suspension_games(
     count to return for it and it is left to the availability model's ordinary
     risk machinery.
 
-    **A ban deferred by an injury list is not caught here, by choice.** A player
-    has to be active to serve a suspension, so weeks on PUP or the
-    non-football-injury list do not count toward it and the ban waits. Mike
-    Woods in 2023 is the case: eleven weeks on NFI, then a six-game ban in weeks
-    12-18. If that ban was handed down in August it *was* known at the cutoff,
-    and this returns nothing for it.
+    **A ban deferred by an injury list still counts.** A player has to be active
+    to serve a suspension, so weeks on PUP or the non-football-injury list do
+    not count toward it and the ban waits until he is healthy. Mike Woods in
+    2023 is the case: eleven weeks on NFI, then a six-game ban in weeks 12-18. A
+    ban handed down in August is known at the cutoff whatever week it is
+    eventually served in, so it belongs in an August projection.
 
-    Counting it would be worse. The feed shows an ``R40`` spell beginning in
-    week 12 and nothing else; a ban announced in August and served in November
-    is indistinguishable from one announced in November for something that
-    happened in October. Claiming the first would import an outcome the cutoff
-    could not see on every row that is really the second. Missing a rare
-    deferred ban leaves the player to the ordinary reserve coefficient, which is
-    what he looks like anyway while he is hurt. Use the override path when the
-    announcement is known.
+    Identifying one without a date field takes an argument rather than a
+    heuristic: a player who has *not played a game* before his ban begins cannot
+    have committed an in-season on-field infraction, and the league's
+    investigation and announcement therefore predate the season. So a ban counts
+    as known at the cutoff when it starts by the cutoff, or when every week from
+    the cutoff up to it was spent on a reserve list with no active week in
+    between.
 
-    This is leakage-safe only in the sense that the *placement* is observable at
-    the cutoff. The length is read from the whole season, which is exactly right
+    The residual risk is a substance-policy test administered while the player
+    sat on injured reserve, which would be genuinely new information arriving
+    mid-season and would be counted here as though August knew it. That is the
+    honest exposure of this rule; on 2016-2025 it moves one skill-position row.
+
+    Beyond that this is leakage-safe only in the sense that the *placement* is
+    observable at the cutoff. The length is read from the whole season, which is exactly right
     at serve time -- an announced ban's length is public the day it is handed
     down -- and is a backfill for historical rows, where the announced length is
     not separately recorded in the feed. A walk-forward arm that wants to score
@@ -303,9 +332,10 @@ def preseason_suspension_games(
     spells = suspension_spells(rosters, positions=positions, max_week=max_week)
     if spells.empty:
         return pd.DataFrame(columns=["season", "player_name", "team", "suspended_games"])
-    known = spells[
-        spells["susp_kind"].eq("definite")
-        & spells["first_week"].le(cutoff_week)
+    definite = spells[spells["susp_kind"].eq("definite")]
+    known = definite[
+        definite["first_week"].le(cutoff_week)
+        | _never_played_before(rosters, definite, max_week=max_week)
     ]
     return (
         known.groupby(["season", "player_name", "team"], as_index=False)["flagged_weeks"]

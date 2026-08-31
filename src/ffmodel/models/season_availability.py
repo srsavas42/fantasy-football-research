@@ -203,7 +203,14 @@ def _playable_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
     leaves the fitted mean, which on 2021-2025 is within 0.6 games of right,
     alone.
 
-    Defaults to no cap, so a frame without the column is unchanged.
+    The two absences are *sequential*, not overlapping. A player has to be on
+    the active roster to serve a suspension, so weeks spent on PUP or the
+    non-football-injury list do not count toward it -- the ban waits until he is
+    healthy. Mike Woods in 2023 is the pattern in the feed: eleven weeks on NFI,
+    then a six-game ban in weeks 12-18, seventeen games gone rather than the
+    eleven an overlapping reading would give. So the cap subtracts both.
+
+    Defaults to no cap, so a frame without the columns is unchanged.
     """
     mandatory = pd.to_numeric(
         rows.get("mandatory_missed_games", pd.Series(0.0, index=rows.index)),
@@ -211,7 +218,14 @@ def _playable_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
     ).fillna(0.0).to_numpy(dtype=float)
     if (mandatory < 0).any():
         raise ValueError("mandatory_missed_games must be nonnegative")
-    return np.clip(team_games - np.rint(mandatory).astype(int), 0, None)
+    suspended = pd.to_numeric(
+        rows.get("suspended_games", pd.Series(0.0, index=rows.index)),
+        errors="coerce",
+    ).fillna(0.0).to_numpy(dtype=float)
+    if (suspended < 0).any():
+        raise ValueError("suspended_games must be nonnegative")
+    unavailable = np.rint(mandatory).astype(int) + np.rint(suspended).astype(int)
+    return np.clip(team_games - unavailable, 0, None)
 
 
 @dataclass

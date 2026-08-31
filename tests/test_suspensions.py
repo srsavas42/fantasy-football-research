@@ -247,3 +247,21 @@ def test_a_frame_without_the_mandatory_column_is_uncapped():
 def test_a_negative_mandatory_minimum_is_rejected():
     with pytest.raises(ValueError, match="nonnegative"):
         _playable_games(pd.DataFrame({"mandatory_missed_games": [-1.0]}), np.array([17]))
+
+
+def test_a_ban_is_not_served_while_on_pup():
+    """A player must be active to serve a suspension, so the two are additive.
+
+    Mike Woods in 2023 is the pattern: eleven weeks on the non-football-injury
+    list, then a six-game ban in weeks 12-18. Reading the absences as
+    overlapping would give him eleven games lost against an actual seventeen.
+    """
+    rows = pd.DataFrame(
+        {"suspended_games": [6.0, 6.0, 0.0], "mandatory_missed_games": [4.0, 0.0, 4.0]}
+    )
+    assert list(_playable_games(rows, np.array([17, 17, 17]))) == [7, 11, 13]
+
+
+def test_a_combined_absence_longer_than_the_season_floors_at_zero():
+    rows = pd.DataFrame({"suspended_games": [12.0], "mandatory_missed_games": [6.0]})
+    assert list(_playable_games(rows, np.array([17]))) == [0]

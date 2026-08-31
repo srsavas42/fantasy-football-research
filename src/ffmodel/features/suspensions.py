@@ -276,6 +276,22 @@ def preseason_suspension_games(
     count to return for it and it is left to the availability model's ordinary
     risk machinery.
 
+    **A ban deferred by an injury list is not caught here, by choice.** A player
+    has to be active to serve a suspension, so weeks on PUP or the
+    non-football-injury list do not count toward it and the ban waits. Mike
+    Woods in 2023 is the case: eleven weeks on NFI, then a six-game ban in weeks
+    12-18. If that ban was handed down in August it *was* known at the cutoff,
+    and this returns nothing for it.
+
+    Counting it would be worse. The feed shows an ``R40`` spell beginning in
+    week 12 and nothing else; a ban announced in August and served in November
+    is indistinguishable from one announced in November for something that
+    happened in October. Claiming the first would import an outcome the cutoff
+    could not see on every row that is really the second. Missing a rare
+    deferred ban leaves the player to the ordinary reserve coefficient, which is
+    what he looks like anyway while he is hurt. Use the override path when the
+    announcement is known.
+
     This is leakage-safe only in the sense that the *placement* is observable at
     the cutoff. The length is read from the whole season, which is exactly right
     at serve time -- an announced ban's length is public the day it is handed

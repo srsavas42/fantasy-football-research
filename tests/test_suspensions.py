@@ -33,7 +33,8 @@ from ffmodel.features.suspensions import (
     preseason_suspension_games,
     suspension_spells,
 )
-from ffmodel.models.season_availability import _eligible_games
+from ffmodel.features.suspensions import classify_reserve, mandatory_missed_games
+from ffmodel.models.season_availability import _eligible_games, _playable_games
 
 
 def _rosters(rows: list[dict]) -> pd.DataFrame:
@@ -206,3 +207,43 @@ def test_an_ambiguous_name_must_be_disambiguated(tmp_path):
     path.write_text("player_name,suspended_games\nJosh Jacobs,4\n")
     with pytest.raises(SystemExit, match="matched 2 rows"):
         apply_suspension_overrides(_projection_rows(), path)
+
+
+def test_pup_and_nfi_are_not_suspensions():
+    """A floor is not a sentence and must not be read as one."""
+    frame = _rosters(
+        [
+            {"week": 1, "full_name": "Pup", "status": "RES", "code": "R04"},
+            {"week": 1, "full_name": "Nfi", "status": "RES", "code": "R05"},
+            {"week": 1, "full_name": "Hurt", "status": "RES", "code": "R01"},
+        ]
+    )
+    assert classify_suspension(frame).isna().all()
+    assert list(classify_reserve(frame)) == ["pup", "nfi", "injured_reserve"]
+
+
+def test_the_mandatory_minimum_follows_the_rule_of_its_season():
+    """Four games from 2022, six before; the feed reproduces both."""
+    seasons = pd.Series([2019, 2021, 2022, 2025])
+    assert list(mandatory_missed_games(seasons)) == [6.0, 6.0, 4.0, 4.0]
+
+
+def test_a_pup_placement_caps_games_rather_than_subtracting_them():
+    """Subtracting would charge the player twice for one injury.
+
+    The reserve coefficient is already fitted on players in exactly this
+    position, so the fitted mean is close to right. Only the games the rule
+    forbids should be removed.
+    """
+    rows = pd.DataFrame({"mandatory_missed_games": [0.0, 4.0, 6.0]})
+    assert list(_playable_games(rows, np.array([17, 17, 17]))) == [17, 13, 11]
+
+
+def test_a_frame_without_the_mandatory_column_is_uncapped():
+    rows = pd.DataFrame({"season": [2025, 2025]})
+    assert list(_playable_games(rows, np.array([17, 17]))) == [17, 17]
+
+
+def test_a_negative_mandatory_minimum_is_rejected():
+    with pytest.raises(ValueError, match="nonnegative"):
+        _playable_games(pd.DataFrame({"mandatory_missed_games": [-1.0]}), np.array([17]))

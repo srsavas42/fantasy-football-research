@@ -102,6 +102,24 @@ SKILL_POSITIONS = ("QB", "RB", "WR", "TE", "FB", "HB")
 DEFINITE_CODES = frozenset({"R40"})
 INDEFINITE_CODES = frozenset({"R30"})
 
+# Reserve lists that carry a mandatory minimum absence rather than a sentence.
+# A player still on the physically-unable-to-perform or non-football-injury
+# list when the regular season opens may not play for a fixed number of games:
+# four from 2022, six before. The roster feed reproduces the rule exactly --
+# minimum weeks on the list is 4 for 2022-2025 week-1 placements and 7 for
+# 2016-2021 -- so the floor is readable rather than assumed.
+#
+# Unlike a suspension this is a *floor*, not a length: the median week-1 PUP
+# player misses 9 games and 27% of them never play. It is therefore enforced by
+# truncation, never by subtraction; see ``PUP_MANDATORY_GAMES``.
+PUP_CODES = frozenset({"R04"})
+NFI_CODES = frozenset({"R05"})
+INJURED_RESERVE_CODES = frozenset({"R01", "R48"})
+
+# Games a week-1 placement costs, by the rule in force. Keyed by the first
+# season the value applies to.
+PUP_MANDATORY_GAMES = {2022: 4, 2016: 6}
+
 # The exempt list is identified by its *status*, not its reason code. Before
 # 2020 the code is null on these rows, so requiring ``E02`` silently dropped
 # every pre-2020 placement -- Reuben Foster's 2018 season among them -- while
@@ -156,6 +174,36 @@ def classify_suspension(rosters: pd.DataFrame) -> pd.Series:
     # above did not.
     out = out.mask(out.isna() & status.eq(LEGACY_DEFINITE_STATUS), "definite")
     return out
+
+
+def classify_reserve(rosters: pd.DataFrame) -> pd.Series:
+    """Label the *reason* a player is on a reserve list, or NA.
+
+    ``roster_reserve`` pools these into one flag, and they are not one
+    population: on 2021-2025 week-1 placements a skill player on injured
+    reserve misses 16.2 games, one on PUP 13.5, one suspended 11.1. Injured
+    reserve is 266 of the 683 pooled rows, so the shared coefficient is pulled
+    toward it and the others inherit a number fitted mostly on somebody else.
+    """
+    code = (
+        rosters["status_description_abbr"].astype("string").str.upper()
+        if "status_description_abbr" in rosters.columns
+        else pd.Series(pd.NA, index=rosters.index, dtype="string")
+    )
+    out = pd.Series(pd.NA, index=rosters.index, dtype="string")
+    out = out.mask(code.isin(INJURED_RESERVE_CODES), "injured_reserve")
+    out = out.mask(code.isin(PUP_CODES), "pup")
+    out = out.mask(code.isin(NFI_CODES), "nfi")
+    return out
+
+
+def mandatory_missed_games(seasons: pd.Series) -> pd.Series:
+    """Games a week-1 PUP or NFI placement costs under the rule of its season."""
+    season = pd.to_numeric(seasons, errors="coerce")
+    out = pd.Series(np.nan, index=season.index, dtype=float)
+    for first_season, games in sorted(PUP_MANDATORY_GAMES.items()):
+        out = out.mask(season.ge(first_season), float(games))
+    return out.fillna(0.0)
 
 
 def suspension_spells(

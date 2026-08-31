@@ -27,6 +27,18 @@ from ffmodel.models.volume_team import _sum_to_zero_basis
 GROUP_KEYS = ["season", "team"]
 PLAYER_KEYS = GROUP_KEYS + ["player_key"]
 
+# The reserve flag split into the populations it pools. Opt-in via
+# ``extra_features`` so the split is measured before it ships: on 2021-2025
+# week-1 placements injured reserve costs 16.2 games, PUP 13.5 and NFI 15.8,
+# and injured reserve supplies 266 of the 683 pooled rows, so the one shared
+# coefficient is fitted mostly on it. ``roster_reserve`` stays in the base set
+# and these are the deviations from it.
+RESERVE_KIND_FEATURES = (
+    "roster_injured_reserve",
+    "roster_pup",
+    "roster_nfi",
+)
+
 AVAILABILITY_FEATURES = (
     "prior_availability",
     "age",
@@ -133,6 +145,10 @@ def _feature_defaults(rows: pd.DataFrame) -> pd.DataFrame:
         "cold_start": 1.0,
         "roster_active": 1.0,
         "roster_reserve": 0.0,
+        "roster_injured_reserve": 0.0,
+        "roster_pup": 0.0,
+        "roster_nfi": 0.0,
+        "mandatory_missed_games": 0.0,
         "depth_rank": np.nan,
         "qb_depth_rank": np.nan,
         "qb_listed_starter": 0.0,
@@ -169,6 +185,33 @@ def _eligible_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
     if (suspended < 0).any():
         raise ValueError("suspended_games must be nonnegative")
     return np.clip(team_games - np.rint(suspended).astype(int), 0, None)
+
+
+def _playable_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
+    """Upper bound on games a mandatory reserve minimum still allows.
+
+    PUP and non-football-injury placements that survive to week 1 carry a fixed
+    minimum absence -- four games from 2022, six before -- so a draw giving such
+    a player sixteen games is describing something the rules forbid.
+
+    This is a *cap*, not a subtraction, and the difference matters. A suspension
+    sits on top of ordinary injury risk, so it comes off the exposure. A PUP
+    placement is already why the player is flagged reserve, and the availability
+    regression has learned from every past PUP player how much football that
+    costs -- a median of nine games. Subtracting four more would charge him
+    twice for one injury. Truncating removes only the mass the rule forbids and
+    leaves the fitted mean, which on 2021-2025 is within 0.6 games of right,
+    alone.
+
+    Defaults to no cap, so a frame without the column is unchanged.
+    """
+    mandatory = pd.to_numeric(
+        rows.get("mandatory_missed_games", pd.Series(0.0, index=rows.index)),
+        errors="coerce",
+    ).fillna(0.0).to_numpy(dtype=float)
+    if (mandatory < 0).any():
+        raise ValueError("mandatory_missed_games must be nonnegative")
+    return np.clip(team_games - np.rint(mandatory).astype(int), 0, None)
 
 
 @dataclass
@@ -499,6 +542,9 @@ class SeasonAvailabilityModel:
             1.0
             + np.maximum(eligible - 1, 0)[:, None] * conditional_probability
         ) * (eligible > 0)[:, None]
+        playable = _playable_games(out, team_games)
+        games_active = np.minimum(games_active, playable[:, None])
+        expected_games = np.minimum(expected_games, playable[:, None].astype(float))
         probability = expected_games / team_games[:, None]
         availability = games_active / team_games[:, None]
         return AvailabilityPrediction(

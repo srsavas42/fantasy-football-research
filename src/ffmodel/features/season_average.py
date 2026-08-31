@@ -49,7 +49,11 @@ from ffmodel.features.season_injury import (
     INJURY_AVAILABILITY_FEATURES,
     add_season_injury_features,
 )
-from ffmodel.features.suspensions import classify_suspension
+from ffmodel.features.suspensions import (
+    classify_reserve,
+    classify_suspension,
+    mandatory_missed_games,
+)
 from ffmodel.features.season_pathways import (
     PLAYER_PATHWAY_FEATURES,
     add_player_pathway_features,
@@ -184,6 +188,22 @@ def preseason_roster_snapshot(
     ).astype(int)
     out["roster_active"] = out["roster_status"].eq("ACT").astype(int)
     out["roster_reserve"] = out["roster_status"].isin({"RES", "INA", "EXE"}).astype(int)
+    # Why the reserve flag is split. It pools populations that miss very
+    # different amounts of football -- 16.2 games on injured reserve against
+    # 13.5 on PUP and 11.1 suspended, on 2021-2025 week-1 placements -- and
+    # injured reserve is 266 of the 683 pooled rows, so one shared coefficient
+    # is fitted mostly on injured reserve and then applied to everyone.
+    reserve_kind = classify_reserve(all_rosters)
+    for name, label in (
+        ("roster_injured_reserve", "injured_reserve"),
+        ("roster_pup", "pup"),
+        ("roster_nfi", "nfi"),
+    ):
+        marked = all_rosters[
+            reserve_kind.eq(label) & all_rosters["week"].le(cutoff_week)
+        ][PLAYER_KEYS].drop_duplicates()
+        out = out.merge(marked.assign(**{name: 1}), on=PLAYER_KEYS, how="left")
+        out[name] = out[name].fillna(0).astype(int)
     # A suspension is not the same availability event as an injury, and the
     # reserve flag cannot tell them apart -- both arrive as ``RES``. The ban's
     # length is known when it is announced, so it belongs in the exposure as
@@ -208,6 +228,20 @@ def preseason_roster_snapshot(
     out = out.merge(banned_weeks, on=PLAYER_KEYS, how="left")
     out["suspended_games"] = (
         out["suspended_games"].where(out["roster_suspended"].eq(1)).fillna(0.0)
+    )
+    # A suspended player arrives as ``RES`` and so was also being counted as
+    # reserve, which double-charges him: the reserve coefficient already
+    # predicts a heavy absence and the ban is then subtracted on top. He is not
+    # hurt, he is banned, and the ban is carried exactly by ``suspended_games``.
+    out.loc[out["roster_suspended"].eq(1), "roster_reserve"] = 0
+    # PUP and NFI are the opposite case: a floor, not a length. The player is
+    # genuinely unavailable and stays flagged reserve, and the mandatory games
+    # are enforced by truncating the outcome rather than by subtraction, so
+    # nothing here is counted twice.
+    out["mandatory_missed_games"] = np.where(
+        out["roster_pup"].eq(1) | out["roster_nfi"].eq(1),
+        mandatory_missed_games(out["season"]),
+        0.0,
     )
     birth = pd.to_datetime(
         out.get("birth_date", pd.Series(pd.NaT, index=out.index)), errors="coerce"
@@ -237,6 +271,10 @@ def preseason_roster_snapshot(
         "roster_reserve",
         "roster_suspended",
         "suspended_games",
+        "roster_injured_reserve",
+        "roster_pup",
+        "roster_nfi",
+        "mandatory_missed_games",
         "depth_rank",
         "qb_depth_rank",
         "qb_listed_starter",

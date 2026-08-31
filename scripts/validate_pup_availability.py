@@ -106,6 +106,72 @@ def _evaluate(train, test, *, truncate, split, fit_kwargs, seed):
     return out
 
 
+def _report(report: dict, args) -> int:
+    """Pool the folds that are present, print the arms table, and write it.
+
+    Tolerant of a missing fold on purpose: the folds are run as separate
+    processes, so a partial set is a normal intermediate state rather than an
+    error, and the fold count printed beside each average says how many
+    actually contributed.
+    """
+    folds = report["folds"]
+    holdouts = [h for h in args.holdouts if str(h) in folds]
+    print(f"\n{'=' * 78}\npooled vs baseline, by population\n{'=' * 78}")
+    pooled: dict[str, object] = {}
+    for population in ("overall", "reserve", "pup_or_nfi", "injured_reserve"):
+        rows = []
+        for name in ARMS:
+            values = [
+                folds[str(h)][name][population]
+                for h in holdouts
+                if population in folds[str(h)][name]
+            ]
+            if not values:
+                continue
+            rows.append(
+                {
+                    "arm": name,
+                    "n": int(np.mean([v["n"] for v in values])),
+                    **{
+                        metric: float(np.mean([v[metric] for v in values]))
+                        for metric in ("mae", "rmse", "crps", "coverage_80")
+                    },
+                }
+            )
+        if not rows:
+            continue
+        table = pd.DataFrame(rows).set_index("arm")
+        base = table.loc["baseline"]
+        for metric in ("mae", "crps"):
+            table[f"{metric}_delta"] = (table[metric] - base[metric]) / base[metric]
+        # Won every fold, not just on average: a pooled win carried by one
+        # holdout is what this repo's gate exists to reject.
+        for name in ARMS:
+            scored = [h for h in holdouts if population in folds[str(h)][name]]
+            wins = sum(
+                folds[str(h)][name][population]["crps"]
+                < folds[str(h)]["baseline"][population]["crps"]
+                for h in scored
+            )
+            table.loc[name, "crps_folds_won"] = f"{wins}/{len(scored)}"
+        print(f"\n-- {population} (n~{int(table['n'].iloc[0])}) --")
+        print(
+            table[
+                ["mae", "crps", "coverage_80", "mae_delta", "crps_delta",
+                 "crps_folds_won"]
+            ].to_string(
+                float_format=lambda v: f"{v:.5f}" if abs(v) > 1e-3 else f"{v:+.2%}"
+            )
+        )
+        pooled[population] = table.reset_index().to_dict("records")
+    report["pooled"] = pooled
+    print(f"\nmateriality floor {MATERIAL:.2%}; a smaller move is not a result")
+    args.report_json.parent.mkdir(parents=True, exist_ok=True)
+    args.report_json.write_text(json.dumps(report, indent=2, default=str), "utf-8")
+    print(f"wrote {args.report_json}")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--holdouts", type=int, nargs="+", default=[2023, 2024, 2025])
@@ -115,7 +181,24 @@ def main(argv=None) -> int:
     parser.add_argument("--chains", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--report-json", type=Path, default=Path("reports/pup.json"))
+    parser.add_argument(
+        "--merge",
+        type=Path,
+        nargs="+",
+        default=None,
+        help="pool per-fold reports from earlier single-holdout runs instead of "
+        "fitting. Twelve fits in one process exhausts this container, so each "
+        "fold is run separately and combined here.",
+    )
     args = parser.parse_args(argv)
+
+    if args.merge:
+        folds: dict = {}
+        for path in args.merge:
+            folds.update(json.loads(path.read_text("utf-8"))["folds"])
+        args.holdouts = sorted(int(key) for key in folds)
+        report: dict[str, object] = {"holdouts": args.holdouts, "folds": folds}
+        return _report(report, args)
 
     player_rows = pd.read_pickle(args.cache_dir / "player_rows.pkl")
     required = [*RESERVE_KIND_FEATURES, "mandatory_missed_games"]
@@ -165,60 +248,7 @@ def main(argv=None) -> int:
             )
         report["folds"][str(holdout)] = fold
 
-    print(f"\n{'=' * 78}\npooled vs baseline, by population\n{'=' * 78}")
-    pooled: dict[str, object] = {}
-    for population in ("overall", "reserve", "pup_or_nfi", "injured_reserve"):
-        rows = []
-        for name in ARMS:
-            values = [
-                report["folds"][str(h)][name][population]
-                for h in args.holdouts
-                if population in report["folds"][str(h)][name]
-            ]
-            if not values:
-                continue
-            rows.append(
-                {
-                    "arm": name,
-                    "n": int(np.mean([v["n"] for v in values])),
-                    **{
-                        metric: float(np.mean([v[metric] for v in values]))
-                        for metric in ("mae", "rmse", "crps", "coverage_80")
-                    },
-                }
-            )
-        if not rows:
-            continue
-        table = pd.DataFrame(rows).set_index("arm")
-        base = table.loc["baseline"]
-        for metric in ("mae", "rmse", "crps"):
-            table[f"{metric}_delta"] = (table[metric] - base[metric]) / base[metric]
-        # Won every fold, not just on average: a pooled win carried by one
-        # holdout is what this repo's gate exists to reject.
-        for name in ARMS:
-            wins = sum(
-                report["folds"][str(h)][name][population]["crps"]
-                < report["folds"][str(h)]["baseline"][population]["crps"]
-                for h in args.holdouts
-                if population in report["folds"][str(h)][name]
-            )
-            table.loc[name, "crps_folds_won"] = f"{wins}/{len(args.holdouts)}"
-        print(f"\n-- {population} (n~{int(table['n'].iloc[0])}) --")
-        print(
-            table[
-                ["mae", "crps", "coverage_80", "mae_delta", "crps_delta", "crps_folds_won"]
-            ].to_string(
-                float_format=lambda v: f"{v:.5f}" if abs(v) > 1e-3 else f"{v:+.2%}"
-            )
-        )
-        pooled[population] = table.reset_index().to_dict("records")
-
-    report["pooled"] = pooled
-    print(f"\nmateriality floor {MATERIAL:.2%}; a smaller move is not a result")
-    args.report_json.parent.mkdir(parents=True, exist_ok=True)
-    args.report_json.write_text(json.dumps(report, indent=2, default=str), "utf-8")
-    print(f"wrote {args.report_json}")
-    return 0
+    return _report(report, args)
 
 
 if __name__ == "__main__":

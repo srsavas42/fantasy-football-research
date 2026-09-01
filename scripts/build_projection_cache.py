@@ -28,6 +28,7 @@ warnings.filterwarnings("ignore")
 
 import pandas as pd
 
+from ffmodel.data import ingest
 from ffmodel.features.season_average import (
     build_season_average_data,
     preseason_roster_snapshot,
@@ -68,11 +69,34 @@ def main(argv=None) -> int:
     import nflreadpy as nfl
 
     weekly = nfl.load_rosters_weekly(seasons=observed).to_pandas()
-    depth = None
+    # Depth charts are not optional. ``depth_rank`` separates a WR1 from a WR5,
+    # and without it the snap model cannot tell them apart: a build that omitted
+    # these put Ricky Pearsall's predicted snap share at 0.385 against 0.013
+    # with them, and Jayden Higgins at 0.526 against 0.026. Nothing raises --
+    # the column is simply absent and the feature quietly drops out -- so the
+    # count is asserted below rather than trusted.
+    depth = ingest.load_depth_charts(observed)
     snapshot = preseason_roster_snapshot(weekly, depth)
     if projection in seasons:
-        forward = preseason_roster_snapshot(_projection_roster(projection), depth)
+        # The projection season may have no published chart yet; that is a
+        # missing snapshot for those rows, not a reason to drop it everywhere.
+        try:
+            forward_depth = ingest.load_depth_charts([projection])
+        except Exception:
+            forward_depth = None
+        forward = preseason_roster_snapshot(
+            _projection_roster(projection), forward_depth
+        )
         snapshot = pd.concat([snapshot, forward], ignore_index=True)
+    charted = pd.to_numeric(
+        snapshot.get("depth_rank", pd.Series(dtype=float)), errors="coerce"
+    ).notna()
+    if not charted.any():
+        raise SystemExit(
+            "no row carries a depth_rank; the depth-chart join produced nothing "
+            "and the snap model would fit without it"
+        )
+    print(f"depth chart on {charted.mean():.1%} of snapshot rows", flush=True)
     print(f"roster snapshot {len(snapshot)} rows", flush=True)
 
     data = build_season_average_data(

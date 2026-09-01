@@ -27,12 +27,23 @@ from ffmodel.models.volume_team import _sum_to_zero_basis
 GROUP_KEYS = ["season", "team"]
 PLAYER_KEYS = GROUP_KEYS + ["player_key"]
 
-# The reserve flag split into the populations it pools. Opt-in via
-# ``extra_features`` so the split is measured before it ships: on 2021-2025
-# week-1 placements injured reserve costs 16.2 games, PUP 13.5 and NFI 15.8,
-# and injured reserve supplies 266 of the 683 pooled rows, so the one shared
-# coefficient is fitted mostly on it. ``roster_reserve`` stays in the base set
-# and these are the deviations from it.
+# The reserve flag split into the populations it pools. On 2021-2025 week-1
+# placements injured reserve costs 16.2 games, PUP 13.5 and NFI 15.8, and
+# injured reserve supplies 266 of the 683 pooled rows, so one shared coefficient
+# was fitted mostly on injured reserve and then applied to everyone.
+# ``roster_reserve`` stays in the base set and these are the deviations from it.
+#
+# Promoted 2026-09-01 on holdouts 2023/2024/2025: availability CRPS -1.12% and
+# MAE -1.46% overall, three folds of three. Nearly all of it is injured reserve,
+# where CRPS falls 9.24% and MAE 18.38%, also three of three, with coverage
+# moving from 0.993 toward nominal at 0.970. See reports/pup.json and
+# scripts/validate_pup_availability.py.
+#
+# One documented exception: on the PUP/NFI population alone the split costs MAE
+# +3.57% and wins one fold of three on CRPS. That population is eleven rows a
+# season, so it is noise as much as signal, and the mandatory-minimum floor
+# recovers it to CRPS -4.81% on three folds -- but it is the one place the split
+# does not obviously help.
 RESERVE_KIND_FEATURES = (
     "roster_injured_reserve",
     "roster_pup",

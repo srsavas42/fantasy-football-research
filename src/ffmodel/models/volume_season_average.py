@@ -41,6 +41,7 @@ from ffmodel.models.base import (
     simplex_shares,
 )
 from ffmodel.models.season_availability import (
+    RESERVE_KIND_FEATURES,
     AVAILABILITY_HISTORY_FEATURES,
     AvailabilityPrediction,
     QBWorkloadShareModel,
@@ -1472,6 +1473,12 @@ class SeasonAverageVolumePipeline:
     # (docs/injury-availability-2026-08.md): CRPS -2.39% pooled and 3/3 folds,
     # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
     # because availability feeds exposure and a gain there is not a gain here.
+    # Injured reserve, PUP and non-football-injury as deviations from the
+    # pooled reserve flag. Promoted 2026-09-01: availability CRPS -1.12% and MAE
+    # -1.46% on three holdouts of three, almost all of it injured reserve at
+    # CRPS -9.24% and MAE -18.38%. See RESERVE_KIND_FEATURES for the one
+    # population it does not help.
+    reserve_kind_features: bool = True
     injury_availability_features: bool = False
     # Let the availability regression read the player's own availability
     # history, not only last season. See ``AVAILABILITY_HISTORY_FEATURES``:
@@ -1598,6 +1605,28 @@ class SeasonAverageVolumePipeline:
             self._enable_postseason_role_features()
         if self.availability_history_features:
             self._enable_availability_history(data.player_rows)
+        if self.reserve_kind_features:
+            missing = [
+                name
+                for name in RESERVE_KIND_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                raise ValueError(
+                    f"reserve_kind_features is on but {missing} are absent from "
+                    "the player rows. Rebuild the cache with "
+                    "scripts/build_projection_cache.py, or set "
+                    "reserve_kind_features=False to fit the pooled reserve flag "
+                    "deliberately rather than by accident"
+                )
+            self.availability_model.extra_features = tuple(
+                dict.fromkeys(
+                    (
+                        *self.availability_model.extra_features,
+                        *RESERVE_KIND_FEATURES,
+                    )
+                )
+            )
         if self.injury_availability_features:
             missing = [
                 name

@@ -651,6 +651,9 @@ class PosteriorSeasonEfficiencyModel:
     use_volume: bool = True
     use_advanced: bool = True
     mean_mode: str | None = None
+    # Covariates on trial, appended to the response's own design. Opt-in and
+    # empty by default, so a model fitted without them is byte-identical.
+    extra_features: tuple[str, ...] = ()
     ridge_alpha: float = 500.0
     # Backward-compatible override for early efficiency-v2 checkpoints.
     prior_only: bool | None = None
@@ -705,6 +708,7 @@ class PosteriorSeasonEfficiencyModel:
                 names.append(self.spec.volume_feature)
             if self.use_advanced:
                 names.extend(self.spec.advanced_features)
+            names.extend(self.extra_features)
         return tuple(dict.fromkeys(name for name in names if name))
 
     def _prior_signal(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:

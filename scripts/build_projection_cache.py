@@ -98,6 +98,14 @@ def main(argv=None) -> int:
         )
     print(f"depth chart on {charted.mean():.1%} of snapshot rows", flush=True)
     print(f"roster snapshot {len(snapshot)} rows", flush=True)
+    if projection in seasons:
+        fwd = snapshot[snapshot["season"].eq(projection)]
+        print(
+            f"  going in: {len(fwd)} rows for {projection}, "
+            f"reserve {int(fwd['roster_reserve'].sum())}, "
+            f"IR {int(fwd['roster_injured_reserve'].sum())}",
+            flush=True,
+        )
 
     data = build_season_average_data(
         seasons,
@@ -107,6 +115,16 @@ def main(argv=None) -> int:
         projection_seasons=[projection] if projection in seasons else (),
     )
     print(f"player_rows {data.player_rows.shape}", flush=True)
+    if projection in seasons:
+        got = data.player_rows[data.player_rows["season"].eq(projection)]
+        real = got[pd.to_numeric(got.get("is_replacement_player"), errors="coerce").fillna(0).ne(1)]
+        print(
+            f"  coming out: {len(real)} real rows for {projection}, "
+            f"reserve {int(real['roster_reserve'].sum())}, "
+            f"IR {int(real['roster_injured_reserve'].sum())}, "
+            f"sources {dict(real['roster_snapshot_source'].value_counts())}",
+            flush=True,
+        )
     print(f"team_rows   {data.team_rows.shape}", flush=True)
     if projection in seasons:
         print(f"{projection} rows {int(data.player_rows.season.eq(projection).sum())}")

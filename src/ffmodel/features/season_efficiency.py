@@ -83,6 +83,19 @@ EFFICIENCY_SPECS = (
     SeasonEfficiencySpec(
         "rush_first_down_rate", "rush_first_downs", "rush_att", MODEL_POSITIONS, 60, True
     ),
+    # Usage context rather than efficiency, but it rides the same machinery:
+    # aggregated as a ratio of season totals, pooled toward the position mean so
+    # a twenty-carry sample is not taken at face value, and exposed only as a
+    # lagged feature. See ``ffmodel.features.carry_context`` for what it is and
+    # what it was measured to be worth.
+    SeasonEfficiencySpec(
+        "rush_short_yardage_share",
+        "rush_short_yardage_att",
+        "rush_att",
+        MODEL_POSITIONS,
+        60,
+        True,
+    ),
 )
 
 EFFICIENCY_BY_NAME = {spec.name: spec for spec in EFFICIENCY_SPECS}

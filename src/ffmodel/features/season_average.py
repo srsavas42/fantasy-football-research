@@ -31,6 +31,10 @@ from ffmodel.features.draft import (
     expected_rookie_pass_claim,
     load_draft_capital,
 )
+from ffmodel.features.carry_context import (
+    merge_carry_context,
+    weekly_carry_context,
+)
 from ffmodel.features.season_efficiency import (
     CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,
     EFFICIENCY_LABEL_COLUMNS,
@@ -1100,6 +1104,16 @@ def build_season_average_data(
             "with rows for each projection season"
         )
     player_weeks = load_player_weeks(observed, source=source)
+    if source != "legacy":
+        # Down and distance live only in play-by-play; the weekly stat feed the
+        # panel is built from does not carry them. Missing coverage stays
+        # missing -- see ffmodel.features.carry_context.
+        try:
+            player_weeks = merge_carry_context(
+                player_weeks, weekly_carry_context(observed, cache_dir=roster_cache_dir)
+            )
+        except (ingest.DataUnavailableError, OSError):
+            pass
     teams = team_season_volume(player_weeks)
     # No upper bound: the loader drops seasons the feed will not serve, so
     # coverage follows the data rather than a constant that goes stale.

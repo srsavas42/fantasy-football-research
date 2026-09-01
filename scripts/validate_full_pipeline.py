@@ -91,14 +91,45 @@ def _volume_metrics(prediction) -> dict[str, dict[str, object]]:
     return out
 
 
-def _efficiency_metrics(prediction, exposure_floor: int) -> dict[str, dict[str, object]]:
+def _predictive(spec, rows: pd.DataFrame, latent: np.ndarray, seed: int) -> np.ndarray:
+    """Latent rate draws turned into draws of the *observed* season rate.
+
+    A Beta-Binomial response is an observed rate at a finite exposure and
+    carries binomial sampling noise the latent draws do not. Scoring one against
+    the other does not merely add noise, it reports a calibration failure that
+    is not there: every continuous response in this layer covered 0.87-0.93
+    against a nominal 0.80 while every Beta-Binomial one covered 0.08-0.67, a
+    split exactly along likelihood type rather than along anything about the
+    responses. Mirrors ``PosteriorSeasonEfficiencyModel.predict_observed_samples``.
+    """
+    if spec.likelihood != "beta_binomial":
+        return latent
+    exposure = (
+        pd.to_numeric(rows.get(spec.exposure), errors="coerce")
+        .fillna(0).round().astype(int).to_numpy()
+    )
+    rng = np.random.default_rng(seed + 10_000)
+    success = rng.binomial(exposure[:, None], np.nan_to_num(latent))
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out = np.divide(
+            success, exposure[:, None],
+            out=np.full_like(latent, np.nan, dtype=float),
+            where=exposure[:, None] > 0,
+        )
+    return out
+
+
+def _efficiency_metrics(
+    prediction, exposure_floor: int, *, seed: int = 0
+) -> dict[str, dict[str, object]]:
     rows = prediction.player_rows.reset_index(drop=True)
     out = {}
     for spec in EFFICIENCY_MODEL_SPECS:
         if spec.target not in prediction.efficiency.rates:
             continue
         observed = pd.to_numeric(rows.get(spec.target), errors="coerce").to_numpy(dtype=float)
-        samples = np.asarray(prediction.efficiency.rates[spec.target], dtype=float)
+        latent = np.asarray(prediction.efficiency.rates[spec.target], dtype=float)
+        samples = _predictive(spec, rows, latent, seed)
         exposure = pd.to_numeric(rows.get(spec.exposure), errors="coerce").fillna(0)
         floor = min(spec.min_exposure, exposure_floor)
         eligible = (
@@ -108,6 +139,10 @@ def _efficiency_metrics(prediction, exposure_floor: int) -> dict[str, dict[str, 
         valid = eligible & np.isfinite(observed) & np.isfinite(samples).all(axis=1)
         if valid.sum() >= 20:
             out[spec.target] = _metrics(observed[valid], samples[valid])
+            out[spec.target]["crps_latent"] = float(
+                empirical_crps(observed[valid], latent[valid]).mean()
+            )
+            out[spec.target]["mean_observed"] = float(np.abs(observed[valid]).mean())
     return out
 
 
@@ -161,7 +196,7 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws: int, tune: int, chains: i
         "seconds": elapsed,
         "availability": _availability_metrics(prediction, exposure_floor),
         "volume": _volume_metrics(prediction),
-        "efficiency": _efficiency_metrics(prediction, exposure_floor),
+        "efficiency": _efficiency_metrics(prediction, exposure_floor, seed=seed),
         "totals": _totals_metrics(prediction),
     }
     del pipeline, prediction

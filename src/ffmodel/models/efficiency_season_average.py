@@ -195,7 +195,15 @@ EFFICIENCY_MODEL_SPECS = (
         -2.0,
         15.0,
         20,
-        ("prior_rush_epa_per_carry", "prior_rush_first_down_rate"),
+        (
+            "prior_rush_epa_per_carry",
+            "prior_rush_first_down_rate",
+            # The situation the carries came from, not just how they went.
+            # -1.12% MAE and -1.03% CRPS on 2023/2024/2025, three folds of
+            # three, and -5.60% on the quartile of backs who actually run in
+            # short yardage against +0.46% on the quartile who do not.
+            "prior_rush_short_yardage_share",
+        ),
         numerator="eff_rush_yds",
     ),
     EfficiencyModelSpec(
@@ -284,11 +292,11 @@ POSTERIOR_MEAN_MODE = {
     "pass_yards_per_attempt": "ridge",
     "pass_td_rate": "ridge",
     "pass_int_rate": "ridge",
-    "rec_catch_rate": "prior",
+    "rec_catch_rate": "posterior",
     "rec_yards_per_target": "posterior",
     "rec_td_rate": "prior",
     "rush_yards_per_carry": "ridge",
-    "rush_td_rate": "prior",
+    "rush_td_rate": "posterior",
     "fumble_lost_rate": "prior",
 }
 
@@ -378,10 +386,38 @@ POSTERIOR_MEAN_MODE = {
 # over-covers, in the base arm as much as the challenger, and this change does
 # not move it. That reproduces the efficiency-v2 table (0.899 and 0.917) closely
 # enough to be a useful check on the harness.
+# Two of the three came back off persistence. Measured by
+# ``scripts/validate_catch_rate_covariates.py`` on holdouts 2023/2024/2025, 600
+# draws and four chains, zero divergences, scored against the posterior
+# predictive at realized exposure on each spec's eligible population:
+#
+#   response          MAE            CRPS           cov80
+#   rec_catch_rate    -1.53%  3/3    -1.10%  3/3    0.839 -> 0.844
+#   rush_td_rate      -1.13%  3/3    -1.24%  3/3    0.900 -> 0.906
+#
+# This does not overturn the reasoning above; it narrows it. The claim that the
+# layer was asserting a persistence the data does not support still stands, and
+# ``persistence`` mode is still better than ``prior``. What the note above got
+# wrong was the scope of the efficiency-v2 evidence: the full posterior
+# regression lost 0/3 folds on *receiving touchdown rate*, and that one result
+# was generalized to all three responses. It does not transfer. rec_td_rate is
+# the response with no covariate that correlates with it at all -- a situational
+# screen over target depth, air-yards spread, screen share and end-zone share
+# found nothing beyond the prior -- so an empty design costs it nothing, and it
+# stays here. The other two have covariates their own specs already name and
+# were discarding: aDOT for catch rate, prior EPA and first-down rate for
+# rushing touchdowns.
+#
+# Against the obvious story: the catch-rate gain is *not* concentrated on deep
+# receivers. The top aDOT quartile improves 3/3 folds but by -1.09% MAE, about
+# what the whole population gets, so this is a response wanting a fitted
+# covariate design rather than deep threats having been mispredicted in
+# particular.
+#
+# ``fumble_lost_rate`` stays on ``prior`` for the reason given above, unmeasured
+# and immaterial.
 PERSISTENCE_MEAN_MODE = {
     "rec_td_rate": "persistence",
-    "rush_td_rate": "persistence",
-    "rec_catch_rate": "persistence",
 }
 
 

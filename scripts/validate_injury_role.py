@@ -29,27 +29,35 @@ Arms:
 Scored overall and on the reserve population, because a flag that fires on 4% of
 rows cannot move a pooled average even when it is right about those rows.
 
-**Result on 2023/2024/2025: null, and negative where it is not.** Adding the
-reserve flag to the carry allocation costs 0.8% MAE overall and 4.6% on the
-reserve population itself, winning no fold of three; splitting it by reserve
-kind costs more. Targets move by nothing overall and get 7% worse on the
-reserve population. The arms did differ -- feature counts run 2/3/6 for carries
-and 1/2/5 for targets -- so this is a real null rather than a flag that never
-arrived.
+**Result on 2023/2024/2025: nothing clears the gate, across four encodings.**
 
-The reading is that **playing time is the mediator, not a confounder**. This
-script hands both arms the observed snap share, so the model already knows
-exactly how much football the player played; told that, being told *why* adds
-nothing and costs degrees of freedom. The descriptive 26% gap is what an injury
-does to a player's snaps, and the layer that owns snaps already reads the
-reserve flags.
+    carry, overall          reserve +0.81% MAE   reserve-x-role +0.81%
+                            recurrence +2.76%    both +2.30%     0-1/3 folds
+    carry, reserve_with_role (n~31)
+                            reserve-x-role -1.66% MAE, -1.49% CRPS, 2/3 folds
+    carry, recurrent_with_role (n~79)
+                            recurrence +6.76% MAE, +6.27% CRPS, 0/3 folds
 
-That makes the design deliberately conservative in one direction worth naming:
-in the live pipeline snap share is predicted rather than observed, so a reserve
-flag could still pay off by improving *that* prediction. The untested arm is
-therefore the snap model, not the allocation -- ``SeasonSnapShareModel`` does
-not currently receive the reserve features, and it sits between availability
-and role where this signal appears to live.
+The only arm that helps anywhere is the flag interacted with holding a real
+role, on the thirty-odd carry rows a season that are actually at risk: -1.66%
+MAE, above the materiality floor, on two folds of three. The gate is every fold,
+so it does not pass, and it is worse everywhere else including overall. On a
+population that small, two of three is what a coin does.
+
+**Recurrence failed hardest, and it was the arm with the best prior case.** Its
+partial correlation with carry role was -0.141 after controlling snaps, age and
+experience, and its population is large rather than diluted. In the holdout it
+is worse than baseline everywhere and *worst on its own population*, 0 of 3
+folds. A partial correlation that survives controls is not the same quantity as
+predictive value over a fitted model that already carries a role prior, and this
+is the cleanest demonstration of that gap in this file.
+
+Taken with the earlier arms, four encodings of injury -- a bare flag, the flag
+split by reserve kind, the flag interacted with role, and recurrence -- have now
+failed at this layer. The descriptive gaps are real and repeatedly do not
+survive, because the allocation already conditions on prior role and observed
+playing time, which is most of what an injury changes. The remaining untested
+place for this signal is upstream in the snap model, not here.
 
 Folds run one per process; twelve fits in one process exhausts this container.
 

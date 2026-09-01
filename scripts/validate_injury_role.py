@@ -20,9 +20,11 @@ availability vary would fold two questions into one number.
 
 Arms:
 
-``baseline``       today's covariates
-``reserve``        adds the pooled roster_reserve flag
-``reserve-split``  adds injured reserve, PUP and NFI separately
+``baseline``        today's covariates
+``reserve``         the bare flag, kept as the rejected reference
+``reserve-x-role``  the flag plus its interaction with holding a real role
+``recurrence``      prior injury episode count
+``both``            the corrected flag and recurrence together
 
 Scored overall and on the reserve population, because a flag that fires on 4% of
 rows cannot move a pooled average even when it is right about those rows.
@@ -74,11 +76,57 @@ from ffmodel.models.volume_season_average import SeasonRosterShareModel
 
 ARMS = {
     "baseline": (),
+    # The bare flag, kept as the rejected reference rather than deleted: the
+    # corrected arms are only interpretable against what they correct.
     "reserve": ("roster_reserve",),
-    "reserve-split": ("roster_reserve", *RESERVE_KIND_FEATURES),
+    # The flag restricted to players with something to lose. 68% of flagged rows
+    # held under 2% of their team's work the season before, and among those the
+    # flag costs nothing (+0.463 against +0.401 for healthy fringe players)
+    # while among role-holders it costs 0.2 to 0.4 in log share. One coefficient
+    # over both is what the bare arm fitted.
+    "reserve-x-role": ("roster_reserve", "reserve_holds_role"),
+    # Recurrence, which survived the controls that killed the flag: partial
+    # correlation with carry role is -0.162 raw and -0.141 after snaps, age and
+    # experience together. It also avoids the dilution by construction, because
+    # episode count rises with role rather than falling with it.
+    "recurrence": ("prior_injury_episode_count_3yr",),
+    "both": (
+        "roster_reserve",
+        "reserve_holds_role",
+        "prior_injury_episode_count_3yr",
+    ),
 }
 
 STREAMS = {"carry": "carry_share", "target": "target_share"}
+
+# Where a reserve flag starts to mean "a role is at risk" rather than "this is a
+# fringe roster body". Read off the banding in
+# ``scripts/screen_reserve_flag_dilution.py``: the sign of the reserve effect
+# turns between the 2-8% and 8-20% bands.
+ROLE_THRESHOLD = 0.08
+
+
+def _derive(frame: pd.DataFrame, stream: str) -> pd.DataFrame:
+    """Add the interaction, per stream, without touching the cache.
+
+    Stream-specific on purpose: a back's carry role and a receiver's target role
+    are different things to have at risk, and pooling them would put a receiver's
+    target share in a carry regression.
+    """
+    out = frame.copy()
+    prior = pd.to_numeric(
+        out.get(f"prior_{stream}_share", pd.Series(0.0, index=out.index)),
+        errors="coerce",
+    ).fillna(0.0)
+    reserve = pd.to_numeric(
+        out.get("roster_reserve", pd.Series(0.0, index=out.index)), errors="coerce"
+    ).fillna(0.0)
+    out["reserve_holds_role"] = reserve * prior.ge(ROLE_THRESHOLD).astype(float)
+    out["prior_injury_episode_count_3yr"] = pd.to_numeric(
+        out.get("prior_injury_episode_count_3yr", pd.Series(0.0, index=out.index)),
+        errors="coerce",
+    ).fillna(0.0)
+    return out
 
 MATERIAL = 0.0025
 
@@ -131,6 +179,15 @@ def _evaluate(train, test, stream, features, *, fit_kwargs, seed):
     holds_role = reserve & (observed > 0.02)
     if holds_role.sum() >= 5:
         out["reserve_with_role"] = _metrics(observed[holds_role], samples[holds_role])
+    # The recurrence population, which is a different and much larger set than
+    # the reserve one: episode count rises with role, so this is not the thin
+    # slice the bare flag was diluted into.
+    episodes = pd.to_numeric(
+        rows.get("prior_injury_episode_count_3yr"), errors="coerce"
+    ).fillna(0).to_numpy()
+    recurrent = (episodes >= 2) & (observed > 0.02)
+    if recurrent.sum() >= 5:
+        out["recurrent_with_role"] = _metrics(observed[recurrent], samples[recurrent])
     del model, prediction, samples
     gc.collect()
     return out
@@ -141,7 +198,7 @@ def _report(report: dict, args) -> int:
     holdouts = [h for h in args.holdouts if str(h) in folds]
     for stream in STREAMS:
         print(f"\n{'=' * 78}\n{stream} share vs baseline\n{'=' * 78}")
-        for population in ("overall", "reserve", "reserve_with_role"):
+        for population in ("overall", "reserve", "reserve_with_role", "recurrent_with_role"):
             rows = []
             for arm in ARMS:
                 values = [
@@ -226,9 +283,12 @@ def main(argv=None) -> int:
         fold: dict = {}
         for stream in STREAMS:
             fold[stream] = {}
+            # Derived per stream, and on both frames, so the fit and the score
+            # see the same column rather than a train-only feature.
+            train_s, test_s = _derive(train, stream), _derive(test, stream)
             for arm, features in ARMS.items():
                 fold[stream][arm] = _evaluate(
-                    train, test, stream, features,
+                    train_s, test_s, stream, features,
                     fit_kwargs=fit_kwargs, seed=args.seed,
                 )
                 block = fold[stream][arm]["overall"]

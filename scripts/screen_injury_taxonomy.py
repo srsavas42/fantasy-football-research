@@ -1,5 +1,36 @@
 """Do injury location and tissue type predict differently, or is it one effect?
 
+**Verdict: the location cut does not survive restriction to what is observable
+at projection time, and this file's headline number was measured on a
+population a forecast cannot see.**
+
+The duration spread reported below -- hamstring 0.655 availability against ankle
+0.768, about 2.2 games -- is over injuries reported in *any* week of the season.
+A preseason projection knows only the week-1 report. Restricted to that:
+
+    week-1 injured rows      572 across ten seasons
+    muscle                   n=177  mean availability 0.657
+    joint                    n=263  mean availability 0.602
+    difference               0.93 games, t=1.85, p=0.065
+    per site                 20 to 102 rows, i.e. 2 to 10 a season
+
+Two things go wrong at once. The spread shrinks from 2.2 games to 0.93 and stops
+being significant, and the *ordering flips*: hamstring is 0.636 against knee
+0.604 at the cutoff, where season-wide it was 0.655 against 0.691. That flip is
+the diagnosis. A hamstring recurs and is reported in many weeks, so a season-wide
+cut counts it repeatedly and reads the recurrence as duration. At week 1 the
+association is not there.
+
+The "no injury reported" group is also not a control here for the same reason as
+elsewhere: its mean availability is 0.573, *below* every injured group, because
+it is full of fringe players who never reach a report at all.
+
+So this is a fifth negative in the same family, and it failed for the reason the
+previous four did: the population that is both informative and observable is a
+few dozen rows a season. Kept as the record of a screen that looked promising
+and was measuring the wrong population.
+
+
 The pooled reserve flag already earns its place at availability and at receiving
 efficiency. The question here is different: whether that pooled effect is a
 mixture whose parts behave differently, rather than one effect to be sliced

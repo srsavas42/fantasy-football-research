@@ -197,8 +197,8 @@ def _print_totals(folds: dict, holdouts: list[int]):
         n = int(np.mean([r["n"] for r in rows]))
         mae = np.mean([r["mae"] for r in rows])
         crps = np.mean([r["crps"] for r in rows])
-        cov80 = np.mean([r["coverage_80"]["coverage"] for r in rows])
-        cov95 = np.mean([r["coverage_95"]["coverage"] for r in rows])
+        cov80 = np.mean([r["coverage_80"] for r in rows])
+        cov95 = np.mean([r["coverage_95"] for r in rows])
         print(
             f"  {key:20s} n~{n:<6} MAE {mae:>7.2f}  CRPS {crps:>7.2f}  "
             f"cov80 {cov80:>6.3f}  cov95 {cov95:>6.3f}"

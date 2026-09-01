@@ -262,6 +262,18 @@ BASE_EFFICIENCY_FEATURES = (
 # how a feature earns a fold win by chance.
 TEAMMATE_QUALITY_TARGETS = ("rec_catch_rate", "rec_yards_per_target", "rec_td_rate")
 
+# Reserve status on the one efficiency response that was measured to want it.
+#
+# Deliberately not the three receiving responses. rec_yards_per_target is what
+# the walk-forward scored: MAE -0.37% and CRPS -0.26% overall and -2.48% and
+# -1.85% on the reserve population, three holdouts of three. rec_catch_rate
+# admits no covariates at all -- its mean mode returns an empty design, so every
+# arm on it produced byte-identical numbers -- and rec_td_rate was never scored.
+# Extending an accepted result to responses it was not measured on is how a
+# promotion quietly becomes three unvalidated arms.
+RESERVE_EFFICIENCY_TARGETS = ("rec_yards_per_target",)
+RESERVE_EFFICIENCY_FEATURES = ("roster_reserve",)
+
 # Production mean gate after the 2022-2024 posterior screen. The posterior
 # challenger improved receiving yards/target by 1.22% with two fold wins. Every
 # other flexible mean failed either pooled accuracy or the two-of-three
@@ -1286,6 +1298,18 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     # ``PERSISTENCE_MEAN_MODE`` for what it replaces and what it is worth. Kept
     # as its own flag so the single-season identity-map arm stays reproducible.
     fitted_persistence_means: bool = True
+    # Reserve status on rec_yards_per_target. Promoted 2026-09-01: the flag is
+    # worth MAE -0.37% and CRPS -0.26% overall and -2.48% and -1.85% on the
+    # reserve population, winning three holdouts of three in every population
+    # scored. See scripts/validate_injury_efficiency.py and
+    # reports/injury_efficiency.json.
+    #
+    # It is the only injury covariate that has cleared a gate outside the
+    # availability layer. Four encodings were rejected in the role layer, and
+    # injury recurrence adds nothing here either (-0.06%, two folds of three),
+    # so this is the pooled reserve flag on one response, not injury information
+    # in general.
+    reserve_efficiency_features: bool = True
     models: dict[str, PosteriorSeasonEfficiencyModel] = field(default_factory=dict)
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
@@ -1317,6 +1341,16 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 "add_teammate_quality_features rather than fitting a model that "
                 "quietly ignores the flag"
             )
+        if self.reserve_efficiency_features and "roster_reserve" not in rows:
+            # Same failure the teammate-quality flag hit: ``_matrix`` keeps only
+            # the features present in the frame, so a missing one is dropped
+            # without a word and the model fits as though the flag were off.
+            raise ValueError(
+                "reserve_efficiency_features is on but roster_reserve is not in "
+                "the rows; rebuild the frames with "
+                "scripts/build_projection_cache.py rather than fitting a model "
+                "that quietly ignores the flag"
+            )
         unknown = selected - set(EFFICIENCY_MODEL_BY_TARGET)
         if unknown:
             raise ValueError(f"unknown efficiency targets: {sorted(unknown)}")
@@ -1343,12 +1377,19 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 if self.fitted_persistence_means
                 else None
             )
+            extra_features = (
+                RESERVE_EFFICIENCY_FEATURES
+                if self.reserve_efficiency_features
+                and spec.target in RESERVE_EFFICIENCY_TARGETS
+                else ()
+            )
             model = PosteriorSeasonEfficiencyModel(
                 spec,
                 mean_mode=mean_mode,
                 use_volume=self.use_volume,
                 use_advanced=self.use_advanced,
                 ridge_alpha=self.ridge_alpha,
+                extra_features=extra_features,
             )
             started = perf_counter()
             try:
@@ -1465,6 +1506,12 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             "prior_only": model.prior_only,
             "mean_mode": model._mean_mode(),
             "ridge_alpha": model.ridge_alpha,
+            # ``feature_names`` is restored directly, so prediction is correct
+            # without this. It is written for the same reason ``exposure_floor``
+            # is: a refit from a reloaded pipeline would otherwise rebuild the
+            # design from whatever the current default is, and silently drop a
+            # covariate the artifact was fitted with.
+            "extra_features": list(model.extra_features),
             "ridge_model": ridge_state,
             "prior_fill": model.prior_fill,
             "prior_position_fill": model.prior_position_fill,
@@ -1587,6 +1634,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 mean_mode=state.get("mean_mode"),
                 ridge_alpha=float(state.get("ridge_alpha", 500.0)),
                 prior_only=state.get("prior_only"),
+                extra_features=tuple(state.get("extra_features", ())),
             )
             cls._restore_model_state(model, state)
             model.idata = load_idata(directory / f"{target}.nc")

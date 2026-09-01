@@ -17,6 +17,28 @@ So this is run to close the question rather than in expectation of a win, and a
 null here means the layer is genuinely uninformed by injury rather than that
 nobody looked.
 
+**That expectation was wrong.** On 2023/2024/2025 the reserve flag clears the
+gate on rec_yards_per_target, and it is the only arm in this whole line of work
+that does:
+
+    overall (n~411)     MAE -0.37%   CRPS -0.26%   3/3 folds
+    reserve  (n~50)     MAE -2.48%   CRPS -1.85%   3/3 folds
+    recurrent (n~214)   MAE -0.38%   CRPS -0.31%   3/3 folds
+
+Material against the 0.25% floor and winning every fold, with the effect
+concentrated where it should be: a reserve player's yards per target is
+predicted 2.5% better when the model knows he was on a reserve list.
+
+Two things keep this modest rather than a headline. The overall CRPS gain of
+0.26% sits barely over the floor, so MAE is carrying the claim. And recurrence
+adds nothing here -- -0.06% at two folds of three -- which matches the
+descriptive sign being positive and survivorship-shaped, and means ``both`` is
+just the reserve flag with a passenger.
+
+The scope is also one response. rec_catch_rate cannot take covariates at all and
+rushing efficiency was descriptively flat, so this is not "injury helps
+efficiency" but "the reserve flag helps yards per target".
+
 Restricted to the receiving responses. That is where the descriptive sign was
 negative at all; rushing efficiency was flat against every injury marker, so an
 arm on it would be testing a hypothesis the data never suggested.

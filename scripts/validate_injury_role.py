@@ -27,6 +27,28 @@ Arms:
 Scored overall and on the reserve population, because a flag that fires on 4% of
 rows cannot move a pooled average even when it is right about those rows.
 
+**Result on 2023/2024/2025: null, and negative where it is not.** Adding the
+reserve flag to the carry allocation costs 0.8% MAE overall and 4.6% on the
+reserve population itself, winning no fold of three; splitting it by reserve
+kind costs more. Targets move by nothing overall and get 7% worse on the
+reserve population. The arms did differ -- feature counts run 2/3/6 for carries
+and 1/2/5 for targets -- so this is a real null rather than a flag that never
+arrived.
+
+The reading is that **playing time is the mediator, not a confounder**. This
+script hands both arms the observed snap share, so the model already knows
+exactly how much football the player played; told that, being told *why* adds
+nothing and costs degrees of freedom. The descriptive 26% gap is what an injury
+does to a player's snaps, and the layer that owns snaps already reads the
+reserve flags.
+
+That makes the design deliberately conservative in one direction worth naming:
+in the live pipeline snap share is predicted rather than observed, so a reserve
+flag could still pay off by improving *that* prediction. The untested arm is
+therefore the snap model, not the allocation -- ``SeasonSnapShareModel`` does
+not currently receive the reserve features, and it sits between availability
+and role where this signal appears to live.
+
 Folds run one per process; twelve fits in one process exhausts this container.
 
     python scripts/validate_injury_role.py --holdouts 2023 --report-json out.json

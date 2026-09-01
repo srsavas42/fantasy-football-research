@@ -29,6 +29,12 @@ with a flagged metric (NGS ``efficiency``, r = -0.117), and as a check that a
 mode change is not just generically good. ``rec_td_rate`` is left out: nothing
 correlated with it at all, so there is no hypothesis to test.
 
+Scoring follows ``validate_persistence_mean.py`` rather than the injury screens:
+CRPS against the posterior predictive at realized exposure, with the latent-draw
+number reported beside it. The gate that installed persistence mode found the
+two disagree in sign, and every arm here moves exactly the thing that gap is
+sensitive to -- how tightly the location is fitted.
+
     python scripts/validate_catch_rate_covariates.py --holdouts 2023
     python scripts/validate_catch_rate_covariates.py --merge a.json b.json c.json
 """
@@ -113,14 +119,39 @@ def _evaluate(train, test, target, arm, *, fit_kwargs, seed):
         mode, extra = "posterior", (f"ngs_{field}",)
     model = PosteriorSeasonEfficiencyModel(spec=spec, mean_mode=mode, extra_features=extra)
     model.fit(train, **fit_kwargs)
-    prediction = model.predict_samples(test, seed=seed)
+    # Score the population the spec actually fits -- position and minimum
+    # exposure -- as ``validate_persistence_mean.py`` does. ``predict_samples``
+    # does not filter, so handing it the raw test frame scores twenty-target
+    # receivers whose observed rate is mostly binomial noise, a population the
+    # gate that installed persistence mode never included.
+    held = model._eligible(test)
+    if held.empty:
+        raise SystemExit(f"{target}: no eligible rows in the holdout")
+    prediction = model.predict_samples(held, seed=seed)
+    # Score the posterior predictive at each player's realized exposure, not the
+    # latent rate draws. The response is an observed season rate and carries
+    # binomial sampling noise at n; the latent draws do not, so scoring one
+    # against the other charges whichever arm has the tighter latent
+    # distribution -- and fitting the mean is exactly what tightens it. This
+    # repo has been bitten by it once already: the persistence gate read CRPS
+    # +2.00% on rec_td_rate against the latent draws and -0.31% against the
+    # predictive, a sign flip. ``crps_latent`` is kept beside it so the size of
+    # the gap stays visible rather than being quietly corrected away.
+    predictive = np.asarray(
+        model.predict_observed_samples(held, seed=seed), dtype=float
+    )
 
     rows = prediction.rows
-    samples = np.asarray(prediction.rate, dtype=float)
+    latent = np.asarray(prediction.rate, dtype=float)
     observed = pd.to_numeric(rows[target], errors="coerce").to_numpy(dtype=float)
-    keep = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
-    observed, samples = observed[keep], samples[keep]
+    keep = (
+        np.isfinite(observed)
+        & np.isfinite(latent).all(axis=1)
+        & np.isfinite(predictive).all(axis=1)
+    )
+    observed, samples, latent = observed[keep], predictive[keep], latent[keep]
     out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out["overall"]["crps_latent"] = float(empirical_crps(observed, latent).mean())
 
     # The population the covariate is supposed to move: the tail of the flagged
     # metric, where a structurally low rate is being predicted from the mean.

@@ -115,11 +115,11 @@ def test_flag_on_moves_only_the_intended_responses() -> None:
     # Every response it moves must have been on ``prior``: the measurement
     # behind the change is about the identity map, and nothing else.
     assert set(PERSISTENCE_MEAN_MODE) <= set(PRIOR_MODE_TARGETS)
-    # One is deliberately left behind: fumble_lost_rate is 0.05% of points
+    # One is deliberately left behind: fumble_rate is 0.05% of points
     # variance and was never measured, so there is no reason to widen the
     # surface for it. Recorded here so an edit that quietly adds it has to
     # change this test.
-    assert "fumble_lost_rate" not in PERSISTENCE_MEAN_MODE
+    assert "fumble_rate" not in PERSISTENCE_MEAN_MODE
 
 
 def test_pipeline_default_is_on_and_the_flag_reaches_the_models() -> None:

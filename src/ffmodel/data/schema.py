@@ -38,6 +38,7 @@ COUNTING_STAT_COLUMNS = [
     "rec_yds",
     "rec_td",
     "fumbles_lost",
+    "fumbles",
 ]
 
 # Rich nflverse efficiency observations. These are deliberately nullable:

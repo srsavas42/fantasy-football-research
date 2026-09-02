@@ -65,7 +65,7 @@ def test_volume_exposure_mapping_uses_the_same_draws():
     assert np.array_equal(exposure["rec_catch_rate"], volume.targets)
     assert np.array_equal(exposure["rush_yards_per_carry"], volume.carries)
     assert np.array_equal(
-        exposure["fumble_lost_rate"],
+        exposure["fumble_rate"],
         volume.pass_attempts + volume.targets + volume.carries,
     )
 
@@ -260,7 +260,7 @@ def _efficiency_prediction(volume):
         "rec_td_rate": values({"RB": 0.035, "WR": 0.065, "TE": 0.06}),
         "rush_yards_per_carry": values({"QB": 5.0, "RB": 4.5, "WR": 6.0, "TE": 2.0}),
         "rush_td_rate": values({"QB": 0.06, "RB": 0.045, "WR": 0.03, "TE": 0.02}),
-        "fumble_lost_rate": values({"QB": 0.004, "RB": 0.003, "WR": 0.002, "TE": 0.002}),
+        "fumble_rate": values({"QB": 0.004, "RB": 0.003, "WR": 0.002, "TE": 0.002}),
     }
     return SeasonAverageEfficiencyPrediction(
         player_rows=volume.player_rows.copy(),

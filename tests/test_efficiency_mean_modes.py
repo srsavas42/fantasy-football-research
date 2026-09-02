@@ -47,7 +47,7 @@ def resolved(target: str) -> str:
         ("rec_td_rate", "persistence"),
         ("rec_yards_per_target", "posterior"),
         ("rush_yards_per_carry", "ridge"),
-        ("fumble_lost_rate", "prior"),
+        ("fumble_rate", "prior"),
     ],
 )
 def test_each_response_resolves_to_the_mode_it_was_measured_in(target, mode):

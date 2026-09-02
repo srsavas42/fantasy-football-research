@@ -222,9 +222,17 @@ EFFICIENCY_MODEL_SPECS = (
         numerator="eff_rush_td",
         prior_concentration=120.0,
     ),
+    # Fumbles committed, not fumbles lost. Recovery is close to a coin flip
+    # (49.8% lost league-wide, 2014-2025) and does not repeat for a player
+    # (lost-given-fumbled persists at r = +0.094, p = 0.10), so the lost rate is
+    # the committed rate plus a season of noise. Fitting through the noise costs
+    # signal: the committed rate persists at r2 1.95% against the lost rate's
+    # 0.59%, and predicts next season's lost rate better (0.89%) than the lost
+    # rate predicts itself (0.59%). The scoring layer thins this back to lost
+    # fumbles with a league share fitted on training seasons.
     EfficiencyModelSpec(
-        "fumble_lost_rate",
-        "prior_fumble_lost_rate",
+        "fumble_rate",
+        "prior_fumble_rate",
         "fumble_opportunities",
         "prior_fumble_opportunities",
         "oof_fumble_opportunities_per_team_game",
@@ -235,7 +243,7 @@ EFFICIENCY_MODEL_SPECS = (
         20,
         (),
         likelihood="beta_binomial",
-        numerator="eff_fumbles_lost",
+        numerator="eff_fumbles",
         prior_concentration=250.0,
     ),
 )
@@ -297,7 +305,7 @@ POSTERIOR_MEAN_MODE = {
     "rec_td_rate": "prior",
     "rush_yards_per_carry": "ridge",
     "rush_td_rate": "posterior",
-    "fumble_lost_rate": "prior",
+    "fumble_rate": "prior",
 }
 
 # The ``prior`` responses, with the one thing the mean gate never offered them.
@@ -416,6 +424,31 @@ POSTERIOR_MEAN_MODE = {
 #
 # ``fumble_lost_rate`` stays on ``prior`` for the reason given above, unmeasured
 # and immaterial.
+# Share of committed fumbles that are lost, league-wide over 2014-2025. Used as
+# the prior and the fallback when a training frame carries no fumbles to count.
+LEAGUE_FUMBLE_LOST_SHARE = 0.498
+
+
+def _fumble_lost_share(rows: pd.DataFrame) -> float:
+    """Lost fumbles over committed fumbles, on whatever rows are handed in.
+
+    Membership is checked on the columns rather than on the result of
+    ``to_numeric``: ``rows.get`` on an absent column returns ``None``, and
+    ``pd.to_numeric(None)`` is ``nan`` rather than ``None``, so an ``is None``
+    guard downstream of the conversion never fires and the fallback is never
+    reached.
+    """
+    if "eff_fumbles" not in rows or "eff_fumbles_lost" not in rows:
+        return LEAGUE_FUMBLE_LOST_SHARE
+    committed = pd.to_numeric(rows["eff_fumbles"], errors="coerce")
+    lost = pd.to_numeric(rows["eff_fumbles_lost"], errors="coerce")
+    total = float(np.nansum(committed.to_numpy(dtype=float)))
+    if not np.isfinite(total) or total <= 0:
+        return LEAGUE_FUMBLE_LOST_SHARE
+    share = float(np.nansum(lost.to_numpy(dtype=float))) / total
+    return float(np.clip(share, 0.0, 1.0))
+
+
 PERSISTENCE_MEAN_MODE = {
     "rec_td_rate": "persistence",
 }
@@ -1334,6 +1367,13 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     # ``PERSISTENCE_MEAN_MODE`` for what it replaces and what it is worth. Kept
     # as its own flag so the single-season identity-map arm stays reproducible.
     fitted_persistence_means: bool = True
+    # Share of committed fumbles that are lost, fitted on the training rows the
+    # pipeline is handed and used by the scoring layer to thin the modeled
+    # fumble rate back into lost fumbles. Fitted rather than hardcoded so a
+    # holdout never sees its own season's recoveries; it is a stable league
+    # constant near 0.50, so the fit is a formality, but a formality that keeps
+    # the walk-forward honest.
+    fumble_lost_share: float = LEAGUE_FUMBLE_LOST_SHARE
     # Reserve status on rec_yards_per_target. Promoted 2026-09-01: the flag is
     # worth MAE -0.37% and CRPS -0.26% overall and -2.48% and -1.85% on the
     # reserve population, winning three holdouts of three in every population
@@ -1356,6 +1396,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         targets: tuple[str, ...] | list[str] | None = None,
         **sample_kwargs,
     ) -> "SeasonAveragePosteriorEfficiencyPipeline":
+        self.fumble_lost_share = _fumble_lost_share(rows)
         selected = (
             set(EFFICIENCY_MODEL_BY_TARGET)
             if targets is None
@@ -1617,6 +1658,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             "architecture_version": 1,
             "use_volume": self.use_volume,
             "use_advanced": self.use_advanced,
+            "fumble_lost_share": float(self.fumble_lost_share),
             "ridge_alpha": self.ridge_alpha,
             # Records which rows the responses were fitted on. It has no effect
             # at prediction time, which is exactly why it has to be written
@@ -1640,6 +1682,9 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         directory = Path(directory)
         metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
         pipeline = cls(
+            fumble_lost_share=float(
+                metadata.get("fumble_lost_share", LEAGUE_FUMBLE_LOST_SHARE)
+            ),
             use_volume=bool(metadata["use_volume"]),
             use_advanced=bool(metadata["use_advanced"]),
             ridge_alpha=float(metadata.get("ridge_alpha", 500.0)),

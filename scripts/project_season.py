@@ -209,7 +209,15 @@ def main(argv=None) -> int:
             "rec_td_rate": draw_mean(efficiency.rates["rec_td_rate"]),
             "yards_per_carry": draw_mean(efficiency.rates["rush_yards_per_carry"]),
             "rush_td_rate": draw_mean(efficiency.rates["rush_td_rate"]),
-            "fumble_lost_rate": draw_mean(efficiency.rates["fumble_lost_rate"]),
+            # The modeled rate is fumbles committed; the lost rate the
+            # scoring layer charges for is that thinned by the league
+            # share, so both are reported rather than leaving a reader to
+            # guess which one a column named "fumble_rate" means.
+            "fumble_rate": draw_mean(efficiency.rates["fumble_rate"]),
+            "fumble_lost_rate": (
+                draw_mean(efficiency.rates["fumble_rate"])
+                * pipeline.efficiency_model.fumble_lost_share
+            ),
             # Projected stat lines (season totals, from the coherent draws).
             "pass_cmp": draw_mean(prediction.pass_cmp),
             "pass_yds": draw_mean(prediction.pass_yds),

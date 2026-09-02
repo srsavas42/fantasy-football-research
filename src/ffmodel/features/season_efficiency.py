@@ -53,6 +53,17 @@ EFFICIENCY_SPECS = (
         MODEL_POSITIONS,
         250,
     ),
+    # The modeled response. Fumbling is the player's; losing the ball is not.
+    # See the note in ``ffmodel.data.ingest`` for the measurements. The lost
+    # rate above is retained because it is still what scoring ultimately needs
+    # and what a season is graded on -- it is simply no longer what is fitted.
+    SeasonEfficiencySpec(
+        "fumble_rate",
+        "fumbles",
+        "fumble_opportunities",
+        MODEL_POSITIONS,
+        250,
+    ),
     SeasonEfficiencySpec(
         "pass_air_yards_per_attempt", "pass_air_yds", "pass_att", ("QB",), 100, True
     ),

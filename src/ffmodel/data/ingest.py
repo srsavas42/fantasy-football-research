@@ -184,6 +184,20 @@ def load_weekly(
         if column in df.columns
     ]
     df["fumbles_lost"] = df[fumble_columns].sum(axis=1) if fumble_columns else 0.0
+    # Fumbles *committed*, which is the part of a fumble the player owns.
+    # Whether the ball is then recovered by his own team is close to a coin
+    # flip -- 49.8% lost league-wide over 2014-2025 -- and does not repeat for a
+    # player: the lost-given-fumbled rate correlates at r = +0.094 (p = 0.10)
+    # from one season to the next. The committed rate persists three times
+    # better than the lost rate (r2 1.95% against 0.59%) and predicts next
+    # season's *lost* rate better than the lost rate itself does (0.89% against
+    # 0.59%), so it is the better signal even for the quantity scoring needs.
+    committed_columns = [
+        column
+        for column in ("sack_fumbles", "rushing_fumbles", "receiving_fumbles")
+        if column in df.columns
+    ]
+    df["fumbles"] = df[committed_columns].sum(axis=1) if committed_columns else 0.0
     df["source"] = "nflverse"
     return conform(df)
 

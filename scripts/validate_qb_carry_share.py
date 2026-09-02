@@ -27,6 +27,31 @@ rush_yards_per_carry runs in ridge mean mode, whose design comes from
 spec.advanced_features, so the arms swap the spec rather than passing
 extra_features -- which posterior mode reads and ridge mode ignores.
 
+**Rejected, and it fails against its own mechanism.** Three folds at 600 draws
+and four chains:
+
+    overall (n~126)     MAE +0.57%   CRPS -0.00%   2/3 folds
+    mobile QB (n~32)    MAE +2.86%   CRPS +0.77%   2/3 folds
+    pocket QB (n~32)    MAE -0.39%   CRPS -0.74%   1/3 folds
+
+Overall it does nothing -- CRPS moves by less than a hundredth of a percent and
+MAE gets worse. What settles it is the split. The story was that a defence
+respecting a running quarterback leaves lighter boxes, so the backs behind
+mobile quarterbacks were the ones being under-predicted. Those are exactly the
+backs the feature makes *worse*, by 2.9% MAE, while such gain as exists lands on
+the pocket-quarterback backs the mechanism says it should not touch. A covariate
+that helps the population its story excludes and hurts the one it names is
+fitting something other than its story.
+
+That makes team-level context seven for seven: opponent defence, three O-line
+proxies, team RYOE, team pressure rate, head coach, and now this. Worth setting
+against the two that did survive -- short-yardage carry share and reserve
+status, both measured on the player himself. The descriptive sizes point the
+other way, which is the useful part: this arm screened at 1.8% of residual
+variance against short-yardage share's 1.2%, and the smaller player-level one is
+the one that held. Descriptive magnitude has not predicted survival in this
+layer; whether the covariate is measured on the player has.
+
     python scripts/validate_qb_carry_share.py --holdouts 2023
     python scripts/validate_qb_carry_share.py --merge a.json b.json c.json
 """

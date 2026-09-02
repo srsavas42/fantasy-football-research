@@ -106,7 +106,18 @@ EFFICIENCY_MODEL_SPECS = (
         0.0,
         1.0,
         50,
-        ("prior_pass_epa_per_attempt", "prior_pass_first_down_rate"),
+        (
+            "prior_pass_epa_per_attempt",
+            "prior_pass_first_down_rate",
+            # A separate persistence slope for the quarterbacks a draft is
+            # about. -2.55% MAE and -2.62% CRPS overall and -1.42% and -2.08% on
+            # the drafted population, three folds of three on both -- the only
+            # response where the tier interaction cleared the drafted population
+            # as well as the pooled one. The indicator carries the level so the
+            # interaction is left carrying only the slope.
+            "prior_pass_td_rate_x_drafted",
+            "adp_drafted",
+        ),
         likelihood="beta_binomial",
         numerator="eff_pass_td",
         prior_concentration=200.0,

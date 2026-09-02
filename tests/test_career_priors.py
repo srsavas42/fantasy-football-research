@@ -187,3 +187,28 @@ def test_the_career_role_flag_is_on_by_default():
     from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
 
     assert SeasonAverageVolumePipeline().career_role_features
+
+
+def test_the_tier_interaction_ships_only_where_it_helped_drafted_players():
+    """Two responses cleared the pooled gate and failed the drafted one.
+
+    pass_yards_per_attempt was -1.02% CRPS overall at 3/3 and +0.22% MAE on
+    drafted players at 1/3; pass_completion_rate -0.41% overall at 3/3 and
+    2/3 on drafted. A tier interaction that helps the players a draft is not
+    about has missed its own point, so neither ships.
+    """
+    from ffmodel.models.efficiency_season_average import EFFICIENCY_MODEL_BY_TARGET
+
+    promoted = {"pass_td_rate"}
+    for target, spec in EFFICIENCY_MODEL_BY_TARGET.items():
+        carries = any(f.endswith("_x_drafted") for f in spec.advanced_features)
+        assert carries == (target in promoted), target
+
+
+def test_the_promoted_interaction_carries_its_own_level_term():
+    """Without adp_drafted the level difference is misattributed to slope."""
+    from ffmodel.models.efficiency_season_average import EFFICIENCY_MODEL_BY_TARGET
+
+    features = EFFICIENCY_MODEL_BY_TARGET["pass_td_rate"].advanced_features
+    assert "prior_pass_td_rate_x_drafted" in features
+    assert "adp_drafted" in features

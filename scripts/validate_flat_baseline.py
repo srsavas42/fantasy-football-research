@@ -39,9 +39,19 @@ a statement about architecture.
     flat_gbm       gradient boosting on every preseason column
     adp            the rank curve alone
 
-flat_no_adp against pipeline is the architecture question. flat_ridge against
-flat_no_adp is what the board is worth, and that gap would be closed by turning
-the pipeline's own ADP flag on rather than by rebuilding anything.
+    blend          the pipeline joined to the board at 0.316, which is what
+                   project_season.py actually projects
+
+Two questions, kept apart. Among the arms without ADP -- pipeline, flat_no_adp,
+gbm_no_adp -- the comparison is about architecture: does a chain of availability,
+volume, efficiency and simulation beat one regression on the same inputs.
+
+Among the arms with it -- blend, flat_ridge, flat_gbm -- the comparison is about
+the deliverable. A flat model carrying adp_* columns must be measured against
+the pipeline *after* it is joined to the board, not against the raw pipeline,
+because the raw pipeline is not what ships and does not have the board. That
+join is a constant-weight mixture rather than a refit, since refitting the
+weight here would use the holdout.
 
     python scripts/validate_flat_baseline.py --holdouts 2023
     python scripts/validate_flat_baseline.py --merge a.json b.json c.json
@@ -63,7 +73,7 @@ import pandas as pd
 from ffmodel.evaluation.efficiency_posterior import observed_scoring_rows
 from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
 from ffmodel.features.season_average import SeasonAverageData
-from ffmodel.models.market_blend import RankCurve
+from ffmodel.models.market_blend import RankCurve, blend_samples
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 from ffmodel.simulation.scoring import fantasy_points
 
@@ -75,6 +85,10 @@ DEMOGRAPHIC_FEATURES = (
     "suspended_games", "mandatory_missed_games",
 )
 TIERS = (("top50", 1, 50), ("51_150", 51, 150), ("151_300", 151, 300), ("drafted", 1, 400))
+# What actually ships. project_season.py projects the blend, not the raw
+# pipeline, so a flat model carrying ADP among its features must be compared
+# against the pipeline *after* it is joined to the board.
+BLEND_WEIGHT = 0.316
 # Local residual pool for the flat model's spread, in predicted-value space.
 POOL_WINDOW = 25.0
 MIN_POOL = 40
@@ -244,9 +258,16 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws, tune, chains, seed):
     no_adp_samples = no_adp.predict_samples(rows, draws=n_draws, seed=seed + 4)
     boost = FlatBoost(seed=seed).fit(train_rows[usable], train_points[usable])
     boost_samples = boost.predict_samples(rows, draws=n_draws, seed=seed + 5)
+    no_adp_boost = FlatBoost(use_adp=False, seed=seed).fit(
+        train_rows[usable], train_points[usable]
+    )
+    no_adp_boost_samples = no_adp_boost.predict_samples(
+        rows, draws=n_draws, seed=seed + 6
+    )
     curve = RankCurve().fit(train_rows[usable], train_points[usable])
     adp_samples = curve.predict_samples(rows, draws=n_draws, seed=seed + 7)
 
+    blend = blend_samples(model, adp_samples, BLEND_WEIGHT, seed=seed + 11)
     rank = pd.to_numeric(rows.get("adp_rank"), errors="coerce").to_numpy(float)
     keep = np.isfinite(observed) & np.isfinite(model).all(axis=1)
     fold = {"alpha": float(flat.alpha), "features": len(flat.names), "tiers": {}}
@@ -260,6 +281,8 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws, tune, chains, seed):
             "flat_ridge": _metrics(observed[mask], flat_samples[mask]),
             "flat_no_adp": _metrics(observed[mask], no_adp_samples[mask]),
             "flat_gbm": _metrics(observed[mask], boost_samples[mask]),
+            "gbm_no_adp": _metrics(observed[mask], no_adp_boost_samples[mask]),
+            "blend": _metrics(observed[mask], blend[mask]),
             "adp": _metrics(observed[mask], adp_samples[mask]),
         }
     everyone = keep & np.isfinite(flat_samples).all(axis=1)
@@ -268,6 +291,8 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws, tune, chains, seed):
         "flat_ridge": _metrics(observed[everyone], flat_samples[everyone]),
         "flat_no_adp": _metrics(observed[everyone], no_adp_samples[everyone]),
         "flat_gbm": _metrics(observed[everyone], boost_samples[everyone]),
+        "gbm_no_adp": _metrics(observed[everyone], no_adp_boost_samples[everyone]),
+        "blend": _metrics(observed[everyone], blend[everyone]),
     }
     del pipeline, prediction, model, flat_samples, no_adp_samples, boost_samples
     gc.collect()
@@ -281,7 +306,8 @@ def _report(report: dict, args) -> int:
     features = [folds[str(h)]["features"] for h in holdouts]
     print(f"\n{'=' * 86}\nflat regression against the pipeline and the board\n{'=' * 86}")
     print(f"  ridge penalties chosen per fold: {alphas}; {features[0]} features")
-    arms = ("pipeline", "flat_no_adp", "flat_ridge", "flat_gbm", "adp")
+    arms = ("pipeline", "flat_no_adp", "gbm_no_adp", "adp", "blend",
+            "flat_ridge", "flat_gbm")
     for metric in ("mae", "crps"):
         print(f"\n  {metric.upper()}")
         print(f"  {'tier':13} {'n':>5} " + "".join(f"{a:>13}" for a in arms))
@@ -297,8 +323,9 @@ def _report(report: dict, args) -> int:
                 values = [b[arm][metric] for b in blocks if arm in b]
                 cells.append(f"{np.mean(values):13.2f}" if values else f"{'--':>13}")
             print(f"  {name:13} {n:5d}" + "".join(cells))
-    print("\n  flat_no_adp against pipeline is the architecture question;")
-    print("  flat_ridge against flat_no_adp is what the draft board is worth.")
+    print("\n  no ADP:   pipeline | flat_no_adp | gbm_no_adp  -- the architecture question")
+    print("  with ADP: blend    | flat_ridge  | flat_gbm    -- the deliverable question")
+    print("  blend is what ships: the pipeline joined to the board at 0.316.")
     args.report_json.parent.mkdir(parents=True, exist_ok=True)
     args.report_json.write_text(json.dumps(report, indent=2, default=str), "utf-8")
     print(f"\nwrote {args.report_json}")

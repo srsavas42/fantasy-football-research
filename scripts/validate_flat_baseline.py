@@ -294,6 +294,22 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws, tune, chains, seed):
         "gbm_no_adp": _metrics(observed[everyone], no_adp_boost_samples[everyone]),
         "blend": _metrics(observed[everyone], blend[everyone]),
     }
+    # Per-row means for the directional analysis: whether an arm's disagreement
+    # with the board predicts which way the board is wrong. A tier-level MAE
+    # cannot answer that, and refitting every arm again to get it would be a
+    # second run of the expensive part.
+    drafted = keep & np.isfinite(rank) & (rank <= 400) & np.isfinite(adp_samples).all(axis=1)
+    fold["rows"] = {
+        "observed": observed[drafted].tolist(),
+        "rank": rank[drafted].tolist(),
+        "pipeline": model[drafted].mean(axis=1).tolist(),
+        "flat_ridge": flat_samples[drafted].mean(axis=1).tolist(),
+        "flat_no_adp": no_adp_samples[drafted].mean(axis=1).tolist(),
+        "flat_gbm": boost_samples[drafted].mean(axis=1).tolist(),
+        "gbm_no_adp": no_adp_boost_samples[drafted].mean(axis=1).tolist(),
+        "blend": blend[drafted].mean(axis=1).tolist(),
+        "adp": adp_samples[drafted].mean(axis=1).tolist(),
+    }
     del pipeline, prediction, model, flat_samples, no_adp_samples, boost_samples
     gc.collect()
     return fold

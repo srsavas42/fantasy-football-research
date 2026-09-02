@@ -36,6 +36,7 @@ from ffmodel.features.carry_context import (
     weekly_carry_context,
 )
 from ffmodel.features.season_efficiency import (
+    add_career_efficiency_priors,
     CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,
     EFFICIENCY_LABEL_COLUMNS,
     EFFICIENCY_NUMERATOR_COLUMNS,
@@ -766,7 +767,9 @@ def player_preseason_rows(
         postseason = load_postseason_usage(observed, source=source)
     if team_volume is None:
         team_volume = team_season_volume(player_weeks)
-    efficiency = player_season_efficiency(player_weeks)
+    efficiency = add_career_efficiency_priors(
+        player_season_efficiency(player_weeks)
+    )
     team_games = team_volume[TEAM_KEYS + ["games"]].rename(columns={"games": "team_games"})
     team_games = _projected_team_games(team_games, projection)
     history = history.merge(team_games, on=TEAM_KEYS, how="left")

@@ -132,3 +132,35 @@ def test_the_promoted_features_are_the_response_s_own_history():
         spec = EFFICIENCY_MODEL_BY_TARGET[target]
         career = [f for f in spec.advanced_features if f.endswith("_career")]
         assert career == [f"prior_{target}_career"]
+
+
+def test_snap_share_uses_team_plays_not_the_sum_of_player_snaps():
+    """Eleven players share each snap; summing the roster overshoots fivefold.
+
+    The first implementation summed player snaps for every stream. Targets and
+    carries survive that -- each belongs to one player -- but the emitted snap
+    share topped out at 0.178 against an observed share that reaches 1.0, and
+    nothing raised.
+    """
+    from ffmodel.features.season_average import (
+        CAREER_ROLE_STREAMS,
+        add_career_role_priors,
+    )
+
+    by_name = {name: team for _, team, name in CAREER_ROLE_STREAMS}
+    assert by_name["career_snap_share"] == "team_offense_snaps"
+    assert by_name["career_target_share"] is None
+
+    history = pd.DataFrame({
+        "player_key": ["a", "a", "b", "b"],
+        "season": [2019, 2020, 2019, 2020],
+        "team": ["KC", "KC", "KC", "KC"],
+        # Two players, 500 snaps each, on a team that ran 1000 plays.
+        "offense_snaps": [500.0, 500.0, 500.0, 500.0],
+        "team_offense_snaps": [1000.0, 1000.0, 1000.0, 1000.0],
+        "targets": [50.0, 50.0, 50.0, 50.0],
+    })
+    got = add_career_role_priors(history)
+    played = got.loc[got.player_key.eq("a") & got.season.eq(2020), "career_snap_share"]
+    # Half the team's plays, not a quarter of the roster's summed snaps.
+    assert abs(float(played.iloc[0]) - 0.5) < 1e-9

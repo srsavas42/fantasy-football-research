@@ -923,7 +923,7 @@ def player_preseason_rows(
     ]
     history = add_career_role_priors(history)
     prior_columns = prior_columns + [
-        name for _, name in CAREER_ROLE_STREAMS if name in history
+        name for *_, name in CAREER_ROLE_STREAMS if name in history
     ]
     prior = history[prior_columns].copy()
     prior["season"] += 1
@@ -933,7 +933,7 @@ def player_preseason_rows(
             "pass_attempt_share": "prior_pass_attempt_share",
             **{
                 name: f"prior_{name.removeprefix('career_')}_career"
-                for _, name in CAREER_ROLE_STREAMS
+                for *_, name in CAREER_ROLE_STREAMS
             },
             "target_share": "prior_target_share",
             "carry_share": "prior_carry_share",
@@ -1093,11 +1093,20 @@ def player_preseason_rows(
 # undefined for the zero-share rows that still belong in the denominator.
 CAREER_ROLE_DECAY = 0.7
 
+# (player count, team total column or None, emitted name).
+#
+# A target and a carry belong to exactly one player, so summing the roster
+# recovers the team total. A *snap* does not: eleven players are on the field for
+# each one and four positions of them are in this frame, so summing player snaps
+# overshoots team plays about fivefold and the resulting share is the real one
+# divided by five. It has to read team_offense_snaps instead. Caught by the
+# emitted column topping out at 0.178 against an observed snap share that
+# reaches 1.0.
 CAREER_ROLE_STREAMS = (
-    ("targets", "career_target_share"),
-    ("rush_att", "career_carry_share"),
-    ("pass_att", "career_pass_attempt_share"),
-    ("offense_snaps", "career_snap_share"),
+    ("targets", None, "career_target_share"),
+    ("rush_att", None, "career_carry_share"),
+    ("pass_att", None, "career_pass_attempt_share"),
+    ("offense_snaps", "team_offense_snaps", "career_snap_share"),
 )
 
 
@@ -1114,13 +1123,18 @@ def add_career_role_priors(
     out = history.copy()
     out["_career_order"] = np.arange(len(out))
     out = out.sort_values(["player_key", "season"])
-    for count_column, name in CAREER_ROLE_STREAMS:
+    for count_column, team_column, name in CAREER_ROLE_STREAMS:
         if count_column not in out:
             continue
         counts = pd.to_numeric(out[count_column], errors="coerce")
-        team_total = counts.groupby(
-            [out[key] for key in TEAM_KEYS], dropna=False
-        ).transform("sum")
+        if team_column is None:
+            team_total = counts.groupby(
+                [out[key] for key in TEAM_KEYS], dropna=False
+            ).transform("sum")
+        elif team_column in out:
+            team_total = pd.to_numeric(out[team_column], errors="coerce")
+        else:
+            continue
         player_history, team_history = [], []
         for _, index in out.groupby("player_key", dropna=False).indices.items():
             seasons = out["season"].iloc[index]

@@ -25,8 +25,23 @@ available in this environment; the repository's own comments refer to an
 optional XGBoost challenger elsewhere, so a tree ensemble is the obvious next
 version of this control if it ever matters.
 
-Three-way: flat regression, the shipped pipeline, and the ADP rank curve, on one
-population and one metric set.
+**The arms decompose a confound rather than conflating it.** The shipped
+pipeline sets ``market_adp_features = False`` -- it never sees the draft board.
+A flat model handed every preseason column does see it, and ADP is the single
+most predictive input available: |r| = 0.72 against season points, against 0.61
+for the best play-by-play feature. A two-way comparison would measure "flat model
+with ADP against pipeline without it", and the answer would invite being read as
+a statement about architecture.
+
+    pipeline       the shipped chain, no ADP
+    flat_no_adp    ridge on preseason columns with every adp_* removed
+    flat_ridge     the same ridge with the board included
+    flat_gbm       gradient boosting on every preseason column
+    adp            the rank curve alone
+
+flat_no_adp against pipeline is the architecture question. flat_ridge against
+flat_no_adp is what the board is worth, and that gap would be closed by turning
+the pipeline's own ADP flag on rather than by rebuilding anything.
 
     python scripts/validate_flat_baseline.py --holdouts 2023
     python scripts/validate_flat_baseline.py --merge a.json b.json c.json
@@ -65,19 +80,65 @@ POOL_WINDOW = 25.0
 MIN_POOL = 40
 
 
-def preseason_features(rows: pd.DataFrame) -> list[str]:
+def preseason_features(rows: pd.DataFrame, *, use_adp: bool = True) -> list[str]:
     """Everything a preseason forecast may see, by naming convention."""
     names = [c for c in rows.columns if c.startswith("prior_")]
-    names += [c for c in rows.columns if c.startswith("adp_")]
+    if use_adp:
+        names += [c for c in rows.columns if c.startswith("adp_")]
     names += [c for c in DEMOGRAPHIC_FEATURES if c in rows.columns]
     return list(dict.fromkeys(names))
+
+
+class FlatBoost:
+    """Gradient boosting on the same columns, with the same residual spread.
+
+    The stronger flat challenger. If the pipeline's structure is worth having it
+    should beat a learner that can find interactions a ridge cannot.
+    """
+
+    def __init__(self, *, use_adp: bool = True, seed: int = 0):
+        self.use_adp = use_adp
+        self.seed = seed
+        self.names: list[str] = []
+        self.model = None
+        self.residuals = np.array([])
+        self.fitted_values = np.array([])
+
+    def fit(self, rows: pd.DataFrame, y: np.ndarray) -> "FlatBoost":
+        from xgboost import XGBRegressor
+
+        self.names = preseason_features(rows, use_adp=self.use_adp)
+        x = rows[self.names].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+        self.model = XGBRegressor(
+            n_estimators=400, learning_rate=0.05, max_depth=4,
+            subsample=0.8, colsample_bytree=0.6, reg_lambda=2.0,
+            random_state=self.seed, n_jobs=4,
+        )
+        self.model.fit(x, np.asarray(y, dtype=float))
+        self.fitted_values = self.model.predict(x)
+        self.residuals = np.asarray(y, dtype=float) - self.fitted_values
+        return self
+
+    def predict_samples(self, rows: pd.DataFrame, draws: int, seed: int = 0) -> np.ndarray:
+        x = rows.reindex(columns=self.names).apply(
+            pd.to_numeric, errors="coerce"
+        ).to_numpy(dtype=float)
+        centre = self.model.predict(x)
+        rng = np.random.default_rng(seed)
+        out = np.empty((len(centre), draws), dtype=float)
+        for i, value in enumerate(centre):
+            near = np.abs(self.fitted_values - value) <= POOL_WINDOW
+            pool = self.residuals[near] if near.sum() >= MIN_POOL else self.residuals
+            out[i] = value + rng.choice(pool, size=draws, replace=True)
+        return np.maximum(out, 0.0)
 
 
 class FlatRidge:
     """Ridge on standardised features, with a local residual pool for spread."""
 
-    def __init__(self, alphas=(3.0, 10.0, 30.0, 100.0, 300.0, 1000.0)):
+    def __init__(self, alphas=(3.0, 10.0, 30.0, 100.0, 300.0, 1000.0), *, use_adp=True):
         self.alphas = alphas
+        self.use_adp = use_adp
         self.names: list[str] = []
         self.mean = self.scale = self.beta = None
         self.intercept = 0.0
@@ -91,7 +152,7 @@ class FlatRidge:
         return ((filled.to_numpy(dtype=float) - self.mean) / self.scale)
 
     def fit(self, rows: pd.DataFrame, y: np.ndarray, *, seed: int = 0) -> "FlatRidge":
-        self.names = preseason_features(rows)
+        self.names = preseason_features(rows, use_adp=self.use_adp)
         block = rows[self.names].apply(pd.to_numeric, errors="coerce")
         self.fill = block.median().fillna(0.0).to_dict()
         filled = block.fillna(pd.Series(self.fill))
@@ -177,6 +238,12 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws, tune, chains, seed):
     usable = np.isfinite(train_points)
     flat = FlatRidge().fit(train_rows[usable], train_points[usable], seed=seed)
     flat_samples = flat.predict_samples(rows, draws=n_draws, seed=seed + 3)
+    no_adp = FlatRidge(use_adp=False).fit(
+        train_rows[usable], train_points[usable], seed=seed
+    )
+    no_adp_samples = no_adp.predict_samples(rows, draws=n_draws, seed=seed + 4)
+    boost = FlatBoost(seed=seed).fit(train_rows[usable], train_points[usable])
+    boost_samples = boost.predict_samples(rows, draws=n_draws, seed=seed + 5)
     curve = RankCurve().fit(train_rows[usable], train_points[usable])
     adp_samples = curve.predict_samples(rows, draws=n_draws, seed=seed + 7)
 
@@ -190,15 +257,19 @@ def _run_fold(holdout: int, cache_dir: Path, *, draws, tune, chains, seed):
             continue
         fold["tiers"][name] = {
             "pipeline": _metrics(observed[mask], model[mask]),
-            "flat": _metrics(observed[mask], flat_samples[mask]),
+            "flat_ridge": _metrics(observed[mask], flat_samples[mask]),
+            "flat_no_adp": _metrics(observed[mask], no_adp_samples[mask]),
+            "flat_gbm": _metrics(observed[mask], boost_samples[mask]),
             "adp": _metrics(observed[mask], adp_samples[mask]),
         }
     everyone = keep & np.isfinite(flat_samples).all(axis=1)
     fold["tiers"]["all_rostered"] = {
         "pipeline": _metrics(observed[everyone], model[everyone]),
-        "flat": _metrics(observed[everyone], flat_samples[everyone]),
+        "flat_ridge": _metrics(observed[everyone], flat_samples[everyone]),
+        "flat_no_adp": _metrics(observed[everyone], no_adp_samples[everyone]),
+        "flat_gbm": _metrics(observed[everyone], boost_samples[everyone]),
     }
-    del pipeline, prediction, model, flat_samples, adp_samples
+    del pipeline, prediction, model, flat_samples, no_adp_samples, boost_samples
     gc.collect()
     return fold
 
@@ -210,22 +281,24 @@ def _report(report: dict, args) -> int:
     features = [folds[str(h)]["features"] for h in holdouts]
     print(f"\n{'=' * 86}\nflat regression against the pipeline and the board\n{'=' * 86}")
     print(f"  ridge penalties chosen per fold: {alphas}; {features[0]} features")
-    print(f"\n{'tier':13} {'n':>5} {'pipeline':>9} {'flat':>8} {'ADP':>8}   "
-          f"{'pipeline':>9} {'flat':>8} {'ADP':>8}")
-    print(f"{'':13} {'':>5} {'--- MAE ---':>27}   {'--- CRPS ---':>27}")
-    print("-" * 86)
-    for name in [t[0] for t in TIERS] + ["all_rostered"]:
-        blocks = [folds[str(h)]["tiers"][name] for h in holdouts
-                  if name in folds[str(h)]["tiers"]]
-        if not blocks:
-            continue
-        def avg(arm, metric):
-            values = [b[arm][metric] for b in blocks if arm in b]
-            return np.mean(values) if values else np.nan
-        n = int(np.mean([b["pipeline"]["n"] for b in blocks]))
-        print(f"{name:13} {n:5d} {avg('pipeline','mae'):9.2f} {avg('flat','mae'):8.2f} "
-              f"{avg('adp','mae'):8.2f}   {avg('pipeline','crps'):9.2f} "
-              f"{avg('flat','crps'):8.2f} {avg('adp','crps'):8.2f}")
+    arms = ("pipeline", "flat_no_adp", "flat_ridge", "flat_gbm", "adp")
+    for metric in ("mae", "crps"):
+        print(f"\n  {metric.upper()}")
+        print(f"  {'tier':13} {'n':>5} " + "".join(f"{a:>13}" for a in arms))
+        print("  " + "-" * (20 + 13 * len(arms)))
+        for name in [t[0] for t in TIERS] + ["all_rostered"]:
+            blocks = [folds[str(h)]["tiers"][name] for h in holdouts
+                      if name in folds[str(h)]["tiers"]]
+            if not blocks:
+                continue
+            n = int(np.mean([b["pipeline"]["n"] for b in blocks]))
+            cells = []
+            for arm in arms:
+                values = [b[arm][metric] for b in blocks if arm in b]
+                cells.append(f"{np.mean(values):13.2f}" if values else f"{'--':>13}")
+            print(f"  {name:13} {n:5d}" + "".join(cells))
+    print("\n  flat_no_adp against pipeline is the architecture question;")
+    print("  flat_ridge against flat_no_adp is what the draft board is worth.")
     args.report_json.parent.mkdir(parents=True, exist_ok=True)
     args.report_json.write_text(json.dumps(report, indent=2, default=str), "utf-8")
     print(f"\nwrote {args.report_json}")

@@ -41,6 +41,32 @@ nothing of its own to contribute.
     2024  54.57           54.54              +0.171
     2025  53.23           53.30              -0.030
 
+The full lattice says the same thing from every direction. Every stack is fitted
+leave-one-season-out, and the bracket after each coefficient is its range across
+the three folds:
+
+    stack                MAE   vs ADP   coefficients
+    adp                57.22    +0.0%   adp [+0.88,+0.95]
+    pipeline           58.16    +1.6%   pipeline [+0.71,+0.81]
+    ridge              56.49    -1.3%   ridge [+0.84,+0.90]
+    pipeline + adp     54.95    -4.0%   pipeline [+0.31,+0.44]  adp [+0.54,+0.60]
+    ridge + adp        56.05    -2.0%   ridge [+0.42,+0.46]  adp [+0.42,+0.53]
+    ridge + pipeline   55.75    -2.6%   ridge [+0.47,+0.64]  pipeline [+0.22,+0.44]
+    all three          54.99    -3.9%   pipeline [+0.26,+0.46]  adp [+0.48,+0.58]
+                                        ridge [-0.04,+0.17]
+
+Alone the ridge is the best of the three single forecasts, beating both the board
+and the pipeline. It is in every *pair* that it stops paying: ridge + adp reaches
+-2.0% where pipeline + adp reaches -4.0%, and ridge + pipeline only -2.6%. The
+pipeline and the board are the complementary pair, and adding the ridge to them
+moves nothing while its coefficient collapses to a range straddling zero.
+
+That is the signature of a forecast with no independent view rather than a bad
+one. The ridge is a linear projection of the same 235 columns the pipeline
+consumes, with adp_* among them, so whatever it knows one of the other two
+already knows. Being the strongest arm alone and the weakest addition is exactly
+what redundancy looks like.
+
     python scripts/screen_dynamic_blend.py
 """
 import warnings; warnings.filterwarnings("ignore")

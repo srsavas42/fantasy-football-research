@@ -1059,6 +1059,8 @@ def player_preseason_rows(
         ).to_numpy(dtype=float)
     out = add_teammate_quality_features(out)
     out = add_market_adp_features(out)
+    # After the ADP merge, because the interaction needs the drafted indicator.
+    out = add_adp_tier_interactions(out, PRIOR_EFFICIENCY_FEATURES)
     out = add_conditional_volume_efficiency_features(out)
     out["is_projection"] = out["season"].isin(projection).astype(int)
     if projection:
@@ -1149,6 +1151,53 @@ def add_career_role_priors(
         denominator.iloc[order] = np.concatenate(team_history)
         out[name] = (numerator / denominator).where(denominator.gt(0))
     return out.sort_values("_career_order").drop(columns="_career_order")
+
+
+
+# Tier-specific persistence: one prior slope for the players a draft is about
+# and another for everyone else.
+#
+# The layer fits a single coefficient on the lagged response for every player.
+# Measured separately by tier, the coefficients differ -- yards per target
+# persists at a slope of +0.669 among drafted players and +0.454 among the rest,
+# catch rate at +0.854 against +0.776 -- so one shared slope is a compromise
+# between two populations rather than a description of either.
+#
+# The alternative considered and rejected was training on the drafted players
+# alone. That breaks the volume softmax, whose shares only sum to one over a
+# whole roster, and selects the training set on ADP, which is a forecast of the
+# response: it discards the 131 player-seasons that finished top-100 undrafted
+# while keeping the 402 drafted ones that finished outside the top 300. An
+# interaction buys the same tier-specific flexibility and keeps every row.
+# See scripts/screen_adp_truncated_training.py.
+ADP_TIER_INTERACTION_SUFFIX = "_x_drafted"
+
+
+def add_adp_tier_interactions(
+    rows: pd.DataFrame, priors: Iterable[str]
+) -> pd.DataFrame:
+    """Interact each lagged response with the drafted indicator.
+
+    The prior is centred on its season-and-position mean before multiplying, so
+    the interaction carries the *difference* in slope and leaves the level to the
+    indicator itself. Without centring the two terms are collinear and the
+    design's rank reduction absorbs the interaction rather than fitting it.
+    """
+    out = rows.copy()
+    drafted = pd.to_numeric(
+        out.get("adp_drafted", pd.Series(np.nan, index=out.index)), errors="coerce"
+    )
+    if not drafted.notna().any():
+        return out
+    drafted = drafted.fillna(0.0)
+    groupers = [out["season"], out["position"]]
+    for name in priors:
+        if name not in out:
+            continue
+        values = pd.to_numeric(out[name], errors="coerce")
+        centred = values - values.groupby(groupers, dropna=False).transform("mean")
+        out[f"{name}{ADP_TIER_INTERACTION_SUFFIX}"] = centred * drafted
+    return out
 
 
 

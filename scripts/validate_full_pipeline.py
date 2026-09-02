@@ -146,6 +146,12 @@ def _efficiency_metrics(
     return out
 
 
+# Where a draft is actually decided. A pooled average over every rostered player
+# is dominated by people nobody drafts, and an error on the fourth pick does not
+# cost the same as an error on the two hundred and eightieth.
+ADP_TIERS = (("adp_top50", 1, 50), ("adp_51_150", 51, 150), ("adp_151_300", 151, 300))
+
+
 def _totals_metrics(prediction) -> dict[str, dict[str, object]]:
     rows = prediction.player_rows.reset_index(drop=True)
     out = {}
@@ -156,6 +162,13 @@ def _totals_metrics(prediction) -> dict[str, dict[str, object]]:
             out[f"{scoring}_drafted"] = score_fantasy_points_posterior(
                 prediction, scoring=scoring, subset=drafted
             )
+        rank = pd.to_numeric(rows.get("adp_rank"), errors="coerce")
+        for name, low, high in ADP_TIERS:
+            tier = rank.between(low, high).to_numpy()
+            if tier.sum() >= 25:
+                out[f"{scoring}_{name}"] = score_fantasy_points_posterior(
+                    prediction, scoring=scoring, subset=tier
+                )
         played = pd.to_numeric(rows.get("games"), errors="coerce")
         slate = pd.to_numeric(rows.get("team_games"), errors="coerce")
         full = (played / slate.replace(0, float("nan"))).ge(0.94).to_numpy()

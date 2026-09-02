@@ -112,3 +112,23 @@ def test_every_response_gets_a_career_feature_name():
     assert "prior_rec_yards_per_target_career" in CAREER_EFFICIENCY_FEATURES
     assert "prior_rush_yards_per_carry_career" in CAREER_EFFICIENCY_FEATURES
     assert len(CAREER_EFFICIENCY_FEATURES) == len(set(CAREER_EFFICIENCY_FEATURES))
+
+
+def test_only_the_two_responses_that_cleared_the_gate_carry_it():
+    """Five of seven were rejected; adding them anyway would be unmeasured."""
+    from ffmodel.models.efficiency_season_average import EFFICIENCY_MODEL_BY_TARGET
+
+    promoted = {"rush_yards_per_carry", "pass_completion_rate"}
+    for target, spec in EFFICIENCY_MODEL_BY_TARGET.items():
+        carries = f"prior_{target}_career" in spec.advanced_features
+        assert carries == (target in promoted), target
+
+
+def test_the_promoted_features_are_the_response_s_own_history():
+    """A crossed name would fit yards per carry to completion-rate history."""
+    from ffmodel.models.efficiency_season_average import EFFICIENCY_MODEL_BY_TARGET
+
+    for target in ("rush_yards_per_carry", "pass_completion_rate"):
+        spec = EFFICIENCY_MODEL_BY_TARGET[target]
+        career = [f for f in spec.advanced_features if f.endswith("_career")]
+        assert career == [f"prior_{target}_career"]

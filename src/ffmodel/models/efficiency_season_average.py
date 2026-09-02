@@ -66,6 +66,11 @@ EFFICIENCY_MODEL_SPECS = (
             "prior_pass_air_yards_per_attempt",
             "prior_pass_yac_per_completion",
             "prior_pass_first_down_rate",
+            # -2.14% MAE and -1.75% CRPS, three folds of three. Held on a small
+            # population -- roughly 49 quarterbacks a holdout -- so it is the
+            # weaker of the two career promotions, and the fold record rather
+            # than the size of the number is what carries it.
+            "prior_pass_completion_rate_career",
         ),
         likelihood="beta_binomial",
         numerator="eff_pass_cmp",
@@ -203,6 +208,13 @@ EFFICIENCY_MODEL_SPECS = (
             # three, and -5.60% on the quartile of backs who actually run in
             # short yardage against +0.46% on the quartile who do not.
             "prior_rush_short_yardage_share",
+            # The player's own history rather than only last season. -2.99% MAE
+            # and -2.77% CRPS, three folds of three -- the largest efficiency
+            # gain in this line of work, on the response a one-season ceiling
+            # analysis had called nearly exhausted. It is not a contradiction:
+            # that ceiling bounds what a covariate can add *given* a one-season
+            # prior, and a better prior moves the ceiling itself.
+            "prior_rush_yards_per_carry_career",
         ),
         numerator="eff_rush_yds",
     ),

@@ -164,3 +164,26 @@ def test_snap_share_uses_team_plays_not_the_sum_of_player_snaps():
     played = got.loc[got.player_key.eq("a") & got.season.eq(2020), "career_snap_share"]
     # Half the team's plays, not a quarter of the roster's summed snaps.
     assert abs(float(played.iloc[0]) - 0.5) < 1e-9
+
+
+def test_only_the_carry_room_gets_the_career_role_feature():
+    """Targets were measured to be hurt by it; snaps landed on the floor."""
+    from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
+
+    pipeline = SeasonAverageVolumePipeline()
+    pipeline._enable_postseason_role_features()
+    if pipeline.career_role_features:
+        pipeline.carry_model.extra_features = tuple(
+            dict.fromkeys(
+                (*pipeline.carry_model.extra_features, "prior_carry_share_career")
+            )
+        )
+    assert "prior_carry_share_career" in pipeline.carry_model.extra_features
+    assert "prior_target_share_career" not in pipeline.target_model.extra_features
+    assert "prior_snap_share_career" not in pipeline.snap_model.extra_features
+
+
+def test_the_career_role_flag_is_on_by_default():
+    from ffmodel.models.volume_season_average import SeasonAverageVolumePipeline
+
+    assert SeasonAverageVolumePipeline().career_role_features

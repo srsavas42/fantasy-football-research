@@ -1463,6 +1463,19 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
+    # The player's own decayed exposure-weighted carry share, in the carry room
+    # only. Promoted on 2023/2024/2025 at 400 draws and four chains: carry MAE
+    # -0.65% and CRPS -0.55% overall, -1.20% and -1.03% on the players who have
+    # history for it to summarise, three folds of three on both.
+    #
+    # Carries only, and the reason is measured rather than assumed. A season's
+    # observed role share is very nearly noise-free -- split-half reliability is
+    # 96.7% on carry share and 93.0% on target share -- and this feature is a
+    # denoiser, so there is little for it to remove. On targets it removes
+    # nothing and adds variance: +7.56% MAE and +3.76% CRPS, losing every fold.
+    # Snaps land on the floor rather than over it (-0.24% MAE, -0.27% CRPS, and
+    # 2/3 on the players who actually play) and are left out.
+    career_role_features: bool = True
     # Preseason market consensus in the role and playing-time regressions. Off
     # until measured: it is the one input not derived from play-by-play, so a
     # gain would be real new information and a loss would say the market adds
@@ -1603,6 +1616,12 @@ class SeasonAverageVolumePipeline:
         self._apply_availability_target(data.player_rows)
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.career_role_features:
+            self.carry_model.extra_features = tuple(
+                dict.fromkeys(
+                    (*self.carry_model.extra_features, "prior_carry_share_career")
+                )
+            )
         if self.availability_history_features:
             self._enable_availability_history(data.player_rows)
         if self.reserve_kind_features:

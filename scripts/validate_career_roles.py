@@ -129,7 +129,9 @@ def _evaluate_snap(train, test, arm, *, fit_kwargs, seed):
     prediction = model.predict_samples(test, seed=seed)
     rows = prediction.rows
     observed = pd.to_numeric(rows["snap_share"], errors="coerce").to_numpy(dtype=float)
-    samples = np.asarray(prediction.shares, dtype=float)
+    # SnapPrediction exposes ``snap_share`` (gated by projected active games) and
+    # ``conditional_share``; the gated one is what the observed column is.
+    samples = np.asarray(prediction.snap_share, dtype=float)
     keep = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
     observed, samples = observed[keep], samples[keep]
     out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}

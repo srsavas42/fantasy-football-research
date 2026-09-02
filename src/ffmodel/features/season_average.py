@@ -921,12 +921,20 @@ def player_preseason_rows(
         "snap_share",
         "qb_snap_share",
     ]
+    history = add_career_role_priors(history)
+    prior_columns = prior_columns + [
+        name for _, name in CAREER_ROLE_STREAMS if name in history
+    ]
     prior = history[prior_columns].copy()
     prior["season"] += 1
     prior = prior.rename(
         columns={
             "team": "prior_team",
             "pass_attempt_share": "prior_pass_attempt_share",
+            **{
+                name: f"prior_{name.removeprefix('career_')}_career"
+                for _, name in CAREER_ROLE_STREAMS
+            },
             "target_share": "prior_target_share",
             "carry_share": "prior_carry_share",
             "late_pass_attempt_share": "prior_late_pass_attempt_share",
@@ -1067,6 +1075,67 @@ def player_preseason_rows(
         )
     out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
     return out.sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+# Decayed exposure-weighted role history, the volume-layer counterpart to the
+# efficiency layer's career priors.
+#
+# ``prior_target_role`` and its siblings are built from one prior season, and a
+# season's observed share is a noisy measurement of the role a player holds. The
+# same construction that beat both the one-season prior and the rate-EWMA on the
+# efficiency responses applies here: accumulate the player's counts and his
+# team's counts separately with a decay, then divide, so a twelve-target season
+# and a hundred-and-twenty-target season count for what they are worth rather
+# than equally.
+#
+# Team totals are recomputed here rather than read from the frame, which drops
+# them before this point, and rather than recovered as count/share, which is
+# undefined for the zero-share rows that still belong in the denominator.
+CAREER_ROLE_DECAY = 0.7
+
+CAREER_ROLE_STREAMS = (
+    ("targets", "career_target_share"),
+    ("rush_att", "career_carry_share"),
+    ("pass_att", "career_pass_attempt_share"),
+    ("offense_snaps", "career_snap_share"),
+)
+
+
+def add_career_role_priors(
+    history: pd.DataFrame, *, decay: float = CAREER_ROLE_DECAY
+) -> pd.DataFrame:
+    """Attach decayed exposure-weighted role shares over a player's own history.
+
+    Emitted on the season whose history they summarise, so the existing +1 lag
+    carries them forward exactly as the one-season shares are carried.
+    """
+    from ffmodel.features.season_efficiency import _decayed_history
+
+    out = history.copy()
+    out["_career_order"] = np.arange(len(out))
+    out = out.sort_values(["player_key", "season"])
+    for count_column, name in CAREER_ROLE_STREAMS:
+        if count_column not in out:
+            continue
+        counts = pd.to_numeric(out[count_column], errors="coerce")
+        team_total = counts.groupby(
+            [out[key] for key in TEAM_KEYS], dropna=False
+        ).transform("sum")
+        player_history, team_history = [], []
+        for _, index in out.groupby("player_key", dropna=False).indices.items():
+            seasons = out["season"].iloc[index]
+            player_history.append(_decayed_history(counts.iloc[index], seasons, decay))
+            team_history.append(_decayed_history(team_total.iloc[index], seasons, decay))
+        order = np.concatenate(
+            list(out.groupby("player_key", dropna=False).indices.values())
+        )
+        numerator = pd.Series(np.nan, index=out.index)
+        denominator = pd.Series(np.nan, index=out.index)
+        numerator.iloc[order] = np.concatenate(player_history)
+        denominator.iloc[order] = np.concatenate(team_history)
+        out[name] = (numerator / denominator).where(denominator.gt(0))
+    return out.sort_values("_career_order").drop(columns="_career_order")
+
 
 
 def build_season_average_data(

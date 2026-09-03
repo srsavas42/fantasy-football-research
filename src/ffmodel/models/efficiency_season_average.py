@@ -299,7 +299,38 @@ BASE_EFFICIENCY_FEATURES = (
 # Rushing is left out on purpose: the mechanism by which a passer changes yards
 # per carry is indirect at best, and testing where there is no story to tell is
 # how a feature earns a fold win by chance.
-TEAMMATE_QUALITY_TARGETS = ("rec_catch_rate", "rec_yards_per_target", "rec_td_rate")
+# Responses allowed to read the projected starting quarterback's prior passing
+# quality. The three receiving rates were the original set; rush_td_rate was
+# added after scripts/screen_qb_context_rb.py measured it, and it is the
+# strongest of the four.
+#
+# That screen went looking for the "a back is worse without his quarterback"
+# effect and found it in exactly one place. Partial correlation with the
+# response, controlling for the player's own lagged rate:
+#
+#   RB carry share            -0.024   (p=0.42)   nothing
+#   RB target share           -0.003   (p=0.94)   nothing
+#   RB rush_yards_per_carry   +0.065   (p=0.12)   nothing
+#   RB rush_td_rate           +0.171   (p=3.8e-05)
+#   RB rec_yards_per_target   +0.149   (p=1.4e-03)  <- the promoted effect,
+#                                                      as a positive control
+#
+# So the quarterback does not move a back's *workload* at all, and does not move
+# his yards per carry. What he moves is the rate at which carries become
+# touchdowns, which is a red-zone story: a better passer reaches the goal line
+# more often and the back gets the carries there. rush_td_rate reads only
+# prior_rush_epa_per_carry and prior_rush_first_down_rate, neither of which
+# carries offensive context, so this is new information rather than a
+# re-transform of something already in the design. The signal is flat at +0.17
+# across three control sets, including the spec's own covariates and the back's
+# own prior_rush_short_yardage_share -- it is not his goal-line role in
+# disguise.
+TEAMMATE_QUALITY_TARGETS = (
+    "rec_catch_rate",
+    "rec_yards_per_target",
+    "rec_td_rate",
+    "rush_td_rate",
+)
 
 # Reserve status on the one efficiency response that was measured to want it.
 #

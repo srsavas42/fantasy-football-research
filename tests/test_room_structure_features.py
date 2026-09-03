@@ -87,3 +87,4 @@ def test_enabling_reaches_the_target_room_and_nothing_else():
         assert name in pipeline.target_model.extra_features
         assert name not in pipeline.carry_model.extra_features
         assert name not in pipeline.snap_model.extra_features
+

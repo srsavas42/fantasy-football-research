@@ -20,6 +20,12 @@ the lift is buying real signal then removing it costs accuracy. So measure
 *bias* on held-out seasons, split by cold-start status -- mean projection
 against mean observation, where a defect shows up as cold rows projected high.
 
+Split by *projected* volume as well as by cold-start status. Most cold rows are
+players who never take a snap, and their bias says nothing about the rows a
+drafter reads. The question the projection artifact raises is about the top of
+the cold population -- an early-round rookie with a real projected role -- and
+an aggregate that averages him against two hundred camp bodies cannot answer it.
+
 ``mean_preserving_innovation`` is the instrument. It solves for a per-player
 offset that restores the draw-average to the noiseless allocation, so it
 removes exactly the softmax mean shift and nothing else. It is read only in
@@ -155,6 +161,20 @@ def main(argv=None) -> None:
                     arm_result[stream]["rookie"] = summarise(
                         observed[rookie], samples[rookie]
                     )
+                # The rows a drafter actually reads. Ranking on the projection
+                # rather than the outcome keeps this a statement the model could
+                # have made in advance: "of the cold players I project a real
+                # role for, am I high or low?"
+                projected = samples.mean(axis=1)
+                for label, population in (
+                    ("cold_projected_top", base & cold),
+                    ("warm_projected_top", base & ~cold),
+                ):
+                    if population.sum() < 20:
+                        continue
+                    cut = np.quantile(projected[population], 0.75)
+                    at = population & (projected >= cut)
+                    arm_result[stream][label] = summarise(observed[at], samples[at])
             fold[arm] = arm_result
 
         fold["fit_seconds"] = round(time.perf_counter() - started, 1)

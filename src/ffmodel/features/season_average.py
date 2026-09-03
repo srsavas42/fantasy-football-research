@@ -35,6 +35,7 @@ from ffmodel.features.carry_context import (
     merge_carry_context,
     weekly_carry_context,
 )
+from ffmodel.features.coaching_scheme import add_coaching_scheme_features
 from ffmodel.features.season_efficiency import (
     add_career_efficiency_priors,
     CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,
@@ -1058,6 +1059,7 @@ def player_preseason_rows(
             axis=1,
         ).to_numpy(dtype=float)
     out = add_teammate_quality_features(out)
+    out = add_coaching_scheme_features(out)
     out = add_market_adp_features(out)
     # After the ADP merge, because the interaction needs the drafted indicator.
     out = add_adp_tier_interactions(out, PRIOR_EFFICIENCY_FEATURES)

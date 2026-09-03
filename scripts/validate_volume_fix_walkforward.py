@@ -66,6 +66,14 @@ def main(argv=None) -> None:
     }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     path = args.output_dir / f"wf_{args.label}.json"
+    if getattr(args, "resume", False) and path.exists():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        if existing.get("_frames") == report["_frames"]:
+            report = existing
+            print(f"resuming {path}, folds already done: "
+                  f"{sorted(k for k in report if not k.startswith('_'))}")
+        else:
+            print(f"{path} exists but its frames fingerprint differs; starting over")
 
     def flush() -> None:
         """Persist after every holdout, as the scoring walk-forward does.
@@ -79,6 +87,9 @@ def main(argv=None) -> None:
 
     flush()
     for holdout in args.holdouts:
+        if str(holdout) in report:
+            print(f"holdout {holdout} already in {path}, skipping")
+            continue
         started = time.perf_counter()
         train = SeasonAverageData(
             team_rows[team_rows.season < holdout].copy(),
@@ -113,6 +124,8 @@ def main(argv=None) -> None:
             pipeline.market_win_total_features = args.market_win_totals
         if args.market_adp_interactions is not None:
             pipeline.market_adp_interactions = args.market_adp_interactions
+        if args.coaching_scheme is not None:
+            pipeline.coaching_scheme_features = args.coaching_scheme
         if args.room_structure is not None:
             pipeline.room_structure_features = args.room_structure
         if args.cold_role_innovation is not None:

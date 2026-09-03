@@ -61,6 +61,7 @@ from ffmodel.models.season_regime import (
     add_walk_forward_regime_probabilities,
 )
 from ffmodel.models.season_regime_coupling import SeasonRegimeRoleCoupling
+from ffmodel.features.coaching_scheme import COACHING_SCHEME_FEATURES
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
@@ -1529,6 +1530,14 @@ class SeasonAverageVolumePipeline:
     # room-structure question is real -- it just needs an instrument that does
     # not collide with the offset.
     room_structure_features: bool = False
+    # The scheme carrier's carried backfield tendency, interacted with the back
+    # indicator. See ffmodel.features.coaching_scheme: the level would cancel
+    # exactly in a softmax that normalises within team-season, so the feature
+    # ships as an interaction or not at all. Off until the gate speaks --
+    # screened at partial r=+0.204 (p=0.027, n=121 team-seasons) against the
+    # team's own previous three seasons, which is thin, and team-level inputs
+    # are the family that has failed every forecast test in this package.
+    coaching_scheme_features: bool = False
     # Preseason market consensus in the role and playing-time regressions. Off
     # until measured: it is the one input not derived from play-by-play, so a
     # gain would be real new information and a loss would say the market adds
@@ -1673,6 +1682,24 @@ class SeasonAverageVolumePipeline:
             self.carry_model.extra_features = tuple(
                 dict.fromkeys(
                     (*self.carry_model.extra_features, "prior_carry_share_career")
+                )
+            )
+        if self.coaching_scheme_features:
+            missing = [
+                name
+                for name in COACHING_SCHEME_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                raise ValueError(
+                    f"coaching_scheme_features is on but {missing} are absent "
+                    "from the player rows; rebuild the frames with "
+                    "add_coaching_scheme_features rather than fitting a model "
+                    "that would quietly ignore the flag"
+                )
+            self.target_model.extra_features = tuple(
+                dict.fromkeys(
+                    (*self.target_model.extra_features, *COACHING_SCHEME_FEATURES)
                 )
             )
         if self.room_structure_features:

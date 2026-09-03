@@ -207,6 +207,29 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="skip holdouts already present in this label's report, provided "
+             "its frames fingerprint matches this run",
+    )
+    parser.add_argument(
+        "--coaching-scheme",
+        dest="coaching_scheme",
+        action="store_const",
+        const=True,
+        default=None,
+        help="let the target softmax read the scheme carrier's carried "
+             "backfield tendency, interacted with the back indicator "
+             "(see ffmodel.features.coaching_scheme)",
+    )
+    parser.add_argument(
+        "--no-coaching-scheme",
+        dest="coaching_scheme",
+        action="store_const",
+        const=False,
+        help="force the coaching-scheme feature out, for the paired arm",
+    )
+    parser.add_argument(
         "--room-structure",
         dest="room_structure",
         action="store_const",

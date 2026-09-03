@@ -114,6 +114,12 @@ def main(argv=None) -> None:
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-walkforward"))
     parser.add_argument("--holdouts", nargs="+", type=int, default=[2022, 2023, 2024])
     parser.add_argument("--output-dir", type=Path, default=Path("scripts/validation_runs"))
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="load an existing report for this label and skip holdouts already "
+             "in it, provided its frames fingerprint matches this run",
+    )
     args = parser.parse_args(argv)
 
     constant = args.late_weight is not None
@@ -136,23 +142,41 @@ def main(argv=None) -> None:
         )
     print(f"late weight: {described}  (shipped {SHIPPED_LATE_WEIGHT})")
 
-    report: dict[str, object] = {
-        "_frames": frames_fingerprint(player_rows, team_rows, args.cache_dir),
-        "_late_weight": {
-            "constant": args.late_weight,
-            "young": args.late_weight_young,
-            "old": args.late_weight_old,
-            "young_max_experience": args.young_max_experience,
-            "rows_at_young_weight": int((weight != weight.max()).sum())
-            if not constant else 0,
-        },
-    }
     args.output_dir.mkdir(parents=True, exist_ok=True)
     path = args.output_dir / f"wf_{args.label}.json"
-    path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+    fingerprint = frames_fingerprint(player_rows, team_rows, args.cache_dir)
+    report: dict[str, object] | None = None
+    if args.resume and path.exists():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        # Only resume onto a report built from the same frames and the same
+        # weight configuration -- otherwise a resumed run silently mixes folds
+        # fit under different conditions into one file.
+        if existing.get("_frames") == fingerprint:
+            report = existing
+            print(f"resuming {path}, folds already done: "
+                  f"{sorted(k for k in report if not k.startswith('_'))}")
+        else:
+            print(f"{path} exists but its frames fingerprint does not match "
+                  "this run; starting over")
+    if report is None:
+        report = {
+            "_frames": fingerprint,
+            "_late_weight": {
+                "constant": args.late_weight,
+                "young": args.late_weight_young,
+                "old": args.late_weight_old,
+                "young_max_experience": args.young_max_experience,
+                "rows_at_young_weight": int((weight != weight.max()).sum())
+                if not constant else 0,
+            },
+        }
+        path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
 
     sample_kwargs = {"draws": args.draws, "tune": args.tune, "chains": args.chains}
     for holdout in args.holdouts:
+        if str(holdout) in report:
+            print(f"holdout {holdout} already in {path}, skipping")
+            continue
         started = time.perf_counter()
         train = SeasonAverageData(
             team_rows[team_rows.season < holdout].copy(),

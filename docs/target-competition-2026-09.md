@@ -508,3 +508,44 @@ The caveat that keeps this from being final is measurement. All of the above is
 *realized* aDOT, which mixes play design with execution and with who was open.
 A designed-depth measure — route depth off tracking data — could plausibly
 transfer where realized depth does not. This repo has no such column.
+
+### Four more shapes, four more nulls — and a correction
+
+The transfer principle stated above ("what transfers is the allocation the
+play-caller makes unilaterally") was drawn from a single hit and is too broad.
+Four more shapes, same design, same controls:
+
+| shape | raw r | partial r | p |
+|---|---:|---:|---:|
+| `te_target_share` | +0.113 | +0.093 | 0.27 |
+| `wr_target_share` | +0.131 | +0.113 | 0.18 |
+| `rookie_target_share` | −0.038 | −0.055 | 0.52 |
+| `rookie_carry_share` | −0.020 | −0.019 | 0.82 |
+
+Tight-end and receiver target share are *equally* unilateral allocations and
+neither transfers. So the principle needs narrowing: what travels is not
+positional allocation in general, it is specifically **the backfield's
+involvement in the passing game**, which is a property of progression and
+protection design rather than of who is on the roster. Even tight-end usage —
+which feels like the most schematic thing a coach does — is dominated by
+whether the team happens to have a good tight end.
+
+`rookie_target_share` was tested because the cold-start population is this
+model's largest documented bias (under-projected on every fold, both streams,
+above), and "some staffs trust rookies earlier" would have aimed straight at
+it. It does not transfer either.
+
+### The base rate this result has to be read against
+
+Counting everything now screened — coach identity on three efficiency
+responses, role churn on three streams across three flags, and eight team-season
+shapes across two designs — roughly a dozen coaching hypotheses have been put to
+the data and **one** survived, at p=0.027. Under the null, a dozen tests would
+be expected to throw about one hit under p=0.05 by chance.
+
+That is not a reason to discard `rb_target_share`: it held its sign and
+magnitude across a half-life sweep, a role-filter sweep, and the removal of the
+mechanical same-team confound, which noise does not usually do. But it is the
+reason the walk-forward is the arbiter and the screen is not, and it is the
+reason no further shape-hunting is planned. The marginal untested shape now has
+a poor prior.

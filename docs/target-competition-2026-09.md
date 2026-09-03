@@ -373,3 +373,87 @@ raw-share screens suggested it should, for the same reason the flat 0.10 arm
 didn't: the blend column this weight controls is a minor input to the softmax
 score next to the per-snap rate. Both arms of `prior_target_role`'s
 late-season weight are closed out: shipped 0.35 stands.
+
+## The coaching tree, finally testable
+
+`scripts/screen_zone_teammate_coach.py` had to leave the coaching-tree question
+open: "it needs the scheme-lineage tables, whose scraper cannot run here because
+the environment's network policy denies the Wikipedia host." Those tables now
+exist (scraped on a GitHub Actions runner, `data/coaching/wikipedia/`), so this
+closes it.
+
+Two framings were tested, and they are not the same question.
+
+### Role churn: null
+
+`scripts/screen_coaching_role_churn.py` asks whether a change of scheme carrier
+*widens* role dispersion — whether last season's role describes this season's
+role less well after the offense changes hands. That framing is attractive
+because the volume model already has the machinery to use it: `cold_role_innovation`
+already says "rows with no prior role deserve a wider innovation," so "rows whose
+offense just changed hands" would be the same claim about the same parameter,
+rather than a covariate fighting the softmax offset (which is how room structure
+failed, above).
+
+It is null. Level effects are absent everywhere (|r| < 0.02, p > 0.45 for every
+flag on every stream). Dispersion shows one marginal hit — target share against
+a new offensive coordinator, |resid| 0.355 vs 0.331, r = +0.037 at p = 0.043 —
+but that is one hit in nine tests, and carry share moves the *opposite* way
+(−0.027). Snaps show nothing at any flag. Read as noise.
+
+`has_midseason_change` is deliberately excluded from that screen: a coach fired
+in week 8 is not knowable in August, so a feature reading it would score well in
+validation and be unavailable when serving.
+
+### Shape transfer: one real survivor
+
+`scripts/screen_coaching_tree_transfer.py` asks the sharper question — does an
+arriving play-caller bring his previous offense's *shape* with him? Three
+team-season shapes, each about how volume is distributed rather than how much
+there is, predicted from the scheme coach's own prior NFL stops:
+
+| shape | raw r | partial r | p |
+|---|---:|---:|---:|
+| **`rb_target_share`** | +0.225 | **+0.204** | **0.027** |
+| `target_hhi` | −0.070 | −0.085 | 0.36 |
+| `rush_rate` | +0.118 | +0.086 | 0.36 |
+
+Partial is beyond the team's own previous **three** seasons — a strong control,
+since a team's distribution shape persists well past one year and a single-season
+control leaves enough of that in the residual to flatter the coach term.
+
+Target concentration and run/pass balance are fully absorbed by team persistence:
+whatever a coach's reputation, his new team throws to one alpha or spreads it
+around about as much as it already did. What transfers is **how much of the
+target pie goes to running backs**.
+
+Two checks decide whether that survivor is real, and it passes both:
+
+**The mechanical confound.** A coach who *stayed* has his own prior seasons at
+this same team inside his lineage, so his "carried" shape is partly the team's
+own history under another name. Restricting to stops at *other* franchises makes
+the effect **stronger**, +0.163 → +0.204 — the opposite of what a self-correlation
+artifact does.
+
+**Free-parameter sensitivity.** The recency half-life and the role filter are
+both arbitrary, so both are swept. Half-lives from 2 years to flat give +0.189
+to +0.210; role filters give +0.203 (OC only) to +0.231 (adding quarterbacks
+coach, n=145, p=0.006). Nothing here is doing the work. That the recency
+weighting is nearly irrelevant — flat is marginally *best* — is itself the
+finding: a play-caller's back-usage is a stable career trait, not recent form.
+
+### What it would take to use it
+
+Not a plain covariate. `coach_rb_target_share` is constant within a team-season,
+and the target softmax normalises within team-season, so a main effect cancels
+exactly — the same reason `prior_target_room_competition` measured as nothing
+above. To move anything it has to enter as an interaction with position
+(`coach_rb_target_share × is_RB`), which shifts backs relative to receivers
+inside the room rather than shifting the room.
+
+That is a real, specific, leakage-safe candidate for the target allocator, and
+it is the first coaching result in this repo that is about volume distribution
+rather than a team effect wearing a hat. It has not been walk-forwarded. n=121
+team-seasons at p=0.027 is thin, and team-level features are the family that has
+failed every forecast test in this line of work — so the screen is a reason to
+run the gate, not a reason to skip it.

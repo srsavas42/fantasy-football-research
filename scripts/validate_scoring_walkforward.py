@@ -208,6 +208,8 @@ def main(argv=None) -> None:
             pipeline.volume_model.market_adp_interactions = (
                 args.market_adp_interactions
             )
+        if args.room_structure is not None:
+            pipeline.volume_model.room_structure_features = args.room_structure
         pipeline.volume_model.mean_preserving_innovation = (
             tuple(args.mean_preserving_layers)
             if args.mean_preserving_layers

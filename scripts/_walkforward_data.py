@@ -207,6 +207,23 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--room-structure",
+        dest="room_structure",
+        action="store_const",
+        const=True,
+        default=None,
+        help="let the target softmax read within-room structure -- the "
+             "player's share of his own positional room and his receiving "
+             "quality against the rest of it (see TARGET_ROOM_FEATURES)",
+    )
+    parser.add_argument(
+        "--no-room-structure",
+        dest="room_structure",
+        action="store_const",
+        const=False,
+        help="force the room-structure features out, for the paired arm",
+    )
+    parser.add_argument(
         "--teammate-quality",
         action="store_true",
         help="let the receiving efficiency responses read the projected "

@@ -149,6 +149,36 @@ ACCEPTED_VOLUME_EFFICIENCY_FEATURES = {
     "carry": (),
 }
 
+# Within-room structure for the target allocator.
+#
+# The softmax normalises over the whole team roster and has no notion of a
+# positional room, so nothing in the score distinguishes "third of four wide
+# receivers" from "third of eleven skill players". When a room loses its alpha,
+# the vacated share is redistributed in proportion to the survivors' own priors
+# and no term lets the best remaining option take more than its proportional cut.
+#
+# Screened in scripts/screen_target_room_quality.py against the deterministic
+# prior allocation, controlling for position and for log prior share -- the
+# latter is not optional, since the residual is a ratio and small priors have
+# more room above than below. Partial correlations with the allocation residual,
+# reported on both the log ratio and the signed difference because a candidate
+# that only survives the log metric is a floor artifact:
+#
+#   feature                            log ratio      signed difference
+#   prior_target_role_uncertainty      +0.197 ***     +0.173 ***
+#   prior_rec_room_quality_advantage   +0.035         +0.062 **
+#   prior_target_room_competition      -0.025         +0.009
+#   prior_target_team_competition      -0.037 *       +0.009
+#
+# The last two are team- or room-level constants -- every receiver on a team
+# shares the value -- so they cannot separate players within a room and measure
+# as nothing. They are left out. The first two vary per player and survive both
+# metrics.
+TARGET_ROOM_FEATURES = (
+    "prior_target_role_uncertainty",
+    "prior_rec_room_quality_advantage",
+)
+
 PARTICIPATION_VOLUME_FEATURES = {
     "pass": (),
     "target": ("prior_targets_per_pass_play",),
@@ -1476,6 +1506,12 @@ class SeasonAverageVolumePipeline:
     # Snaps land on the floor rather than over it (-0.24% MAE, -0.27% CRPS, and
     # 2/3 on the players who actually play) and are left out.
     career_role_features: bool = True
+    # Within-room structure in the target softmax. See TARGET_ROOM_FEATURES for
+    # what was screened and what was left out. Off until it clears the gate: the
+    # screen measures the features against a deterministic prior allocation, and
+    # the fitted model has covariates and innovation that may already capture
+    # some of it another way.
+    room_structure_features: bool = False
     # Preseason market consensus in the role and playing-time regressions. Off
     # until measured: it is the one input not derived from play-by-play, so a
     # gain would be real new information and a loss would say the market adds
@@ -1620,6 +1656,30 @@ class SeasonAverageVolumePipeline:
             self.carry_model.extra_features = tuple(
                 dict.fromkeys(
                     (*self.carry_model.extra_features, "prior_carry_share_career")
+                )
+            )
+        if self.room_structure_features:
+            missing = [
+                name
+                for name in TARGET_ROOM_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                # ``_fit_metadata`` keeps only the features present in the
+                # frame, so an absent one is dropped without a word and the
+                # model fits as though the flag were off. That is how the
+                # teammate-quality flag's first walk-forward came back identical
+                # to its baseline on every metric.
+                raise ValueError(
+                    f"room_structure_features is on but {missing} are absent "
+                    "from the player rows; rebuild the frames with "
+                    "add_conditional_volume_efficiency_features and "
+                    "add_player_pathway_features rather than fitting a model "
+                    "that would quietly ignore the flag"
+                )
+            self.target_model.extra_features = tuple(
+                dict.fromkeys(
+                    (*self.target_model.extra_features, *TARGET_ROOM_FEATURES)
                 )
             )
         if self.availability_history_features:

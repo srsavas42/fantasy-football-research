@@ -113,6 +113,8 @@ def main(argv=None) -> None:
             pipeline.market_win_total_features = args.market_win_totals
         if args.market_adp_interactions is not None:
             pipeline.market_adp_interactions = args.market_adp_interactions
+        if args.room_structure is not None:
+            pipeline.room_structure_features = args.room_structure
         if args.cold_role_innovation is not None:
             pipeline.cold_role_innovation = args.cold_role_innovation
         if args.cold_role_scale_mode is not None:

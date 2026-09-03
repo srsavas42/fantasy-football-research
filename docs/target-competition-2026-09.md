@@ -605,3 +605,57 @@ corrections to how the quantity is measured rather than new hypotheses.
 bounded share, which is impossible and marks corrupt rows in that season.
 Z-scoring is self-limiting against it and the result is stable across windows
 that include and exclude it, so it is flagged rather than chased.)*
+
+### Mentor pooling, and what it turned up instead
+
+The coverage gap in the shipped feature — only some back rows get a carried
+value, because the coach needs prior stops with a shape attached — looked like a
+job for the `mentor_head_coach` edges: a first-time coordinator has no
+play-calling record of his own, but he has a tree.
+
+Widening the role filter is the direct test of that, since a stop in *any*
+offensive role is exposure to someone else's offense:
+
+| lineage roles admitted | n | partial r | p |
+|---|---:|---:|---:|
+| play-calling only (OC / HC) | 122 | +0.208 | 0.024 |
+| + quarterbacks coach | 152 | +0.200 | 0.015 |
+| + all offensive position coaches | 162 | +0.191 | 0.016 |
+| any stop at all | 170 | +0.160 | 0.039 |
+
+Coverage rises and the signal dilutes, which is the right shape for a real
+effect: a coach's own play-calling record should inform more than the offense he
+interned in. Power peaks in the middle, where n grows faster than r decays.
+
+But the isolated case — coaches with *no* play-calling stop anywhere, the
+population mentor pooling exists to serve — has **n=19**. Too few to validate,
+and that number is itself the finding: nearly every NFL scheme carrier has prior
+coordinator or head-coaching experience somewhere, so first-timers were never
+what made coverage thin.
+
+Chasing what actually made it thin produced the deep-history correction above,
+which is worth more than mentor pooling would have been. Mentor edges stay
+unused: they address a population of 19.
+
+### Load management and the committee question: null
+
+The second candidate. Availability is this package's least persistent layer
+(starter prior-to-next r = +0.079), so a staff effect there would predict
+something nothing else does; and "is this coach a committee guy" is probably the
+most widely held coaching belief in fantasy football.
+
+| shape | raw r | partial r | p |
+|---|---:|---:|---:|
+| `starter_availability` | −0.093 | −0.094 | 0.27 |
+| `rb_carry_top_share` | +0.014 | **+0.003** | 0.97 |
+| `rb_carry_hhi` | +0.022 | −0.010 | 0.91 |
+| `top5_snap_rate` | +0.014 | +0.021 | 0.81 |
+
+All null, three of them flat. Backfield concentration is the emphatic one: a
+coach's committee-versus-bell-cow reputation does not follow him at all.
+
+Read against the one hit, the pattern sharpens usefully. A play-caller carries
+**how often the backfield is thrown to** — a progression-design choice — and not
+**which back gets the work**, which is a personnel decision made with the roster
+he is handed. That is the same line the depth-of-target nulls drew, and it is
+now drawn from four directions.

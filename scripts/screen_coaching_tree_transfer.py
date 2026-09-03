@@ -18,6 +18,22 @@ how much of it there is:
   target_hhi         Herfindahl concentration of target share over the roster
                      -- does this scheme feed an alpha or spread it around
   rush_rate          carries / (carries + pass attempts)
+  team_adot          air yards per target over the whole passing game
+  yac_share          receiving YAC as a fraction of receiving yards -- the
+                     short-throws-and-run-after signature directly
+  wr1_adot           aDOT of the most-targeted wide receiver
+  wr3_adot           aDOT of the third
+  adot_spread        wr1_adot - wr3_adot: does the scheme stratify depth by
+                     role, or throw everyone the same route tree
+
+Receivers are ranked by *observed* targets rather than by the ``depth_rank``
+column. That column is a week-1 snapshot and correlates only 0.31 with realized
+target order -- published depth charts are largely formalities -- so it
+describes the offense far worse than what the offense actually did. The ranking
+is applied identically on both sides, so it is a description on the predictor
+side and the thing being predicted on the response side, not a leak: which
+receiver ends up WR1 is not what is being forecast, only how deep he is thrown
+to.
 
 For each response team-season, the predictor is the scheme coach's own prior
 NFL stops (from scheme_lineage), restricted to roles that plausibly own an
@@ -92,7 +108,51 @@ def team_shapes(rows: pd.DataFrame) -> pd.DataFrame:
     )
     denominator = out["team_carries"] + out["team_pass_att"]
     out["rush_rate"] = out["team_carries"] / denominator.where(denominator > 0)
-    return out[["season", "team", "rb_target_share", "target_hhi", "rush_rate"]]
+
+    # Depth-of-target shapes. Air yards and YAC are season totals, so team aDOT
+    # is a target-weighted mean by construction rather than a mean of means.
+    # Membership check, not `d.get(column)`: pd.to_numeric(None) returns a
+    # scalar nan rather than None, so a missing column would sail past a
+    # truthiness guard and only fail much later, somewhere unrelated.
+    depth_columns = ("eff_rec_air_yds", "eff_rec_yac", "eff_rec_yds", "eff_receptions")
+    absent = [column for column in depth_columns if column not in d.columns]
+    if absent:
+        raise ValueError(f"depth-of-target shapes need columns absent here: {absent}")
+    for column in depth_columns:
+        d[column] = pd.to_numeric(d[column], errors="coerce").fillna(0.0)
+    depth = d.groupby(["season", "team"], as_index=False).agg(
+        _air=("eff_rec_air_yds", "sum"),
+        _yac=("eff_rec_yac", "sum"),
+        _rec_yds=("eff_rec_yds", "sum"),
+        _targets=("targets", "sum"),
+    )
+    depth["team_adot"] = depth["_air"] / depth["_targets"].where(depth["_targets"] > 0)
+    depth["yac_share"] = depth["_yac"] / depth["_rec_yds"].where(depth["_rec_yds"] > 0)
+    out = out.merge(
+        depth[["season", "team", "team_adot", "yac_share"]], on=["season", "team"], how="left"
+    )
+
+    receivers = d[d["position"].eq("WR")].copy()
+    receivers["_adot"] = pd.to_numeric(
+        receivers["eff_rec_air_yds"], errors="coerce"
+    ) / receivers["targets"].where(receivers["targets"] > 0)
+    # A handful of targets makes an unstable aDOT; rank only receivers with a
+    # real season so "WR3" means a role rather than a September call-up.
+    receivers = receivers[receivers["targets"].ge(20) & receivers["_adot"].notna()]
+    receivers["_rank"] = receivers.groupby(["season", "team"])["targets"].rank(
+        ascending=False, method="first"
+    )
+    for slot in (1, 3):
+        column = f"wr{slot}_adot"
+        slotted = receivers[receivers["_rank"].eq(slot)][["season", "team", "_adot"]]
+        out = out.merge(
+            slotted.rename(columns={"_adot": column}), on=["season", "team"], how="left"
+        )
+    out["adot_spread"] = out["wr1_adot"] - out["wr3_adot"]
+    return out[[
+        "season", "team", "rb_target_share", "target_hhi", "rush_rate",
+        "team_adot", "yac_share", "wr1_adot", "wr3_adot", "adot_spread",
+    ]]
 
 
 def sweep(argv_cache_dir: Path) -> int:
@@ -151,7 +211,10 @@ def main(argv=None) -> int:
 
     rows = pd.read_pickle(args.cache_dir / "player_rows.pkl")
     shapes = team_shapes(rows)
-    metrics = [args.only] if args.only else ["rb_target_share", "target_hhi", "rush_rate"]
+    metrics = [args.only] if args.only else [
+        "rb_target_share", "target_hhi", "rush_rate",
+        "team_adot", "yac_share", "wr1_adot", "wr3_adot", "adot_spread",
+    ]
 
     lineage = load_scheme_lineage()
     role = lineage["prior_role"].astype(str).str.lower()

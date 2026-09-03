@@ -457,3 +457,54 @@ rather than a team effect wearing a hat. It has not been walk-forwarded. n=121
 team-seasons at p=0.027 is thin, and team-level features are the family that has
 failed every forecast test in this line of work — so the screen is a reason to
 run the gate, not a reason to skip it.
+
+### Depth of target does not travel with the play-caller
+
+The obvious follow-up to "running-back share transfers" is depth of target:
+play-callers visibly differ in how far downfield they throw, and a
+short-throws-and-run-after offense looks like a scheme signature rather than a
+roster accident. Five depth shapes were added to the same transfer screen:
+
+| shape | raw r | partial r | p |
+|---|---:|---:|---:|
+| `team_adot` | +0.022 | +0.056 | 0.55 |
+| `yac_share` | +0.071 | +0.117 | 0.21 |
+| `wr1_adot` | −0.099 | −0.092 | 0.33 |
+| `wr3_adot` | +0.117 | +0.116 | 0.25 |
+| `adot_spread` (wr1 − wr3) | −0.005 | −0.006 | 0.95 |
+
+Receivers are ranked by *observed* targets, not by the `depth_rank` column:
+that one is a week-1 snapshot and correlates only 0.31 with realized target
+order, so published depth charts describe the offense far worse than what the
+offense actually did.
+
+All null, but n=121 team-seasons resolves only |r| > 0.18, so that alone could
+not distinguish "no effect" from "modest effect". `scripts/screen_coach_adot_player_level.py`
+settles it with a much better-powered within-player design: the same receiver,
+same team, back-to-back seasons with a real target load in both, whose scheme
+carrier changed between them — controlling for his own prior aDOT and the
+team's. Everything is held fixed except who is calling the plays.
+
+| predictor | n | partial r | p |
+|---|---:|---:|---:|
+| incoming coach's carried `team_adot` | 172 | **−0.005** | 0.95 |
+| incoming coach's carried `yac_share` | 172 | **+0.014** | 0.86 |
+
+Flat zeros, not merely non-significant.
+
+One reading fits both the hits and the misses. What transferred —
+`rb_target_share` — is an allocation the play-caller makes unilaterally: he can
+check down to whoever is in the backfield on any roster he inherits. What did
+not transfer — depth of target, target concentration, run/pass balance — all
+need personnel he has to be given. A coach cannot install a vertical passing
+game without an arm and a burner, and Miami's short-and-YAC offense is not
+separable from having signed Hill and Waddle: the scheme and the personnel
+arrived together.
+
+That principle is worth carrying into any future coaching feature: screen the
+decisions a coach owns outright, not the ones his roster has to underwrite.
+
+The caveat that keeps this from being final is measurement. All of the above is
+*realized* aDOT, which mixes play design with execution and with who was open.
+A designed-depth measure — route depth off tracking data — could plausibly
+transfer where realized depth does not. This repo has no such column.

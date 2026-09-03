@@ -308,3 +308,58 @@ the model gives him. Availability barely persists at all — the correlation
 between a starter's prior and next-season availability is **+0.079** — so the
 hard regression toward the league mean of 13.85 games is the right behaviour,
 not an insult to a player who has been durable.
+
+## The late-season role weight: walk-forwarded, rejected
+
+Separately from all of the above, the user asked whether the role priors should
+weight recent (second-half) performance more heavily for younger players, since
+rookies often break out late. `prior_target_role` and its siblings already blend
+`0.65 * full_season_share + 0.35 * late_season_share` (late meaning weeks 10+),
+a single constant applied to every player regardless of experience.
+
+`scripts/screen_late_season_weight.py` solved in closed form for the weight
+minimising squared error against next season's share and found the shipped 0.35
+far too high everywhere — pooled optimum 0.035–0.095 depending on specification,
+falling with experience in every arm (roughly 0.14–0.18 entering year two,
+near zero from year five on). `scripts/screen_recency_weighting.py` then built a
+smooth exponentially-weighted alternative from the weekly panel and found R²
+rising monotonically with half-life in every experience bucket, on both target
+and carry share — the flat full-season share outperforms every finite half-life
+tried, including at every age.
+
+Both screens pointed the same direction, so it was walk-forwarded:
+`scripts/validate_late_season_weight.py` recomputes only the three role columns
+(`prior_target_role`, `prior_carry_role`, `prior_pass_role`) on the cached
+2022/2023/2024 frames and refits the full volume pipeline, so it is a controlled
+comparison against `wf_roombase.json`, the shipped 0.35 baseline on identical
+frames.
+
+**A flat 0.10 weight for everyone — the pooled screen's own answer — moves
+nothing material and is wrong-signed on target:**
+
+| stream | metric | pooled | per fold | folds better |
+|---|---|---:|---|---:|
+| target | MAE | +0.20% | +0.11% / +0.47% / +0.01% | 0/3 |
+| target | CRPS | +0.22% | +0.12% / +0.31% / +0.21% | 0/3 |
+| carry | MAE | +0.05% | +0.06% / −0.09% / +0.17% | 1/3 |
+| carry | CRPS | +0.05% | +0.02% / +0.01% / +0.11% | 0/3 |
+
+`pass_qb` and `snap` are identical to the last digit on every fold, confirming
+the change reached only what it was meant to. Every cell sits under the gate's
+0.25% materiality floor, and target is wrong-signed in all three folds rather
+than merely inconclusive.
+
+The reason the closed-form optimum barely registers in the fitted model:
+`prior_target_role` enters `_role_prior`'s geometric blend at a weight of only
+0.25 for targets — `prior_target_per_snap` carries the other 0.75 — so a large
+move in this one column is a small move in the softmax score. Both screens above
+were run against raw shares, which is the right question for the feature in
+isolation, but the fitted model has already routed most of its role signal
+through the per-snap rate instead. If a recency effect is real, it more likely
+belongs there than in the late-season blend weight.
+
+An age-varying arm (0.20 for experience ≤3, 0.02 otherwise) is running as a
+second check, but a flat weight already much closer to the screens' own
+recommendation than the shipped 0.35 moves nothing material, which sets a low
+bar for an age-split version to clear. This section will be updated with that
+result.

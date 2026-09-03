@@ -1,11 +1,18 @@
 """The scheme carrier's carried backfield-usage tendency, as a role feature.
 
 ``scripts/screen_coaching_tree_transfer.py`` measures which parts of an
-offense's *shape* an arriving play-caller brings with him. Of three candidates
-only one survives a control for the team's own previous three seasons:
-``rb_target_share``, the fraction of team targets going to running backs, at a
-partial correlation of +0.204 (p=0.027, n=121). Target concentration and
-run/pass balance are entirely absorbed by team persistence.
+offense's *shape* an arriving play-caller brings with him. Of eight candidates
+exactly one survives a control for the team's own previous three seasons:
+``rb_target_share``, the fraction of team targets going to running backs.
+Target concentration, run/pass balance, five depth-of-target shapes, and
+tight-end and receiver share are all absorbed by team persistence or measure
+as nothing.
+
+Measured properly -- era-normalised, over stops back to 1999 -- that survivor
+is **+0.211 at p=0.003 on n=197** (scripts/screen_coaching_deep_history.py).
+The first version of this screen reported +0.204 at p=0.027 on n=121 because it
+could only see stops from 2015 on; both the window and the normalisation were
+corrections to how the quantity is measured, not new hypotheses.
 
 Two properties make it usable rather than another team effect wearing a hat:
 
@@ -24,7 +31,7 @@ docs/target-competition-2026-09.md. Multiplying by the back indicator is what
 moves running backs relative to receivers inside the room instead of moving the
 room.
 
-The value is centred on the league mean before interacting, so a back on a team
+The value is a within-season z-score before interacting, so a back on a team
 whose play-caller carries a league-average tendency contributes zero rather than
 a constant offset that the position effect would have to absorb.
 """
@@ -45,31 +52,54 @@ COACHING_SCHEME_FEATURES = ("prior_coach_rb_target_share_x_rb",)
 SCHEME_ROLE_PATTERNS = ("offensive coordinator", "head coach", "quarterbacks coach")
 EXCLUDED_ROLE_PATTERNS = ("assistant", "quality control", "intern")
 
-# Flat weighting across a coach's career. The screen swept half-lives from two
-# years to flat and found the result nearly unchanged (+0.189 to +0.210), with
-# flat marginally the strongest -- back usage reads as a stable career trait
-# rather than recent form, so there is nothing for a decay to buy.
+# Flat weighting across a coach's career. Swept on the deep window, where the
+# sweep has real range to resolve: +0.223 at a three-year half-life against
+# +0.216 at ten. Back usage reads as a stable career trait rather than recent
+# form. (An earlier sweep on 2015+ stops only found the same thing, but every
+# stop there was within nine years, so it could not have refuted the claim.)
 RECENCY_HALF_LIFE: float | None = None
 
+# How far back to reach for the shapes of a coach's prior stops. The binding
+# limit on this feature was never the coaching data: of 1,630 external
+# play-calling stops behind 2016-2025 seasons, 1,087 are pre-2015 and had no
+# shape to attach when shapes came from the modeling frames. nflverse player
+# weeks run to 1999 and carry the three columns the shape needs, which is a far
+# lighter requirement than the full feature frame.
+DEEP_HISTORY_FIRST_SEASON = 1999
 
-def _team_rb_target_share(rows: pd.DataFrame) -> pd.DataFrame:
-    """Observed running-back share of team targets, per team-season."""
-    frame = rows[
-        pd.to_numeric(rows.get("is_replacement_player"), errors="coerce").fillna(0).ne(1)
-    ].copy()
-    targets = pd.to_numeric(frame.get("targets"), errors="coerce").fillna(0.0)
-    team_total = targets.groupby([frame["season"], frame["team"]]).transform("sum")
-    back_targets = targets.where(frame["position"].eq("RB"), 0.0)
-    grouped = pd.DataFrame(
-        {
-            "season": frame["season"],
-            "team": frame["team"],
-            "_rb": back_targets,
-            "_all": targets,
-        }
-    ).groupby(["season", "team"], as_index=False).sum()
-    grouped["rb_target_share"] = grouped["_rb"] / grouped["_all"].where(grouped["_all"] > 0)
-    return grouped[["season", "team", "rb_target_share"]]
+
+def _deep_team_rb_target_share(last_season: int) -> pd.DataFrame:
+    """Running-back share of team targets per team-season, back to 1999.
+
+    Era-normalised, and that is not optional. League-wide back usage drifts
+    hard -- 0.230 in 1999 against 0.175 in 2024 -- so averaging a 2005 stop with
+    a 2020 stop on the raw scale adds eras together rather than tendencies. On
+    raw shares the transfer measures +0.249 over a 2015+ window and *-0.021*
+    over a 1999+ one; z-scored within season it is +0.267 and +0.211. The raw
+    collapse was the drift, not the absence of an effect.
+    """
+    from ffmodel.data import load_player_weeks
+    from ffmodel.features.season_average import normalize_model_positions
+
+    weeks = normalize_model_positions(
+        load_player_weeks(
+            range(DEEP_HISTORY_FIRST_SEASON, int(last_season) + 1), source="nflverse"
+        )
+    )
+    weeks = weeks[weeks["team"].notna() & weeks["season"].notna()].copy()
+    weeks["targets"] = pd.to_numeric(weeks["targets"], errors="coerce").fillna(0.0)
+    weeks["_rb"] = weeks["targets"].where(weeks["position"].eq("RB"), 0.0)
+    grouped = weeks.groupby(["season", "team"], as_index=False).agg(
+        _rb=("_rb", "sum"), _all=("targets", "sum")
+    )
+    grouped["season"] = grouped["season"].astype(int)
+    share = grouped["_rb"] / grouped["_all"].where(grouped["_all"] > 0)
+    by_season = share.groupby(grouped["season"])
+    spread = by_season.transform("std")
+    grouped["rb_target_share_z"] = (share - by_season.transform("mean")) / spread.where(
+        spread > 0
+    )
+    return grouped[["season", "team", "rb_target_share_z"]]
 
 
 def add_coaching_scheme_features(rows: pd.DataFrame) -> pd.DataFrame:
@@ -85,7 +115,7 @@ def add_coaching_scheme_features(rows: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"coaching scheme rows are missing columns: {sorted(missing)}")
 
-    shapes = _team_rb_target_share(out)
+    shapes = _deep_team_rb_target_share(int(pd.to_numeric(out["season"]).max()))
     lineage = load_scheme_lineage()
     if lineage.empty:
         out[COACHING_SCHEME_FEATURES[0]] = 0.0
@@ -106,7 +136,7 @@ def add_coaching_scheme_features(rows: pd.DataFrame) -> pd.DataFrame:
         on=["prior_season", "prior_team_code"],
         how="inner",
     )
-    stops = stops[pd.to_numeric(stops["rb_target_share"], errors="coerce").notna()]
+    stops = stops[pd.to_numeric(stops["rb_target_share_z"], errors="coerce").notna()]
     if stops.empty:
         out[COACHING_SCHEME_FEATURES[0]] = 0.0
         return out
@@ -117,7 +147,7 @@ def add_coaching_scheme_features(rows: pd.DataFrame) -> pd.DataFrame:
         stops = stops.assign(
             _weight=0.5 ** (stops["recency_years"].astype(float) / RECENCY_HALF_LIFE)
         )
-    stops = stops.assign(_value=stops["rb_target_share"].astype(float) * stops["_weight"])
+    stops = stops.assign(_value=stops["rb_target_share_z"].astype(float) * stops["_weight"])
     carried = stops.groupby(["season", "franchise_code"], as_index=False).agg(
         _numerator=("_value", "sum"), _denominator=("_weight", "sum")
     )
@@ -132,12 +162,11 @@ def add_coaching_scheme_features(rows: pd.DataFrame) -> pd.DataFrame:
         how="left",
     )
     values = pd.to_numeric(out["carried_rb_target_share"], errors="coerce")
-    # Centre on the league mean of the carried values themselves, computed once
-    # over every team-season that has one. Centring on the *observed* league
-    # share instead would leak the response season's own outcome into the
-    # feature's location.
-    centre = float(values.dropna().mean()) if values.notna().any() else 0.0
-    centred = (values - centre).fillna(0.0)
+    # Already a z-score against each stop's own season, so it is centred on the
+    # league by construction and needs no further recentring against the
+    # response season -- which is what keeps the response season's own outcome
+    # out of the feature's location.
+    centred = values.fillna(0.0)
     is_back = out["position"].astype(str).str.upper().eq("RB").astype(float)
     out[COACHING_SCHEME_FEATURES[0]] = (centred * is_back).to_numpy(dtype=float)
     return out.drop(columns=["carried_rb_target_share"])

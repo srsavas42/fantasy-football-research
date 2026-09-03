@@ -22,7 +22,13 @@ from ffmodel.models.volume_season_average import (
 )
 
 
-def test_the_flag_is_off_until_it_clears_the_gate():
+def test_the_flag_stays_off_after_the_gate_rejected_it():
+    """Target MAE +4.63% and CRPS +2.37%, losing all three folds.
+
+    prior_target_role_uncertainty correlates -0.605 with the log offset the
+    softmax already carries as a fixed term, so offering it as a covariate lets
+    the model re-weight an input it was handed as known.
+    """
     assert not SeasonAverageVolumePipeline().room_structure_features
 
 

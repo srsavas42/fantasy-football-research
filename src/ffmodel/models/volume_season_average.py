@@ -1507,10 +1507,27 @@ class SeasonAverageVolumePipeline:
     # 2/3 on the players who actually play) and are left out.
     career_role_features: bool = True
     # Within-room structure in the target softmax. See TARGET_ROOM_FEATURES for
-    # what was screened and what was left out. Off until it clears the gate: the
-    # screen measures the features against a deterministic prior allocation, and
-    # the fitted model has covariates and innovation that may already capture
-    # some of it another way.
+    # what was screened and what was left out.
+    #
+    # **The gate rejects it.** Against the same frames on 2022/2023/2024, target
+    # MAE +4.63% pooled (+2.77 / +4.57 / +6.75) and CRPS +2.37% (+0.92 / +2.32 /
+    # +4.03), losing every fold on both. Coverage moves slightly away from
+    # nominal at both levels. Every other stream is identical to the last digit,
+    # which confirms the arm changed only what it meant to.
+    #
+    # Why it fails is the useful part. prior_target_role_uncertainty correlates
+    # -0.605 with log(role_prior x exposure) -- the offset the softmax already
+    # carries as a *fixed* term. Offering it as a free covariate lets the model
+    # partially re-weight an input it was handed as known, which is exactly the
+    # double-counting the target stream's beta_scale of 0.05 exists to prevent.
+    # The screen could not see this: it residualises *against* the prior
+    # allocation, so it measures what that allocation gets wrong, and a feature
+    # can carry that signal honestly and still be unusable by a model built on
+    # the allocation itself.
+    #
+    # Kept off, with the code, because the measurement is worth having and the
+    # room-structure question is real -- it just needs an instrument that does
+    # not collide with the offset.
     room_structure_features: bool = False
     # Preseason market consensus in the role and playing-time regressions. Off
     # until measured: it is the one input not derived from play-by-play, so a

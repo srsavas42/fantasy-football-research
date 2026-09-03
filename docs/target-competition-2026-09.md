@@ -63,11 +63,37 @@ structural rather than behavioural: the softmax normalises team-wide, so
 room-level position is information it genuinely does not have.
 
 `TARGET_ROOM_FEATURES` carries the two survivors behind
-`room_structure_features`, off until it clears the gate. Note that the target
-stream's `beta_scale` is 0.05 against 0.35 elsewhere — a deliberately tight
-prior, to stop the covariates re-counting playing time. Any new target feature
-is shrunk hard, so a null result there is as likely to be the prior as the
-signal.
+`room_structure_features`.
+
+### The gate rejects it
+
+Against the same frames on 2022/2023/2024, with every other stream identical to
+the last digit — so the arm changed only what it meant to:
+
+| metric | pooled | per fold | folds better |
+|---|---:|---|---:|
+| target MAE | **+4.63%** | +2.77 / +4.57 / +6.75 | 0/3 |
+| target CRPS | **+2.37%** | +0.92 / +2.32 / +4.03 | 0/3 |
+
+Coverage moves slightly away from nominal at both levels.
+
+Why it fails is the useful part, and it is a caution about the screen rather
+than about the idea. `prior_target_role_uncertainty` correlates **−0.605** with
+`log(role_prior × exposure)` — the offset the softmax already carries as a
+*fixed* term. Offering it as a free covariate lets the model partially re-weight
+an input it was handed as known, which is exactly the double-counting the target
+stream's `beta_scale` of 0.05 exists to prevent. A 4.6% MAE regression from a
+feature shrunk that hard is the signature of collision with the offset, not of a
+weak signal.
+
+The screen could not have caught this. It residualises *against* the prior
+allocation, so what it measures is what that allocation gets wrong — and a
+feature can carry that signal honestly and still be unusable by a model whose
+score is built on the allocation itself. Any future room-structure instrument
+needs to be orthogonal to the offset, or to enter somewhere other than as a
+covariate on it.
+
+The flag and the code stay, off.
 
 ## The quarterback
 

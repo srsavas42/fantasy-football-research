@@ -134,7 +134,17 @@ jobs:
           if-no-files-found: error
 
       - name: Commit and push the updated tables
-        if: ${{ inputs.dry_run != 'true' }}
+        # GitHub converts a `type: boolean` dispatch input to an actual
+        # boolean in this context, but only when it can -- API dispatch calls
+        # (unlike the UI) send inputs as JSON, and both a real `true` and the
+        # string "true" have been observed here across dispatch paths. A bare
+        # `!inputs.dry_run` is not safe either: an *empty* string is falsy in
+        # GitHub's expression language, but the non-empty string "false" is
+        # truthy, so that would run this step exactly when it should not.
+        # Excluding both spellings of "true" is what actually worked: a
+        # dry_run=true dispatch was seen to run this step anyway when the
+        # comparison was only against the quoted string.
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

@@ -358,8 +358,18 @@ isolation, but the fitted model has already routed most of its role signal
 through the per-snap rate instead. If a recency effect is real, it more likely
 belongs there than in the late-season blend weight.
 
-An age-varying arm (0.20 for experience ≤3, 0.02 otherwise) is running as a
-second check, but a flat weight already much closer to the screens' own
-recommendation than the shipped 0.35 moves nothing material, which sets a low
-bar for an age-split version to clear. This section will be updated with that
-result.
+An age-varying arm (0.20 for experience ≤3, 0.02 otherwise) confirms it:
+
+| stream | metric | pooled | per fold | folds better |
+|---|---|---:|---|---:|
+| target | MAE | +0.10% | −0.10% / +0.43% / −0.04% | 2/3 |
+| target | CRPS | +0.14% | −0.04% / +0.33% / +0.14% | 1/3 |
+| carry | MAE | +0.08% | +0.04% / +0.01% / +0.19% | 0/3 |
+| carry | CRPS | +0.07% | +0.04% / +0.03% / +0.16% | 0/3 |
+
+Every cell is under the materiality floor and none wins every fold — the
+promotion gate needs both. Splitting the weight by age doesn't do what the
+raw-share screens suggested it should, for the same reason the flat 0.10 arm
+didn't: the blend column this weight controls is a minor input to the softmax
+score next to the per-snap rate. Both arms of `prior_target_role`'s
+late-season weight are closed out: shipped 0.35 stands.

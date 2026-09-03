@@ -764,17 +764,28 @@ def parse_coach_history(page: WikipediaPage, fallback_name: str) -> pd.DataFrame
 def _resolve_coach_page(
     client: WikipediaClient, page_title: str | None, coach_name: str
 ) -> WikipediaPage:
-    if page_title and not pd.isna(page_title):
-        page = client.fetch_page(str(page_title))
+    # ``page_title`` is ``pd.NA`` for the "unlinked name" fallback rows
+    # ``_assignment_rows`` emits when a coach's name wasn't wiki-linked, and
+    # ``pd.NA`` raises on ``bool()`` rather than behaving like a normal falsy
+    # value. ``_optional_text`` already exists for exactly this -- it checks
+    # ``is None`` and ``pd.isna`` before ever coercing to a plain string, so
+    # it never triggers that ambiguous-boolean error. This function's own
+    # fallback on the last line had the identical bug (``page_title or
+    # coach_name``), unreached only because the first crash always fired
+    # first.
+    resolved_title = _optional_text(page_title)
+    if resolved_title is not None:
+        page = client.fetch_page(resolved_title)
         if not page.missing:
             return page
     for title in client.search(f'"{coach_name}" American football coach'):
         candidate = client.fetch_page(title)
         if not candidate.missing:
             return candidate
+    fallback_title = resolved_title or coach_name
     return WikipediaPage(
-        requested_title=str(page_title or coach_name),
-        title=str(page_title or coach_name),
+        requested_title=fallback_title,
+        title=fallback_title,
         page_id=None,
         revision_id=None,
         revision_timestamp=None,

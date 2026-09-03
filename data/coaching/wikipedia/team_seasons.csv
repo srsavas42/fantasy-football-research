@@ -1,6 +1,1702 @@
 season,team_code,franchise_code,team_name,data_source
+1970,STL,ARI,St. Louis Cardinals,legacy_yearly
+1970,ATL,ATL,Atlanta Falcons,legacy_yearly
+1970,BUF,BUF,Buffalo Bills,legacy_yearly
+1970,CHI,CHI,Chicago Bears,legacy_yearly
+1970,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1970,CLE,CLE,Cleveland Browns,legacy_yearly
+1970,DAL,DAL,Dallas Cowboys,legacy_yearly
+1970,DEN,DEN,Denver Broncos,legacy_yearly
+1970,DET,DET,Detroit Lions,legacy_yearly
+1970,GNB,GB,Green Bay Packers,legacy_yearly
+1970,BAL,IND,Baltimore Colts,legacy_yearly
+1970,KAN,KC,Kansas City Chiefs,legacy_yearly
+1970,SDG,LAC,San Diego Chargers,legacy_yearly
+1970,RAM,LAR,Los Angeles Rams,legacy_yearly
+1970,OAK,LV,Oakland Raiders,legacy_yearly
+1970,MIA,MIA,Miami Dolphins,legacy_yearly
+1970,MIN,MIN,Minnesota Vikings,legacy_yearly
+1970,BOS,NE,Boston Patriots,legacy_yearly
+1970,NOR,NO,New Orleans Saints,legacy_yearly
+1970,NYG,NYG,New York Giants,legacy_yearly
+1970,NYJ,NYJ,New York Jets,legacy_yearly
+1970,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1970,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1970,SFO,SF,San Francisco 49ers,legacy_yearly
+1970,HOU,TEN,Houston Oilers,legacy_yearly
+1970,WAS,WAS,Washington Redskins,legacy_yearly
+1971,STL,ARI,St. Louis Cardinals,legacy_yearly
+1971,ATL,ATL,Atlanta Falcons,legacy_yearly
+1971,BUF,BUF,Buffalo Bills,legacy_yearly
+1971,CHI,CHI,Chicago Bears,legacy_yearly
+1971,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1971,CLE,CLE,Cleveland Browns,legacy_yearly
+1971,DAL,DAL,Dallas Cowboys,legacy_yearly
+1971,DEN,DEN,Denver Broncos,legacy_yearly
+1971,DET,DET,Detroit Lions,legacy_yearly
+1971,GNB,GB,Green Bay Packers,legacy_yearly
+1971,BAL,IND,Baltimore Colts,legacy_yearly
+1971,KAN,KC,Kansas City Chiefs,legacy_yearly
+1971,SDG,LAC,San Diego Chargers,legacy_yearly
+1971,RAM,LAR,Los Angeles Rams,legacy_yearly
+1971,OAK,LV,Oakland Raiders,legacy_yearly
+1971,MIA,MIA,Miami Dolphins,legacy_yearly
+1971,MIN,MIN,Minnesota Vikings,legacy_yearly
+1971,NWE,NE,New England Patriots,legacy_yearly
+1971,NOR,NO,New Orleans Saints,legacy_yearly
+1971,NYG,NYG,New York Giants,legacy_yearly
+1971,NYJ,NYJ,New York Jets,legacy_yearly
+1971,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1971,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1971,SFO,SF,San Francisco 49ers,legacy_yearly
+1971,HOU,TEN,Houston Oilers,legacy_yearly
+1971,WAS,WAS,Washington Redskins,legacy_yearly
+1972,STL,ARI,St. Louis Cardinals,legacy_yearly
+1972,ATL,ATL,Atlanta Falcons,legacy_yearly
+1972,BUF,BUF,Buffalo Bills,legacy_yearly
+1972,CHI,CHI,Chicago Bears,legacy_yearly
+1972,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1972,CLE,CLE,Cleveland Browns,legacy_yearly
+1972,DAL,DAL,Dallas Cowboys,legacy_yearly
+1972,DEN,DEN,Denver Broncos,legacy_yearly
+1972,DET,DET,Detroit Lions,legacy_yearly
+1972,GNB,GB,Green Bay Packers,legacy_yearly
+1972,BAL,IND,Baltimore Colts,legacy_yearly
+1972,KAN,KC,Kansas City Chiefs,legacy_yearly
+1972,SDG,LAC,San Diego Chargers,legacy_yearly
+1972,RAM,LAR,Los Angeles Rams,legacy_yearly
+1972,OAK,LV,Oakland Raiders,legacy_yearly
+1972,MIA,MIA,Miami Dolphins,legacy_yearly
+1972,MIN,MIN,Minnesota Vikings,legacy_yearly
+1972,NWE,NE,New England Patriots,legacy_yearly
+1972,NOR,NO,New Orleans Saints,legacy_yearly
+1972,NYG,NYG,New York Giants,legacy_yearly
+1972,NYJ,NYJ,New York Jets,legacy_yearly
+1972,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1972,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1972,SFO,SF,San Francisco 49ers,legacy_yearly
+1972,HOU,TEN,Houston Oilers,legacy_yearly
+1972,WAS,WAS,Washington Redskins,legacy_yearly
+1973,STL,ARI,St. Louis Cardinals,legacy_yearly
+1973,ATL,ATL,Atlanta Falcons,legacy_yearly
+1973,BUF,BUF,Buffalo Bills,legacy_yearly
+1973,CHI,CHI,Chicago Bears,legacy_yearly
+1973,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1973,CLE,CLE,Cleveland Browns,legacy_yearly
+1973,DAL,DAL,Dallas Cowboys,legacy_yearly
+1973,DEN,DEN,Denver Broncos,legacy_yearly
+1973,DET,DET,Detroit Lions,legacy_yearly
+1973,GNB,GB,Green Bay Packers,legacy_yearly
+1973,BAL,IND,Baltimore Colts,legacy_yearly
+1973,KAN,KC,Kansas City Chiefs,legacy_yearly
+1973,SDG,LAC,San Diego Chargers,legacy_yearly
+1973,RAM,LAR,Los Angeles Rams,legacy_yearly
+1973,OAK,LV,Oakland Raiders,legacy_yearly
+1973,MIA,MIA,Miami Dolphins,legacy_yearly
+1973,MIN,MIN,Minnesota Vikings,legacy_yearly
+1973,NWE,NE,New England Patriots,legacy_yearly
+1973,NOR,NO,New Orleans Saints,legacy_yearly
+1973,NYG,NYG,New York Giants,legacy_yearly
+1973,NYJ,NYJ,New York Jets,legacy_yearly
+1973,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1973,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1973,SFO,SF,San Francisco 49ers,legacy_yearly
+1973,HOU,TEN,Houston Oilers,legacy_yearly
+1973,WAS,WAS,Washington Redskins,legacy_yearly
+1974,STL,ARI,St. Louis Cardinals,legacy_yearly
+1974,ATL,ATL,Atlanta Falcons,legacy_yearly
+1974,BUF,BUF,Buffalo Bills,legacy_yearly
+1974,CHI,CHI,Chicago Bears,legacy_yearly
+1974,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1974,CLE,CLE,Cleveland Browns,legacy_yearly
+1974,DAL,DAL,Dallas Cowboys,legacy_yearly
+1974,DEN,DEN,Denver Broncos,legacy_yearly
+1974,DET,DET,Detroit Lions,legacy_yearly
+1974,GNB,GB,Green Bay Packers,legacy_yearly
+1974,BAL,IND,Baltimore Colts,legacy_yearly
+1974,KAN,KC,Kansas City Chiefs,legacy_yearly
+1974,SDG,LAC,San Diego Chargers,legacy_yearly
+1974,RAM,LAR,Los Angeles Rams,legacy_yearly
+1974,OAK,LV,Oakland Raiders,legacy_yearly
+1974,MIA,MIA,Miami Dolphins,legacy_yearly
+1974,MIN,MIN,Minnesota Vikings,legacy_yearly
+1974,NWE,NE,New England Patriots,legacy_yearly
+1974,NOR,NO,New Orleans Saints,legacy_yearly
+1974,NYG,NYG,New York Giants,legacy_yearly
+1974,NYJ,NYJ,New York Jets,legacy_yearly
+1974,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1974,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1974,SFO,SF,San Francisco 49ers,legacy_yearly
+1974,HOU,TEN,Houston Oilers,legacy_yearly
+1974,WAS,WAS,Washington Redskins,legacy_yearly
+1975,STL,ARI,St. Louis Cardinals,legacy_yearly
+1975,ATL,ATL,Atlanta Falcons,legacy_yearly
+1975,BUF,BUF,Buffalo Bills,legacy_yearly
+1975,CHI,CHI,Chicago Bears,legacy_yearly
+1975,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1975,CLE,CLE,Cleveland Browns,legacy_yearly
+1975,DAL,DAL,Dallas Cowboys,legacy_yearly
+1975,DEN,DEN,Denver Broncos,legacy_yearly
+1975,DET,DET,Detroit Lions,legacy_yearly
+1975,GNB,GB,Green Bay Packers,legacy_yearly
+1975,BAL,IND,Baltimore Colts,legacy_yearly
+1975,KAN,KC,Kansas City Chiefs,legacy_yearly
+1975,SDG,LAC,San Diego Chargers,legacy_yearly
+1975,RAM,LAR,Los Angeles Rams,legacy_yearly
+1975,OAK,LV,Oakland Raiders,legacy_yearly
+1975,MIA,MIA,Miami Dolphins,legacy_yearly
+1975,MIN,MIN,Minnesota Vikings,legacy_yearly
+1975,NWE,NE,New England Patriots,legacy_yearly
+1975,NOR,NO,New Orleans Saints,legacy_yearly
+1975,NYG,NYG,New York Giants,legacy_yearly
+1975,NYJ,NYJ,New York Jets,legacy_yearly
+1975,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1975,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1975,SFO,SF,San Francisco 49ers,legacy_yearly
+1975,HOU,TEN,Houston Oilers,legacy_yearly
+1975,WAS,WAS,Washington Redskins,legacy_yearly
+1976,STL,ARI,St. Louis Cardinals,legacy_yearly
+1976,ATL,ATL,Atlanta Falcons,legacy_yearly
+1976,BUF,BUF,Buffalo Bills,legacy_yearly
+1976,CHI,CHI,Chicago Bears,legacy_yearly
+1976,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1976,CLE,CLE,Cleveland Browns,legacy_yearly
+1976,DAL,DAL,Dallas Cowboys,legacy_yearly
+1976,DEN,DEN,Denver Broncos,legacy_yearly
+1976,DET,DET,Detroit Lions,legacy_yearly
+1976,GNB,GB,Green Bay Packers,legacy_yearly
+1976,BAL,IND,Baltimore Colts,legacy_yearly
+1976,KAN,KC,Kansas City Chiefs,legacy_yearly
+1976,SDG,LAC,San Diego Chargers,legacy_yearly
+1976,RAM,LAR,Los Angeles Rams,legacy_yearly
+1976,OAK,LV,Oakland Raiders,legacy_yearly
+1976,MIA,MIA,Miami Dolphins,legacy_yearly
+1976,MIN,MIN,Minnesota Vikings,legacy_yearly
+1976,NWE,NE,New England Patriots,legacy_yearly
+1976,NOR,NO,New Orleans Saints,legacy_yearly
+1976,NYG,NYG,New York Giants,legacy_yearly
+1976,NYJ,NYJ,New York Jets,legacy_yearly
+1976,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1976,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1976,SEA,SEA,Seattle Seahawks,legacy_yearly
+1976,SFO,SF,San Francisco 49ers,legacy_yearly
+1976,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1976,HOU,TEN,Houston Oilers,legacy_yearly
+1976,WAS,WAS,Washington Redskins,legacy_yearly
+1977,STL,ARI,St. Louis Cardinals,legacy_yearly
+1977,ATL,ATL,Atlanta Falcons,legacy_yearly
+1977,BUF,BUF,Buffalo Bills,legacy_yearly
+1977,CHI,CHI,Chicago Bears,legacy_yearly
+1977,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1977,CLE,CLE,Cleveland Browns,legacy_yearly
+1977,DAL,DAL,Dallas Cowboys,legacy_yearly
+1977,DEN,DEN,Denver Broncos,legacy_yearly
+1977,DET,DET,Detroit Lions,legacy_yearly
+1977,GNB,GB,Green Bay Packers,legacy_yearly
+1977,BAL,IND,Baltimore Colts,legacy_yearly
+1977,KAN,KC,Kansas City Chiefs,legacy_yearly
+1977,SDG,LAC,San Diego Chargers,legacy_yearly
+1977,RAM,LAR,Los Angeles Rams,legacy_yearly
+1977,OAK,LV,Oakland Raiders,legacy_yearly
+1977,MIA,MIA,Miami Dolphins,legacy_yearly
+1977,MIN,MIN,Minnesota Vikings,legacy_yearly
+1977,NWE,NE,New England Patriots,legacy_yearly
+1977,NOR,NO,New Orleans Saints,legacy_yearly
+1977,NYG,NYG,New York Giants,legacy_yearly
+1977,NYJ,NYJ,New York Jets,legacy_yearly
+1977,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1977,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1977,SEA,SEA,Seattle Seahawks,legacy_yearly
+1977,SFO,SF,San Francisco 49ers,legacy_yearly
+1977,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1977,HOU,TEN,Houston Oilers,legacy_yearly
+1977,WAS,WAS,Washington Redskins,legacy_yearly
+1978,STL,ARI,St. Louis Cardinals,legacy_yearly
+1978,ATL,ATL,Atlanta Falcons,legacy_yearly
+1978,BUF,BUF,Buffalo Bills,legacy_yearly
+1978,CHI,CHI,Chicago Bears,legacy_yearly
+1978,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1978,CLE,CLE,Cleveland Browns,legacy_yearly
+1978,DAL,DAL,Dallas Cowboys,legacy_yearly
+1978,DEN,DEN,Denver Broncos,legacy_yearly
+1978,DET,DET,Detroit Lions,legacy_yearly
+1978,GNB,GB,Green Bay Packers,legacy_yearly
+1978,BAL,IND,Baltimore Colts,legacy_yearly
+1978,KAN,KC,Kansas City Chiefs,legacy_yearly
+1978,SDG,LAC,San Diego Chargers,legacy_yearly
+1978,RAM,LAR,Los Angeles Rams,legacy_yearly
+1978,OAK,LV,Oakland Raiders,legacy_yearly
+1978,MIA,MIA,Miami Dolphins,legacy_yearly
+1978,MIN,MIN,Minnesota Vikings,legacy_yearly
+1978,NWE,NE,New England Patriots,legacy_yearly
+1978,NOR,NO,New Orleans Saints,legacy_yearly
+1978,NYG,NYG,New York Giants,legacy_yearly
+1978,NYJ,NYJ,New York Jets,legacy_yearly
+1978,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1978,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1978,SEA,SEA,Seattle Seahawks,legacy_yearly
+1978,SFO,SF,San Francisco 49ers,legacy_yearly
+1978,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1978,HOU,TEN,Houston Oilers,legacy_yearly
+1978,WAS,WAS,Washington Redskins,legacy_yearly
+1979,STL,ARI,St. Louis Cardinals,legacy_yearly
+1979,ATL,ATL,Atlanta Falcons,legacy_yearly
+1979,BUF,BUF,Buffalo Bills,legacy_yearly
+1979,CHI,CHI,Chicago Bears,legacy_yearly
+1979,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1979,CLE,CLE,Cleveland Browns,legacy_yearly
+1979,DAL,DAL,Dallas Cowboys,legacy_yearly
+1979,DEN,DEN,Denver Broncos,legacy_yearly
+1979,DET,DET,Detroit Lions,legacy_yearly
+1979,GNB,GB,Green Bay Packers,legacy_yearly
+1979,BAL,IND,Baltimore Colts,legacy_yearly
+1979,KAN,KC,Kansas City Chiefs,legacy_yearly
+1979,SDG,LAC,San Diego Chargers,legacy_yearly
+1979,RAM,LAR,Los Angeles Rams,legacy_yearly
+1979,OAK,LV,Oakland Raiders,legacy_yearly
+1979,MIA,MIA,Miami Dolphins,legacy_yearly
+1979,MIN,MIN,Minnesota Vikings,legacy_yearly
+1979,NWE,NE,New England Patriots,legacy_yearly
+1979,NOR,NO,New Orleans Saints,legacy_yearly
+1979,NYG,NYG,New York Giants,legacy_yearly
+1979,NYJ,NYJ,New York Jets,legacy_yearly
+1979,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1979,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1979,SEA,SEA,Seattle Seahawks,legacy_yearly
+1979,SFO,SF,San Francisco 49ers,legacy_yearly
+1979,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1979,HOU,TEN,Houston Oilers,legacy_yearly
+1979,WAS,WAS,Washington Redskins,legacy_yearly
+1980,STL,ARI,St. Louis Cardinals,legacy_yearly
+1980,ATL,ATL,Atlanta Falcons,legacy_yearly
+1980,BUF,BUF,Buffalo Bills,legacy_yearly
+1980,CHI,CHI,Chicago Bears,legacy_yearly
+1980,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1980,CLE,CLE,Cleveland Browns,legacy_yearly
+1980,DAL,DAL,Dallas Cowboys,legacy_yearly
+1980,DEN,DEN,Denver Broncos,legacy_yearly
+1980,DET,DET,Detroit Lions,legacy_yearly
+1980,GNB,GB,Green Bay Packers,legacy_yearly
+1980,BAL,IND,Baltimore Colts,legacy_yearly
+1980,KAN,KC,Kansas City Chiefs,legacy_yearly
+1980,SDG,LAC,San Diego Chargers,legacy_yearly
+1980,RAM,LAR,Los Angeles Rams,legacy_yearly
+1980,OAK,LV,Oakland Raiders,legacy_yearly
+1980,MIA,MIA,Miami Dolphins,legacy_yearly
+1980,MIN,MIN,Minnesota Vikings,legacy_yearly
+1980,NWE,NE,New England Patriots,legacy_yearly
+1980,NOR,NO,New Orleans Saints,legacy_yearly
+1980,NYG,NYG,New York Giants,legacy_yearly
+1980,NYJ,NYJ,New York Jets,legacy_yearly
+1980,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1980,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1980,SEA,SEA,Seattle Seahawks,legacy_yearly
+1980,SFO,SF,San Francisco 49ers,legacy_yearly
+1980,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1980,HOU,TEN,Houston Oilers,legacy_yearly
+1980,WAS,WAS,Washington Redskins,legacy_yearly
+1981,STL,ARI,St. Louis Cardinals,legacy_yearly
+1981,ATL,ATL,Atlanta Falcons,legacy_yearly
+1981,BUF,BUF,Buffalo Bills,legacy_yearly
+1981,CHI,CHI,Chicago Bears,legacy_yearly
+1981,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1981,CLE,CLE,Cleveland Browns,legacy_yearly
+1981,DAL,DAL,Dallas Cowboys,legacy_yearly
+1981,DEN,DEN,Denver Broncos,legacy_yearly
+1981,DET,DET,Detroit Lions,legacy_yearly
+1981,GNB,GB,Green Bay Packers,legacy_yearly
+1981,BAL,IND,Baltimore Colts,legacy_yearly
+1981,KAN,KC,Kansas City Chiefs,legacy_yearly
+1981,SDG,LAC,San Diego Chargers,legacy_yearly
+1981,RAM,LAR,Los Angeles Rams,legacy_yearly
+1981,OAK,LV,Oakland Raiders,legacy_yearly
+1981,MIA,MIA,Miami Dolphins,legacy_yearly
+1981,MIN,MIN,Minnesota Vikings,legacy_yearly
+1981,NWE,NE,New England Patriots,legacy_yearly
+1981,NOR,NO,New Orleans Saints,legacy_yearly
+1981,NYG,NYG,New York Giants,legacy_yearly
+1981,NYJ,NYJ,New York Jets,legacy_yearly
+1981,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1981,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1981,SEA,SEA,Seattle Seahawks,legacy_yearly
+1981,SFO,SF,San Francisco 49ers,legacy_yearly
+1981,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1981,HOU,TEN,Houston Oilers,legacy_yearly
+1981,WAS,WAS,Washington Redskins,legacy_yearly
+1982,STL,ARI,St. Louis Cardinals,legacy_yearly
+1982,ATL,ATL,Atlanta Falcons,legacy_yearly
+1982,BUF,BUF,Buffalo Bills,legacy_yearly
+1982,CHI,CHI,Chicago Bears,legacy_yearly
+1982,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1982,CLE,CLE,Cleveland Browns,legacy_yearly
+1982,DAL,DAL,Dallas Cowboys,legacy_yearly
+1982,DEN,DEN,Denver Broncos,legacy_yearly
+1982,DET,DET,Detroit Lions,legacy_yearly
+1982,GNB,GB,Green Bay Packers,legacy_yearly
+1982,BAL,IND,Baltimore Colts,legacy_yearly
+1982,KAN,KC,Kansas City Chiefs,legacy_yearly
+1982,SDG,LAC,San Diego Chargers,legacy_yearly
+1982,RAM,LAR,Los Angeles Rams,legacy_yearly
+1982,RAI,LV,Los Angeles Raiders,legacy_yearly
+1982,MIA,MIA,Miami Dolphins,legacy_yearly
+1982,MIN,MIN,Minnesota Vikings,legacy_yearly
+1982,NWE,NE,New England Patriots,legacy_yearly
+1982,NOR,NO,New Orleans Saints,legacy_yearly
+1982,NYG,NYG,New York Giants,legacy_yearly
+1982,NYJ,NYJ,New York Jets,legacy_yearly
+1982,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1982,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1982,SEA,SEA,Seattle Seahawks,legacy_yearly
+1982,SFO,SF,San Francisco 49ers,legacy_yearly
+1982,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1982,HOU,TEN,Houston Oilers,legacy_yearly
+1982,WAS,WAS,Washington Redskins,legacy_yearly
+1983,STL,ARI,St. Louis Cardinals,legacy_yearly
+1983,ATL,ATL,Atlanta Falcons,legacy_yearly
+1983,BUF,BUF,Buffalo Bills,legacy_yearly
+1983,CHI,CHI,Chicago Bears,legacy_yearly
+1983,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1983,CLE,CLE,Cleveland Browns,legacy_yearly
+1983,DAL,DAL,Dallas Cowboys,legacy_yearly
+1983,DEN,DEN,Denver Broncos,legacy_yearly
+1983,DET,DET,Detroit Lions,legacy_yearly
+1983,GNB,GB,Green Bay Packers,legacy_yearly
+1983,BAL,IND,Baltimore Colts,legacy_yearly
+1983,KAN,KC,Kansas City Chiefs,legacy_yearly
+1983,SDG,LAC,San Diego Chargers,legacy_yearly
+1983,RAM,LAR,Los Angeles Rams,legacy_yearly
+1983,RAI,LV,Los Angeles Raiders,legacy_yearly
+1983,MIA,MIA,Miami Dolphins,legacy_yearly
+1983,MIN,MIN,Minnesota Vikings,legacy_yearly
+1983,NWE,NE,New England Patriots,legacy_yearly
+1983,NOR,NO,New Orleans Saints,legacy_yearly
+1983,NYG,NYG,New York Giants,legacy_yearly
+1983,NYJ,NYJ,New York Jets,legacy_yearly
+1983,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1983,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1983,SEA,SEA,Seattle Seahawks,legacy_yearly
+1983,SFO,SF,San Francisco 49ers,legacy_yearly
+1983,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1983,HOU,TEN,Houston Oilers,legacy_yearly
+1983,WAS,WAS,Washington Redskins,legacy_yearly
+1984,STL,ARI,St. Louis Cardinals,legacy_yearly
+1984,ATL,ATL,Atlanta Falcons,legacy_yearly
+1984,BUF,BUF,Buffalo Bills,legacy_yearly
+1984,CHI,CHI,Chicago Bears,legacy_yearly
+1984,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1984,CLE,CLE,Cleveland Browns,legacy_yearly
+1984,DAL,DAL,Dallas Cowboys,legacy_yearly
+1984,DEN,DEN,Denver Broncos,legacy_yearly
+1984,DET,DET,Detroit Lions,legacy_yearly
+1984,GNB,GB,Green Bay Packers,legacy_yearly
+1984,IND,IND,Indianapolis Colts,legacy_yearly
+1984,KAN,KC,Kansas City Chiefs,legacy_yearly
+1984,SDG,LAC,San Diego Chargers,legacy_yearly
+1984,RAM,LAR,Los Angeles Rams,legacy_yearly
+1984,RAI,LV,Los Angeles Raiders,legacy_yearly
+1984,MIA,MIA,Miami Dolphins,legacy_yearly
+1984,MIN,MIN,Minnesota Vikings,legacy_yearly
+1984,NWE,NE,New England Patriots,legacy_yearly
+1984,NOR,NO,New Orleans Saints,legacy_yearly
+1984,NYG,NYG,New York Giants,legacy_yearly
+1984,NYJ,NYJ,New York Jets,legacy_yearly
+1984,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1984,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1984,SEA,SEA,Seattle Seahawks,legacy_yearly
+1984,SFO,SF,San Francisco 49ers,legacy_yearly
+1984,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1984,HOU,TEN,Houston Oilers,legacy_yearly
+1984,WAS,WAS,Washington Redskins,legacy_yearly
+1985,STL,ARI,St. Louis Cardinals,legacy_yearly
+1985,ATL,ATL,Atlanta Falcons,legacy_yearly
+1985,BUF,BUF,Buffalo Bills,legacy_yearly
+1985,CHI,CHI,Chicago Bears,legacy_yearly
+1985,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1985,CLE,CLE,Cleveland Browns,legacy_yearly
+1985,DAL,DAL,Dallas Cowboys,legacy_yearly
+1985,DEN,DEN,Denver Broncos,legacy_yearly
+1985,DET,DET,Detroit Lions,legacy_yearly
+1985,GNB,GB,Green Bay Packers,legacy_yearly
+1985,IND,IND,Indianapolis Colts,legacy_yearly
+1985,KAN,KC,Kansas City Chiefs,legacy_yearly
+1985,SDG,LAC,San Diego Chargers,legacy_yearly
+1985,RAM,LAR,Los Angeles Rams,legacy_yearly
+1985,RAI,LV,Los Angeles Raiders,legacy_yearly
+1985,MIA,MIA,Miami Dolphins,legacy_yearly
+1985,MIN,MIN,Minnesota Vikings,legacy_yearly
+1985,NWE,NE,New England Patriots,legacy_yearly
+1985,NOR,NO,New Orleans Saints,legacy_yearly
+1985,NYG,NYG,New York Giants,legacy_yearly
+1985,NYJ,NYJ,New York Jets,legacy_yearly
+1985,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1985,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1985,SEA,SEA,Seattle Seahawks,legacy_yearly
+1985,SFO,SF,San Francisco 49ers,legacy_yearly
+1985,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1985,HOU,TEN,Houston Oilers,legacy_yearly
+1985,WAS,WAS,Washington Redskins,legacy_yearly
+1986,STL,ARI,St. Louis Cardinals,legacy_yearly
+1986,ATL,ATL,Atlanta Falcons,legacy_yearly
+1986,BUF,BUF,Buffalo Bills,legacy_yearly
+1986,CHI,CHI,Chicago Bears,legacy_yearly
+1986,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1986,CLE,CLE,Cleveland Browns,legacy_yearly
+1986,DAL,DAL,Dallas Cowboys,legacy_yearly
+1986,DEN,DEN,Denver Broncos,legacy_yearly
+1986,DET,DET,Detroit Lions,legacy_yearly
+1986,GNB,GB,Green Bay Packers,legacy_yearly
+1986,IND,IND,Indianapolis Colts,legacy_yearly
+1986,KAN,KC,Kansas City Chiefs,legacy_yearly
+1986,SDG,LAC,San Diego Chargers,legacy_yearly
+1986,RAM,LAR,Los Angeles Rams,legacy_yearly
+1986,RAI,LV,Los Angeles Raiders,legacy_yearly
+1986,MIA,MIA,Miami Dolphins,legacy_yearly
+1986,MIN,MIN,Minnesota Vikings,legacy_yearly
+1986,NWE,NE,New England Patriots,legacy_yearly
+1986,NOR,NO,New Orleans Saints,legacy_yearly
+1986,NYG,NYG,New York Giants,legacy_yearly
+1986,NYJ,NYJ,New York Jets,legacy_yearly
+1986,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1986,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1986,SEA,SEA,Seattle Seahawks,legacy_yearly
+1986,SFO,SF,San Francisco 49ers,legacy_yearly
+1986,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1986,HOU,TEN,Houston Oilers,legacy_yearly
+1986,WAS,WAS,Washington Redskins,legacy_yearly
+1987,STL,ARI,St. Louis Cardinals,legacy_yearly
+1987,ATL,ATL,Atlanta Falcons,legacy_yearly
+1987,BUF,BUF,Buffalo Bills,legacy_yearly
+1987,CHI,CHI,Chicago Bears,legacy_yearly
+1987,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1987,CLE,CLE,Cleveland Browns,legacy_yearly
+1987,DAL,DAL,Dallas Cowboys,legacy_yearly
+1987,DEN,DEN,Denver Broncos,legacy_yearly
+1987,DET,DET,Detroit Lions,legacy_yearly
+1987,GNB,GB,Green Bay Packers,legacy_yearly
+1987,IND,IND,Indianapolis Colts,legacy_yearly
+1987,KAN,KC,Kansas City Chiefs,legacy_yearly
+1987,SDG,LAC,San Diego Chargers,legacy_yearly
+1987,RAM,LAR,Los Angeles Rams,legacy_yearly
+1987,RAI,LV,Los Angeles Raiders,legacy_yearly
+1987,MIA,MIA,Miami Dolphins,legacy_yearly
+1987,MIN,MIN,Minnesota Vikings,legacy_yearly
+1987,NWE,NE,New England Patriots,legacy_yearly
+1987,NOR,NO,New Orleans Saints,legacy_yearly
+1987,NYG,NYG,New York Giants,legacy_yearly
+1987,NYJ,NYJ,New York Jets,legacy_yearly
+1987,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1987,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1987,SEA,SEA,Seattle Seahawks,legacy_yearly
+1987,SFO,SF,San Francisco 49ers,legacy_yearly
+1987,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1987,HOU,TEN,Houston Oilers,legacy_yearly
+1987,WAS,WAS,Washington Redskins,legacy_yearly
+1988,PHO,ARI,Phoenix Cardinals,legacy_yearly
+1988,ATL,ATL,Atlanta Falcons,legacy_yearly
+1988,BUF,BUF,Buffalo Bills,legacy_yearly
+1988,CHI,CHI,Chicago Bears,legacy_yearly
+1988,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1988,CLE,CLE,Cleveland Browns,legacy_yearly
+1988,DAL,DAL,Dallas Cowboys,legacy_yearly
+1988,DEN,DEN,Denver Broncos,legacy_yearly
+1988,DET,DET,Detroit Lions,legacy_yearly
+1988,GNB,GB,Green Bay Packers,legacy_yearly
+1988,IND,IND,Indianapolis Colts,legacy_yearly
+1988,KAN,KC,Kansas City Chiefs,legacy_yearly
+1988,SDG,LAC,San Diego Chargers,legacy_yearly
+1988,RAM,LAR,Los Angeles Rams,legacy_yearly
+1988,RAI,LV,Los Angeles Raiders,legacy_yearly
+1988,MIA,MIA,Miami Dolphins,legacy_yearly
+1988,MIN,MIN,Minnesota Vikings,legacy_yearly
+1988,NWE,NE,New England Patriots,legacy_yearly
+1988,NOR,NO,New Orleans Saints,legacy_yearly
+1988,NYG,NYG,New York Giants,legacy_yearly
+1988,NYJ,NYJ,New York Jets,legacy_yearly
+1988,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1988,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1988,SEA,SEA,Seattle Seahawks,legacy_yearly
+1988,SFO,SF,San Francisco 49ers,legacy_yearly
+1988,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1988,HOU,TEN,Houston Oilers,legacy_yearly
+1988,WAS,WAS,Washington Redskins,legacy_yearly
+1989,PHO,ARI,Phoenix Cardinals,legacy_yearly
+1989,ATL,ATL,Atlanta Falcons,legacy_yearly
+1989,BUF,BUF,Buffalo Bills,legacy_yearly
+1989,CHI,CHI,Chicago Bears,legacy_yearly
+1989,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1989,CLE,CLE,Cleveland Browns,legacy_yearly
+1989,DAL,DAL,Dallas Cowboys,legacy_yearly
+1989,DEN,DEN,Denver Broncos,legacy_yearly
+1989,DET,DET,Detroit Lions,legacy_yearly
+1989,GNB,GB,Green Bay Packers,legacy_yearly
+1989,IND,IND,Indianapolis Colts,legacy_yearly
+1989,KAN,KC,Kansas City Chiefs,legacy_yearly
+1989,SDG,LAC,San Diego Chargers,legacy_yearly
+1989,RAM,LAR,Los Angeles Rams,legacy_yearly
+1989,RAI,LV,Los Angeles Raiders,legacy_yearly
+1989,MIA,MIA,Miami Dolphins,legacy_yearly
+1989,MIN,MIN,Minnesota Vikings,legacy_yearly
+1989,NWE,NE,New England Patriots,legacy_yearly
+1989,NOR,NO,New Orleans Saints,legacy_yearly
+1989,NYG,NYG,New York Giants,legacy_yearly
+1989,NYJ,NYJ,New York Jets,legacy_yearly
+1989,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1989,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1989,SEA,SEA,Seattle Seahawks,legacy_yearly
+1989,SFO,SF,San Francisco 49ers,legacy_yearly
+1989,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1989,HOU,TEN,Houston Oilers,legacy_yearly
+1989,WAS,WAS,Washington Redskins,legacy_yearly
+1990,PHO,ARI,Phoenix Cardinals,legacy_yearly
+1990,ATL,ATL,Atlanta Falcons,legacy_yearly
+1990,BUF,BUF,Buffalo Bills,legacy_yearly
+1990,CHI,CHI,Chicago Bears,legacy_yearly
+1990,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1990,CLE,CLE,Cleveland Browns,legacy_yearly
+1990,DAL,DAL,Dallas Cowboys,legacy_yearly
+1990,DEN,DEN,Denver Broncos,legacy_yearly
+1990,DET,DET,Detroit Lions,legacy_yearly
+1990,GNB,GB,Green Bay Packers,legacy_yearly
+1990,IND,IND,Indianapolis Colts,legacy_yearly
+1990,KAN,KC,Kansas City Chiefs,legacy_yearly
+1990,SDG,LAC,San Diego Chargers,legacy_yearly
+1990,RAM,LAR,Los Angeles Rams,legacy_yearly
+1990,RAI,LV,Los Angeles Raiders,legacy_yearly
+1990,MIA,MIA,Miami Dolphins,legacy_yearly
+1990,MIN,MIN,Minnesota Vikings,legacy_yearly
+1990,NWE,NE,New England Patriots,legacy_yearly
+1990,NOR,NO,New Orleans Saints,legacy_yearly
+1990,NYG,NYG,New York Giants,legacy_yearly
+1990,NYJ,NYJ,New York Jets,legacy_yearly
+1990,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1990,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1990,SEA,SEA,Seattle Seahawks,legacy_yearly
+1990,SFO,SF,San Francisco 49ers,legacy_yearly
+1990,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1990,HOU,TEN,Houston Oilers,legacy_yearly
+1990,WAS,WAS,Washington Redskins,legacy_yearly
+1991,PHO,ARI,Phoenix Cardinals,legacy_yearly
+1991,ATL,ATL,Atlanta Falcons,legacy_yearly
+1991,BUF,BUF,Buffalo Bills,legacy_yearly
+1991,CHI,CHI,Chicago Bears,legacy_yearly
+1991,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1991,CLE,CLE,Cleveland Browns,legacy_yearly
+1991,DAL,DAL,Dallas Cowboys,legacy_yearly
+1991,DEN,DEN,Denver Broncos,legacy_yearly
+1991,DET,DET,Detroit Lions,legacy_yearly
+1991,GNB,GB,Green Bay Packers,legacy_yearly
+1991,IND,IND,Indianapolis Colts,legacy_yearly
+1991,KAN,KC,Kansas City Chiefs,legacy_yearly
+1991,SDG,LAC,San Diego Chargers,legacy_yearly
+1991,RAM,LAR,Los Angeles Rams,legacy_yearly
+1991,RAI,LV,Los Angeles Raiders,legacy_yearly
+1991,MIA,MIA,Miami Dolphins,legacy_yearly
+1991,MIN,MIN,Minnesota Vikings,legacy_yearly
+1991,NWE,NE,New England Patriots,legacy_yearly
+1991,NOR,NO,New Orleans Saints,legacy_yearly
+1991,NYG,NYG,New York Giants,legacy_yearly
+1991,NYJ,NYJ,New York Jets,legacy_yearly
+1991,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1991,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1991,SEA,SEA,Seattle Seahawks,legacy_yearly
+1991,SFO,SF,San Francisco 49ers,legacy_yearly
+1991,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1991,HOU,TEN,Houston Oilers,legacy_yearly
+1991,WAS,WAS,Washington Redskins,legacy_yearly
+1992,PHO,ARI,Phoenix Cardinals,legacy_yearly
+1992,ATL,ATL,Atlanta Falcons,legacy_yearly
+1992,BUF,BUF,Buffalo Bills,legacy_yearly
+1992,CHI,CHI,Chicago Bears,legacy_yearly
+1992,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1992,CLE,CLE,Cleveland Browns,legacy_yearly
+1992,DAL,DAL,Dallas Cowboys,legacy_yearly
+1992,DEN,DEN,Denver Broncos,legacy_yearly
+1992,DET,DET,Detroit Lions,legacy_yearly
+1992,GNB,GB,Green Bay Packers,legacy_yearly
+1992,IND,IND,Indianapolis Colts,legacy_yearly
+1992,KAN,KC,Kansas City Chiefs,legacy_yearly
+1992,SDG,LAC,San Diego Chargers,legacy_yearly
+1992,RAM,LAR,Los Angeles Rams,legacy_yearly
+1992,RAI,LV,Los Angeles Raiders,legacy_yearly
+1992,MIA,MIA,Miami Dolphins,legacy_yearly
+1992,MIN,MIN,Minnesota Vikings,legacy_yearly
+1992,NWE,NE,New England Patriots,legacy_yearly
+1992,NOR,NO,New Orleans Saints,legacy_yearly
+1992,NYG,NYG,New York Giants,legacy_yearly
+1992,NYJ,NYJ,New York Jets,legacy_yearly
+1992,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1992,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1992,SEA,SEA,Seattle Seahawks,legacy_yearly
+1992,SFO,SF,San Francisco 49ers,legacy_yearly
+1992,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1992,HOU,TEN,Houston Oilers,legacy_yearly
+1992,WAS,WAS,Washington Redskins,legacy_yearly
+1993,PHO,ARI,Phoenix Cardinals,legacy_yearly
+1993,ATL,ATL,Atlanta Falcons,legacy_yearly
+1993,BUF,BUF,Buffalo Bills,legacy_yearly
+1993,CHI,CHI,Chicago Bears,legacy_yearly
+1993,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1993,CLE,CLE,Cleveland Browns,legacy_yearly
+1993,DAL,DAL,Dallas Cowboys,legacy_yearly
+1993,DEN,DEN,Denver Broncos,legacy_yearly
+1993,DET,DET,Detroit Lions,legacy_yearly
+1993,GNB,GB,Green Bay Packers,legacy_yearly
+1993,IND,IND,Indianapolis Colts,legacy_yearly
+1993,KAN,KC,Kansas City Chiefs,legacy_yearly
+1993,SDG,LAC,San Diego Chargers,legacy_yearly
+1993,RAM,LAR,Los Angeles Rams,legacy_yearly
+1993,RAI,LV,Los Angeles Raiders,legacy_yearly
+1993,MIA,MIA,Miami Dolphins,legacy_yearly
+1993,MIN,MIN,Minnesota Vikings,legacy_yearly
+1993,NWE,NE,New England Patriots,legacy_yearly
+1993,NOR,NO,New Orleans Saints,legacy_yearly
+1993,NYG,NYG,New York Giants,legacy_yearly
+1993,NYJ,NYJ,New York Jets,legacy_yearly
+1993,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1993,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1993,SEA,SEA,Seattle Seahawks,legacy_yearly
+1993,SFO,SF,San Francisco 49ers,legacy_yearly
+1993,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1993,HOU,TEN,Houston Oilers,legacy_yearly
+1993,WAS,WAS,Washington Redskins,legacy_yearly
+1994,ARI,ARI,Arizona Cardinals,legacy_yearly
+1994,ATL,ATL,Atlanta Falcons,legacy_yearly
+1994,BUF,BUF,Buffalo Bills,legacy_yearly
+1994,CHI,CHI,Chicago Bears,legacy_yearly
+1994,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1994,CLE,CLE,Cleveland Browns,legacy_yearly
+1994,DAL,DAL,Dallas Cowboys,legacy_yearly
+1994,DEN,DEN,Denver Broncos,legacy_yearly
+1994,DET,DET,Detroit Lions,legacy_yearly
+1994,GNB,GB,Green Bay Packers,legacy_yearly
+1994,IND,IND,Indianapolis Colts,legacy_yearly
+1994,KAN,KC,Kansas City Chiefs,legacy_yearly
+1994,SDG,LAC,San Diego Chargers,legacy_yearly
+1994,RAM,LAR,Los Angeles Rams,legacy_yearly
+1994,RAI,LV,Los Angeles Raiders,legacy_yearly
+1994,MIA,MIA,Miami Dolphins,legacy_yearly
+1994,MIN,MIN,Minnesota Vikings,legacy_yearly
+1994,NWE,NE,New England Patriots,legacy_yearly
+1994,NOR,NO,New Orleans Saints,legacy_yearly
+1994,NYG,NYG,New York Giants,legacy_yearly
+1994,NYJ,NYJ,New York Jets,legacy_yearly
+1994,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1994,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1994,SEA,SEA,Seattle Seahawks,legacy_yearly
+1994,SFO,SF,San Francisco 49ers,legacy_yearly
+1994,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1994,HOU,TEN,Houston Oilers,legacy_yearly
+1994,WAS,WAS,Washington Redskins,legacy_yearly
+1995,ARI,ARI,Arizona Cardinals,legacy_yearly
+1995,ATL,ATL,Atlanta Falcons,legacy_yearly
+1995,BUF,BUF,Buffalo Bills,legacy_yearly
+1995,CAR,CAR,Carolina Panthers,legacy_yearly
+1995,CHI,CHI,Chicago Bears,legacy_yearly
+1995,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1995,CLE,CLE,Cleveland Browns,legacy_yearly
+1995,DAL,DAL,Dallas Cowboys,legacy_yearly
+1995,DEN,DEN,Denver Broncos,legacy_yearly
+1995,DET,DET,Detroit Lions,legacy_yearly
+1995,GNB,GB,Green Bay Packers,legacy_yearly
+1995,IND,IND,Indianapolis Colts,legacy_yearly
+1995,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+1995,KAN,KC,Kansas City Chiefs,legacy_yearly
+1995,SDG,LAC,San Diego Chargers,legacy_yearly
+1995,STL,LAR,St. Louis Rams,legacy_yearly
+1995,OAK,LV,Oakland Raiders,legacy_yearly
+1995,MIA,MIA,Miami Dolphins,legacy_yearly
+1995,MIN,MIN,Minnesota Vikings,legacy_yearly
+1995,NWE,NE,New England Patriots,legacy_yearly
+1995,NOR,NO,New Orleans Saints,legacy_yearly
+1995,NYG,NYG,New York Giants,legacy_yearly
+1995,NYJ,NYJ,New York Jets,legacy_yearly
+1995,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1995,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1995,SEA,SEA,Seattle Seahawks,legacy_yearly
+1995,SFO,SF,San Francisco 49ers,legacy_yearly
+1995,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1995,HOU,TEN,Houston Oilers,legacy_yearly
+1995,WAS,WAS,Washington Redskins,legacy_yearly
+1996,ARI,ARI,Arizona Cardinals,legacy_yearly
+1996,ATL,ATL,Atlanta Falcons,legacy_yearly
+1996,BAL,BAL,Baltimore Ravens,legacy_yearly
+1996,BUF,BUF,Buffalo Bills,legacy_yearly
+1996,CAR,CAR,Carolina Panthers,legacy_yearly
+1996,CHI,CHI,Chicago Bears,legacy_yearly
+1996,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1996,DAL,DAL,Dallas Cowboys,legacy_yearly
+1996,DEN,DEN,Denver Broncos,legacy_yearly
+1996,DET,DET,Detroit Lions,legacy_yearly
+1996,GNB,GB,Green Bay Packers,legacy_yearly
+1996,IND,IND,Indianapolis Colts,legacy_yearly
+1996,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+1996,KAN,KC,Kansas City Chiefs,legacy_yearly
+1996,SDG,LAC,San Diego Chargers,legacy_yearly
+1996,STL,LAR,St. Louis Rams,legacy_yearly
+1996,OAK,LV,Oakland Raiders,legacy_yearly
+1996,MIA,MIA,Miami Dolphins,legacy_yearly
+1996,MIN,MIN,Minnesota Vikings,legacy_yearly
+1996,NWE,NE,New England Patriots,legacy_yearly
+1996,NOR,NO,New Orleans Saints,legacy_yearly
+1996,NYG,NYG,New York Giants,legacy_yearly
+1996,NYJ,NYJ,New York Jets,legacy_yearly
+1996,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1996,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1996,SEA,SEA,Seattle Seahawks,legacy_yearly
+1996,SFO,SF,San Francisco 49ers,legacy_yearly
+1996,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1996,HOU,TEN,Houston Oilers,legacy_yearly
+1996,WAS,WAS,Washington Redskins,legacy_yearly
+1997,ARI,ARI,Arizona Cardinals,legacy_yearly
+1997,ATL,ATL,Atlanta Falcons,legacy_yearly
+1997,BAL,BAL,Baltimore Ravens,legacy_yearly
+1997,BUF,BUF,Buffalo Bills,legacy_yearly
+1997,CAR,CAR,Carolina Panthers,legacy_yearly
+1997,CHI,CHI,Chicago Bears,legacy_yearly
+1997,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1997,DAL,DAL,Dallas Cowboys,legacy_yearly
+1997,DEN,DEN,Denver Broncos,legacy_yearly
+1997,DET,DET,Detroit Lions,legacy_yearly
+1997,GNB,GB,Green Bay Packers,legacy_yearly
+1997,IND,IND,Indianapolis Colts,legacy_yearly
+1997,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+1997,KAN,KC,Kansas City Chiefs,legacy_yearly
+1997,SDG,LAC,San Diego Chargers,legacy_yearly
+1997,STL,LAR,St. Louis Rams,legacy_yearly
+1997,OAK,LV,Oakland Raiders,legacy_yearly
+1997,MIA,MIA,Miami Dolphins,legacy_yearly
+1997,MIN,MIN,Minnesota Vikings,legacy_yearly
+1997,NWE,NE,New England Patriots,legacy_yearly
+1997,NOR,NO,New Orleans Saints,legacy_yearly
+1997,NYG,NYG,New York Giants,legacy_yearly
+1997,NYJ,NYJ,New York Jets,legacy_yearly
+1997,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1997,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1997,SEA,SEA,Seattle Seahawks,legacy_yearly
+1997,SFO,SF,San Francisco 49ers,legacy_yearly
+1997,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1997,TEN,TEN,Tennessee Oilers,legacy_yearly
+1997,WAS,WAS,Washington Redskins,legacy_yearly
+1998,ARI,ARI,Arizona Cardinals,legacy_yearly
+1998,ATL,ATL,Atlanta Falcons,legacy_yearly
+1998,BAL,BAL,Baltimore Ravens,legacy_yearly
+1998,BUF,BUF,Buffalo Bills,legacy_yearly
+1998,CAR,CAR,Carolina Panthers,legacy_yearly
+1998,CHI,CHI,Chicago Bears,legacy_yearly
+1998,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1998,DAL,DAL,Dallas Cowboys,legacy_yearly
+1998,DEN,DEN,Denver Broncos,legacy_yearly
+1998,DET,DET,Detroit Lions,legacy_yearly
+1998,GNB,GB,Green Bay Packers,legacy_yearly
+1998,IND,IND,Indianapolis Colts,legacy_yearly
+1998,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+1998,KAN,KC,Kansas City Chiefs,legacy_yearly
+1998,SDG,LAC,San Diego Chargers,legacy_yearly
+1998,STL,LAR,St. Louis Rams,legacy_yearly
+1998,OAK,LV,Oakland Raiders,legacy_yearly
+1998,MIA,MIA,Miami Dolphins,legacy_yearly
+1998,MIN,MIN,Minnesota Vikings,legacy_yearly
+1998,NWE,NE,New England Patriots,legacy_yearly
+1998,NOR,NO,New Orleans Saints,legacy_yearly
+1998,NYG,NYG,New York Giants,legacy_yearly
+1998,NYJ,NYJ,New York Jets,legacy_yearly
+1998,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1998,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1998,SEA,SEA,Seattle Seahawks,legacy_yearly
+1998,SFO,SF,San Francisco 49ers,legacy_yearly
+1998,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1998,TEN,TEN,Tennessee Oilers,legacy_yearly
+1998,WAS,WAS,Washington Redskins,legacy_yearly
+1999,ARI,ARI,Arizona Cardinals,legacy_yearly
+1999,ATL,ATL,Atlanta Falcons,legacy_yearly
+1999,BAL,BAL,Baltimore Ravens,legacy_yearly
+1999,BUF,BUF,Buffalo Bills,legacy_yearly
+1999,CAR,CAR,Carolina Panthers,legacy_yearly
+1999,CHI,CHI,Chicago Bears,legacy_yearly
+1999,CIN,CIN,Cincinnati Bengals,legacy_yearly
+1999,CLE,CLE,Cleveland Browns,legacy_yearly
+1999,DAL,DAL,Dallas Cowboys,legacy_yearly
+1999,DEN,DEN,Denver Broncos,legacy_yearly
+1999,DET,DET,Detroit Lions,legacy_yearly
+1999,GNB,GB,Green Bay Packers,legacy_yearly
+1999,IND,IND,Indianapolis Colts,legacy_yearly
+1999,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+1999,KAN,KC,Kansas City Chiefs,legacy_yearly
+1999,SDG,LAC,San Diego Chargers,legacy_yearly
+1999,STL,LAR,St. Louis Rams,legacy_yearly
+1999,OAK,LV,Oakland Raiders,legacy_yearly
+1999,MIA,MIA,Miami Dolphins,legacy_yearly
+1999,MIN,MIN,Minnesota Vikings,legacy_yearly
+1999,NWE,NE,New England Patriots,legacy_yearly
+1999,NOR,NO,New Orleans Saints,legacy_yearly
+1999,NYG,NYG,New York Giants,legacy_yearly
+1999,NYJ,NYJ,New York Jets,legacy_yearly
+1999,PHI,PHI,Philadelphia Eagles,legacy_yearly
+1999,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+1999,SEA,SEA,Seattle Seahawks,legacy_yearly
+1999,SFO,SF,San Francisco 49ers,legacy_yearly
+1999,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+1999,TEN,TEN,Tennessee Titans,legacy_yearly
+1999,WAS,WAS,Washington Redskins,legacy_yearly
+2000,ARI,ARI,Arizona Cardinals,legacy_yearly
+2000,ATL,ATL,Atlanta Falcons,legacy_yearly
+2000,BAL,BAL,Baltimore Ravens,legacy_yearly
+2000,BUF,BUF,Buffalo Bills,legacy_yearly
+2000,CAR,CAR,Carolina Panthers,legacy_yearly
+2000,CHI,CHI,Chicago Bears,legacy_yearly
+2000,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2000,CLE,CLE,Cleveland Browns,legacy_yearly
+2000,DAL,DAL,Dallas Cowboys,legacy_yearly
+2000,DEN,DEN,Denver Broncos,legacy_yearly
+2000,DET,DET,Detroit Lions,legacy_yearly
+2000,GNB,GB,Green Bay Packers,legacy_yearly
+2000,IND,IND,Indianapolis Colts,legacy_yearly
+2000,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2000,KAN,KC,Kansas City Chiefs,legacy_yearly
+2000,SDG,LAC,San Diego Chargers,legacy_yearly
+2000,STL,LAR,St. Louis Rams,legacy_yearly
+2000,OAK,LV,Oakland Raiders,legacy_yearly
+2000,MIA,MIA,Miami Dolphins,legacy_yearly
+2000,MIN,MIN,Minnesota Vikings,legacy_yearly
+2000,NWE,NE,New England Patriots,legacy_yearly
+2000,NOR,NO,New Orleans Saints,legacy_yearly
+2000,NYG,NYG,New York Giants,legacy_yearly
+2000,NYJ,NYJ,New York Jets,legacy_yearly
+2000,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2000,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2000,SEA,SEA,Seattle Seahawks,legacy_yearly
+2000,SFO,SF,San Francisco 49ers,legacy_yearly
+2000,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2000,TEN,TEN,Tennessee Titans,legacy_yearly
+2000,WAS,WAS,Washington Redskins,legacy_yearly
+2001,ARI,ARI,Arizona Cardinals,legacy_yearly
+2001,ATL,ATL,Atlanta Falcons,legacy_yearly
+2001,BAL,BAL,Baltimore Ravens,legacy_yearly
+2001,BUF,BUF,Buffalo Bills,legacy_yearly
+2001,CAR,CAR,Carolina Panthers,legacy_yearly
+2001,CHI,CHI,Chicago Bears,legacy_yearly
+2001,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2001,CLE,CLE,Cleveland Browns,legacy_yearly
+2001,DAL,DAL,Dallas Cowboys,legacy_yearly
+2001,DEN,DEN,Denver Broncos,legacy_yearly
+2001,DET,DET,Detroit Lions,legacy_yearly
+2001,GNB,GB,Green Bay Packers,legacy_yearly
+2001,IND,IND,Indianapolis Colts,legacy_yearly
+2001,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2001,KAN,KC,Kansas City Chiefs,legacy_yearly
+2001,SDG,LAC,San Diego Chargers,legacy_yearly
+2001,STL,LAR,St. Louis Rams,legacy_yearly
+2001,OAK,LV,Oakland Raiders,legacy_yearly
+2001,MIA,MIA,Miami Dolphins,legacy_yearly
+2001,MIN,MIN,Minnesota Vikings,legacy_yearly
+2001,NWE,NE,New England Patriots,legacy_yearly
+2001,NOR,NO,New Orleans Saints,legacy_yearly
+2001,NYG,NYG,New York Giants,legacy_yearly
+2001,NYJ,NYJ,New York Jets,legacy_yearly
+2001,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2001,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2001,SEA,SEA,Seattle Seahawks,legacy_yearly
+2001,SFO,SF,San Francisco 49ers,legacy_yearly
+2001,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2001,TEN,TEN,Tennessee Titans,legacy_yearly
+2001,WAS,WAS,Washington Redskins,legacy_yearly
+2002,ARI,ARI,Arizona Cardinals,legacy_yearly
+2002,ATL,ATL,Atlanta Falcons,legacy_yearly
+2002,BAL,BAL,Baltimore Ravens,legacy_yearly
+2002,BUF,BUF,Buffalo Bills,legacy_yearly
+2002,CAR,CAR,Carolina Panthers,legacy_yearly
+2002,CHI,CHI,Chicago Bears,legacy_yearly
+2002,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2002,CLE,CLE,Cleveland Browns,legacy_yearly
+2002,DAL,DAL,Dallas Cowboys,legacy_yearly
+2002,DEN,DEN,Denver Broncos,legacy_yearly
+2002,DET,DET,Detroit Lions,legacy_yearly
+2002,GNB,GB,Green Bay Packers,legacy_yearly
+2002,HOU,HOU,Houston Texans,legacy_yearly
+2002,IND,IND,Indianapolis Colts,legacy_yearly
+2002,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2002,KAN,KC,Kansas City Chiefs,legacy_yearly
+2002,SDG,LAC,San Diego Chargers,legacy_yearly
+2002,STL,LAR,St. Louis Rams,legacy_yearly
+2002,OAK,LV,Oakland Raiders,legacy_yearly
+2002,MIA,MIA,Miami Dolphins,legacy_yearly
+2002,MIN,MIN,Minnesota Vikings,legacy_yearly
+2002,NWE,NE,New England Patriots,legacy_yearly
+2002,NOR,NO,New Orleans Saints,legacy_yearly
+2002,NYG,NYG,New York Giants,legacy_yearly
+2002,NYJ,NYJ,New York Jets,legacy_yearly
+2002,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2002,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2002,SEA,SEA,Seattle Seahawks,legacy_yearly
+2002,SFO,SF,San Francisco 49ers,legacy_yearly
+2002,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2002,TEN,TEN,Tennessee Titans,legacy_yearly
+2002,WAS,WAS,Washington Redskins,legacy_yearly
+2003,ARI,ARI,Arizona Cardinals,legacy_yearly
+2003,ATL,ATL,Atlanta Falcons,legacy_yearly
+2003,BAL,BAL,Baltimore Ravens,legacy_yearly
+2003,BUF,BUF,Buffalo Bills,legacy_yearly
+2003,CAR,CAR,Carolina Panthers,legacy_yearly
+2003,CHI,CHI,Chicago Bears,legacy_yearly
+2003,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2003,CLE,CLE,Cleveland Browns,legacy_yearly
+2003,DAL,DAL,Dallas Cowboys,legacy_yearly
+2003,DEN,DEN,Denver Broncos,legacy_yearly
+2003,DET,DET,Detroit Lions,legacy_yearly
+2003,GNB,GB,Green Bay Packers,legacy_yearly
+2003,HOU,HOU,Houston Texans,legacy_yearly
+2003,IND,IND,Indianapolis Colts,legacy_yearly
+2003,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2003,KAN,KC,Kansas City Chiefs,legacy_yearly
+2003,SDG,LAC,San Diego Chargers,legacy_yearly
+2003,STL,LAR,St. Louis Rams,legacy_yearly
+2003,OAK,LV,Oakland Raiders,legacy_yearly
+2003,MIA,MIA,Miami Dolphins,legacy_yearly
+2003,MIN,MIN,Minnesota Vikings,legacy_yearly
+2003,NWE,NE,New England Patriots,legacy_yearly
+2003,NOR,NO,New Orleans Saints,legacy_yearly
+2003,NYG,NYG,New York Giants,legacy_yearly
+2003,NYJ,NYJ,New York Jets,legacy_yearly
+2003,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2003,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2003,SEA,SEA,Seattle Seahawks,legacy_yearly
+2003,SFO,SF,San Francisco 49ers,legacy_yearly
+2003,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2003,TEN,TEN,Tennessee Titans,legacy_yearly
+2003,WAS,WAS,Washington Redskins,legacy_yearly
+2004,ARI,ARI,Arizona Cardinals,legacy_yearly
+2004,ATL,ATL,Atlanta Falcons,legacy_yearly
+2004,BAL,BAL,Baltimore Ravens,legacy_yearly
+2004,BUF,BUF,Buffalo Bills,legacy_yearly
+2004,CAR,CAR,Carolina Panthers,legacy_yearly
+2004,CHI,CHI,Chicago Bears,legacy_yearly
+2004,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2004,CLE,CLE,Cleveland Browns,legacy_yearly
+2004,DAL,DAL,Dallas Cowboys,legacy_yearly
+2004,DEN,DEN,Denver Broncos,legacy_yearly
+2004,DET,DET,Detroit Lions,legacy_yearly
+2004,GNB,GB,Green Bay Packers,legacy_yearly
+2004,HOU,HOU,Houston Texans,legacy_yearly
+2004,IND,IND,Indianapolis Colts,legacy_yearly
+2004,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2004,KAN,KC,Kansas City Chiefs,legacy_yearly
+2004,SDG,LAC,San Diego Chargers,legacy_yearly
+2004,STL,LAR,St. Louis Rams,legacy_yearly
+2004,OAK,LV,Oakland Raiders,legacy_yearly
+2004,MIA,MIA,Miami Dolphins,legacy_yearly
+2004,MIN,MIN,Minnesota Vikings,legacy_yearly
+2004,NWE,NE,New England Patriots,legacy_yearly
+2004,NOR,NO,New Orleans Saints,legacy_yearly
+2004,NYG,NYG,New York Giants,legacy_yearly
+2004,NYJ,NYJ,New York Jets,legacy_yearly
+2004,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2004,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2004,SEA,SEA,Seattle Seahawks,legacy_yearly
+2004,SFO,SF,San Francisco 49ers,legacy_yearly
+2004,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2004,TEN,TEN,Tennessee Titans,legacy_yearly
+2004,WAS,WAS,Washington Redskins,legacy_yearly
+2005,ARI,ARI,Arizona Cardinals,legacy_yearly
+2005,ATL,ATL,Atlanta Falcons,legacy_yearly
+2005,BAL,BAL,Baltimore Ravens,legacy_yearly
+2005,BUF,BUF,Buffalo Bills,legacy_yearly
+2005,CAR,CAR,Carolina Panthers,legacy_yearly
+2005,CHI,CHI,Chicago Bears,legacy_yearly
+2005,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2005,CLE,CLE,Cleveland Browns,legacy_yearly
+2005,DAL,DAL,Dallas Cowboys,legacy_yearly
+2005,DEN,DEN,Denver Broncos,legacy_yearly
+2005,DET,DET,Detroit Lions,legacy_yearly
+2005,GNB,GB,Green Bay Packers,legacy_yearly
+2005,HOU,HOU,Houston Texans,legacy_yearly
+2005,IND,IND,Indianapolis Colts,legacy_yearly
+2005,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2005,KAN,KC,Kansas City Chiefs,legacy_yearly
+2005,SDG,LAC,San Diego Chargers,legacy_yearly
+2005,STL,LAR,St. Louis Rams,legacy_yearly
+2005,OAK,LV,Oakland Raiders,legacy_yearly
+2005,MIA,MIA,Miami Dolphins,legacy_yearly
+2005,MIN,MIN,Minnesota Vikings,legacy_yearly
+2005,NWE,NE,New England Patriots,legacy_yearly
+2005,NOR,NO,New Orleans Saints,legacy_yearly
+2005,NYG,NYG,New York Giants,legacy_yearly
+2005,NYJ,NYJ,New York Jets,legacy_yearly
+2005,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2005,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2005,SEA,SEA,Seattle Seahawks,legacy_yearly
+2005,SFO,SF,San Francisco 49ers,legacy_yearly
+2005,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2005,TEN,TEN,Tennessee Titans,legacy_yearly
+2005,WAS,WAS,Washington Redskins,legacy_yearly
+2006,ARI,ARI,Arizona Cardinals,legacy_yearly
+2006,ATL,ATL,Atlanta Falcons,legacy_yearly
+2006,BAL,BAL,Baltimore Ravens,legacy_yearly
+2006,BUF,BUF,Buffalo Bills,legacy_yearly
+2006,CAR,CAR,Carolina Panthers,legacy_yearly
+2006,CHI,CHI,Chicago Bears,legacy_yearly
+2006,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2006,CLE,CLE,Cleveland Browns,legacy_yearly
+2006,DAL,DAL,Dallas Cowboys,legacy_yearly
+2006,DEN,DEN,Denver Broncos,legacy_yearly
+2006,DET,DET,Detroit Lions,legacy_yearly
+2006,GNB,GB,Green Bay Packers,legacy_yearly
+2006,HOU,HOU,Houston Texans,legacy_yearly
+2006,IND,IND,Indianapolis Colts,legacy_yearly
+2006,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2006,KAN,KC,Kansas City Chiefs,legacy_yearly
+2006,SDG,LAC,San Diego Chargers,legacy_yearly
+2006,STL,LAR,St. Louis Rams,legacy_yearly
+2006,OAK,LV,Oakland Raiders,legacy_yearly
+2006,MIA,MIA,Miami Dolphins,legacy_yearly
+2006,MIN,MIN,Minnesota Vikings,legacy_yearly
+2006,NWE,NE,New England Patriots,legacy_yearly
+2006,NOR,NO,New Orleans Saints,legacy_yearly
+2006,NYG,NYG,New York Giants,legacy_yearly
+2006,NYJ,NYJ,New York Jets,legacy_yearly
+2006,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2006,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2006,SEA,SEA,Seattle Seahawks,legacy_yearly
+2006,SFO,SF,San Francisco 49ers,legacy_yearly
+2006,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2006,TEN,TEN,Tennessee Titans,legacy_yearly
+2006,WAS,WAS,Washington Redskins,legacy_yearly
+2007,ARI,ARI,Arizona Cardinals,legacy_yearly
+2007,ATL,ATL,Atlanta Falcons,legacy_yearly
+2007,BAL,BAL,Baltimore Ravens,legacy_yearly
+2007,BUF,BUF,Buffalo Bills,legacy_yearly
+2007,CAR,CAR,Carolina Panthers,legacy_yearly
+2007,CHI,CHI,Chicago Bears,legacy_yearly
+2007,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2007,CLE,CLE,Cleveland Browns,legacy_yearly
+2007,DAL,DAL,Dallas Cowboys,legacy_yearly
+2007,DEN,DEN,Denver Broncos,legacy_yearly
+2007,DET,DET,Detroit Lions,legacy_yearly
+2007,GNB,GB,Green Bay Packers,legacy_yearly
+2007,HOU,HOU,Houston Texans,legacy_yearly
+2007,IND,IND,Indianapolis Colts,legacy_yearly
+2007,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2007,KAN,KC,Kansas City Chiefs,legacy_yearly
+2007,SDG,LAC,San Diego Chargers,legacy_yearly
+2007,STL,LAR,St. Louis Rams,legacy_yearly
+2007,OAK,LV,Oakland Raiders,legacy_yearly
+2007,MIA,MIA,Miami Dolphins,legacy_yearly
+2007,MIN,MIN,Minnesota Vikings,legacy_yearly
+2007,NWE,NE,New England Patriots,legacy_yearly
+2007,NOR,NO,New Orleans Saints,legacy_yearly
+2007,NYG,NYG,New York Giants,legacy_yearly
+2007,NYJ,NYJ,New York Jets,legacy_yearly
+2007,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2007,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2007,SEA,SEA,Seattle Seahawks,legacy_yearly
+2007,SFO,SF,San Francisco 49ers,legacy_yearly
+2007,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2007,TEN,TEN,Tennessee Titans,legacy_yearly
+2007,WAS,WAS,Washington Redskins,legacy_yearly
+2008,ARI,ARI,Arizona Cardinals,legacy_yearly
+2008,ATL,ATL,Atlanta Falcons,legacy_yearly
+2008,BAL,BAL,Baltimore Ravens,legacy_yearly
+2008,BUF,BUF,Buffalo Bills,legacy_yearly
+2008,CAR,CAR,Carolina Panthers,legacy_yearly
+2008,CHI,CHI,Chicago Bears,legacy_yearly
+2008,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2008,CLE,CLE,Cleveland Browns,legacy_yearly
+2008,DAL,DAL,Dallas Cowboys,legacy_yearly
+2008,DEN,DEN,Denver Broncos,legacy_yearly
+2008,DET,DET,Detroit Lions,legacy_yearly
+2008,GNB,GB,Green Bay Packers,legacy_yearly
+2008,HOU,HOU,Houston Texans,legacy_yearly
+2008,IND,IND,Indianapolis Colts,legacy_yearly
+2008,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2008,KAN,KC,Kansas City Chiefs,legacy_yearly
+2008,SDG,LAC,San Diego Chargers,legacy_yearly
+2008,STL,LAR,St. Louis Rams,legacy_yearly
+2008,OAK,LV,Oakland Raiders,legacy_yearly
+2008,MIA,MIA,Miami Dolphins,legacy_yearly
+2008,MIN,MIN,Minnesota Vikings,legacy_yearly
+2008,NWE,NE,New England Patriots,legacy_yearly
+2008,NOR,NO,New Orleans Saints,legacy_yearly
+2008,NYG,NYG,New York Giants,legacy_yearly
+2008,NYJ,NYJ,New York Jets,legacy_yearly
+2008,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2008,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2008,SEA,SEA,Seattle Seahawks,legacy_yearly
+2008,SFO,SF,San Francisco 49ers,legacy_yearly
+2008,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2008,TEN,TEN,Tennessee Titans,legacy_yearly
+2008,WAS,WAS,Washington Redskins,legacy_yearly
+2009,ARI,ARI,Arizona Cardinals,legacy_yearly
+2009,ATL,ATL,Atlanta Falcons,legacy_yearly
+2009,BAL,BAL,Baltimore Ravens,legacy_yearly
+2009,BUF,BUF,Buffalo Bills,legacy_yearly
+2009,CAR,CAR,Carolina Panthers,legacy_yearly
+2009,CHI,CHI,Chicago Bears,legacy_yearly
+2009,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2009,CLE,CLE,Cleveland Browns,legacy_yearly
+2009,DAL,DAL,Dallas Cowboys,legacy_yearly
+2009,DEN,DEN,Denver Broncos,legacy_yearly
+2009,DET,DET,Detroit Lions,legacy_yearly
+2009,GNB,GB,Green Bay Packers,legacy_yearly
+2009,HOU,HOU,Houston Texans,legacy_yearly
+2009,IND,IND,Indianapolis Colts,legacy_yearly
+2009,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2009,KAN,KC,Kansas City Chiefs,legacy_yearly
+2009,SDG,LAC,San Diego Chargers,legacy_yearly
+2009,STL,LAR,St. Louis Rams,legacy_yearly
+2009,OAK,LV,Oakland Raiders,legacy_yearly
+2009,MIA,MIA,Miami Dolphins,legacy_yearly
+2009,MIN,MIN,Minnesota Vikings,legacy_yearly
+2009,NWE,NE,New England Patriots,legacy_yearly
+2009,NOR,NO,New Orleans Saints,legacy_yearly
+2009,NYG,NYG,New York Giants,legacy_yearly
+2009,NYJ,NYJ,New York Jets,legacy_yearly
+2009,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2009,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2009,SEA,SEA,Seattle Seahawks,legacy_yearly
+2009,SFO,SF,San Francisco 49ers,legacy_yearly
+2009,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2009,TEN,TEN,Tennessee Titans,legacy_yearly
+2009,WAS,WAS,Washington Redskins,legacy_yearly
+2010,ARI,ARI,Arizona Cardinals,legacy_yearly
+2010,ATL,ATL,Atlanta Falcons,legacy_yearly
+2010,BAL,BAL,Baltimore Ravens,legacy_yearly
+2010,BUF,BUF,Buffalo Bills,legacy_yearly
+2010,CAR,CAR,Carolina Panthers,legacy_yearly
+2010,CHI,CHI,Chicago Bears,legacy_yearly
+2010,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2010,CLE,CLE,Cleveland Browns,legacy_yearly
+2010,DAL,DAL,Dallas Cowboys,legacy_yearly
+2010,DEN,DEN,Denver Broncos,legacy_yearly
+2010,DET,DET,Detroit Lions,legacy_yearly
+2010,GNB,GB,Green Bay Packers,legacy_yearly
+2010,HOU,HOU,Houston Texans,legacy_yearly
+2010,IND,IND,Indianapolis Colts,legacy_yearly
+2010,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2010,KAN,KC,Kansas City Chiefs,legacy_yearly
+2010,SDG,LAC,San Diego Chargers,legacy_yearly
+2010,STL,LAR,St. Louis Rams,legacy_yearly
+2010,OAK,LV,Oakland Raiders,legacy_yearly
+2010,MIA,MIA,Miami Dolphins,legacy_yearly
+2010,MIN,MIN,Minnesota Vikings,legacy_yearly
+2010,NWE,NE,New England Patriots,legacy_yearly
+2010,NOR,NO,New Orleans Saints,legacy_yearly
+2010,NYG,NYG,New York Giants,legacy_yearly
+2010,NYJ,NYJ,New York Jets,legacy_yearly
+2010,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2010,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2010,SEA,SEA,Seattle Seahawks,legacy_yearly
+2010,SFO,SF,San Francisco 49ers,legacy_yearly
+2010,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2010,TEN,TEN,Tennessee Titans,legacy_yearly
+2010,WAS,WAS,Washington Redskins,legacy_yearly
+2011,ARI,ARI,Arizona Cardinals,legacy_yearly
+2011,ATL,ATL,Atlanta Falcons,legacy_yearly
+2011,BAL,BAL,Baltimore Ravens,legacy_yearly
+2011,BUF,BUF,Buffalo Bills,legacy_yearly
+2011,CAR,CAR,Carolina Panthers,legacy_yearly
+2011,CHI,CHI,Chicago Bears,legacy_yearly
+2011,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2011,CLE,CLE,Cleveland Browns,legacy_yearly
+2011,DAL,DAL,Dallas Cowboys,legacy_yearly
+2011,DEN,DEN,Denver Broncos,legacy_yearly
+2011,DET,DET,Detroit Lions,legacy_yearly
+2011,GNB,GB,Green Bay Packers,legacy_yearly
+2011,HOU,HOU,Houston Texans,legacy_yearly
+2011,IND,IND,Indianapolis Colts,legacy_yearly
+2011,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2011,KAN,KC,Kansas City Chiefs,legacy_yearly
+2011,SDG,LAC,San Diego Chargers,legacy_yearly
+2011,STL,LAR,St. Louis Rams,legacy_yearly
+2011,OAK,LV,Oakland Raiders,legacy_yearly
+2011,MIA,MIA,Miami Dolphins,legacy_yearly
+2011,MIN,MIN,Minnesota Vikings,legacy_yearly
+2011,NWE,NE,New England Patriots,legacy_yearly
+2011,NOR,NO,New Orleans Saints,legacy_yearly
+2011,NYG,NYG,New York Giants,legacy_yearly
+2011,NYJ,NYJ,New York Jets,legacy_yearly
+2011,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2011,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2011,SEA,SEA,Seattle Seahawks,legacy_yearly
+2011,SFO,SF,San Francisco 49ers,legacy_yearly
+2011,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2011,TEN,TEN,Tennessee Titans,legacy_yearly
+2011,WAS,WAS,Washington Redskins,legacy_yearly
+2012,ARI,ARI,Arizona Cardinals,legacy_yearly
+2012,ATL,ATL,Atlanta Falcons,legacy_yearly
+2012,BAL,BAL,Baltimore Ravens,legacy_yearly
+2012,BUF,BUF,Buffalo Bills,legacy_yearly
+2012,CAR,CAR,Carolina Panthers,legacy_yearly
+2012,CHI,CHI,Chicago Bears,legacy_yearly
+2012,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2012,CLE,CLE,Cleveland Browns,legacy_yearly
+2012,DAL,DAL,Dallas Cowboys,legacy_yearly
+2012,DEN,DEN,Denver Broncos,legacy_yearly
+2012,DET,DET,Detroit Lions,legacy_yearly
+2012,GNB,GB,Green Bay Packers,legacy_yearly
+2012,HOU,HOU,Houston Texans,legacy_yearly
+2012,IND,IND,Indianapolis Colts,legacy_yearly
+2012,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2012,KAN,KC,Kansas City Chiefs,legacy_yearly
+2012,SDG,LAC,San Diego Chargers,legacy_yearly
+2012,STL,LAR,St. Louis Rams,legacy_yearly
+2012,OAK,LV,Oakland Raiders,legacy_yearly
+2012,MIA,MIA,Miami Dolphins,legacy_yearly
+2012,MIN,MIN,Minnesota Vikings,legacy_yearly
+2012,NWE,NE,New England Patriots,legacy_yearly
+2012,NOR,NO,New Orleans Saints,legacy_yearly
+2012,NYG,NYG,New York Giants,legacy_yearly
+2012,NYJ,NYJ,New York Jets,legacy_yearly
+2012,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2012,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2012,SEA,SEA,Seattle Seahawks,legacy_yearly
+2012,SFO,SF,San Francisco 49ers,legacy_yearly
+2012,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2012,TEN,TEN,Tennessee Titans,legacy_yearly
+2012,WAS,WAS,Washington Redskins,legacy_yearly
+2013,ARI,ARI,Arizona Cardinals,legacy_yearly
+2013,ATL,ATL,Atlanta Falcons,legacy_yearly
+2013,BAL,BAL,Baltimore Ravens,legacy_yearly
+2013,BUF,BUF,Buffalo Bills,legacy_yearly
+2013,CAR,CAR,Carolina Panthers,legacy_yearly
+2013,CHI,CHI,Chicago Bears,legacy_yearly
+2013,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2013,CLE,CLE,Cleveland Browns,legacy_yearly
+2013,DAL,DAL,Dallas Cowboys,legacy_yearly
+2013,DEN,DEN,Denver Broncos,legacy_yearly
+2013,DET,DET,Detroit Lions,legacy_yearly
+2013,GNB,GB,Green Bay Packers,legacy_yearly
+2013,HOU,HOU,Houston Texans,legacy_yearly
+2013,IND,IND,Indianapolis Colts,legacy_yearly
+2013,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2013,KAN,KC,Kansas City Chiefs,legacy_yearly
+2013,SDG,LAC,San Diego Chargers,legacy_yearly
+2013,STL,LAR,St. Louis Rams,legacy_yearly
+2013,OAK,LV,Oakland Raiders,legacy_yearly
+2013,MIA,MIA,Miami Dolphins,legacy_yearly
+2013,MIN,MIN,Minnesota Vikings,legacy_yearly
+2013,NWE,NE,New England Patriots,legacy_yearly
+2013,NOR,NO,New Orleans Saints,legacy_yearly
+2013,NYG,NYG,New York Giants,legacy_yearly
+2013,NYJ,NYJ,New York Jets,legacy_yearly
+2013,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2013,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2013,SEA,SEA,Seattle Seahawks,legacy_yearly
+2013,SFO,SF,San Francisco 49ers,legacy_yearly
+2013,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2013,TEN,TEN,Tennessee Titans,legacy_yearly
+2013,WAS,WAS,Washington Redskins,legacy_yearly
+2014,ARI,ARI,Arizona Cardinals,legacy_yearly
+2014,ATL,ATL,Atlanta Falcons,legacy_yearly
+2014,BAL,BAL,Baltimore Ravens,legacy_yearly
+2014,BUF,BUF,Buffalo Bills,legacy_yearly
+2014,CAR,CAR,Carolina Panthers,legacy_yearly
+2014,CHI,CHI,Chicago Bears,legacy_yearly
+2014,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2014,CLE,CLE,Cleveland Browns,legacy_yearly
+2014,DAL,DAL,Dallas Cowboys,legacy_yearly
+2014,DEN,DEN,Denver Broncos,legacy_yearly
+2014,DET,DET,Detroit Lions,legacy_yearly
+2014,GNB,GB,Green Bay Packers,legacy_yearly
+2014,HOU,HOU,Houston Texans,legacy_yearly
+2014,IND,IND,Indianapolis Colts,legacy_yearly
+2014,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2014,KAN,KC,Kansas City Chiefs,legacy_yearly
+2014,SDG,LAC,San Diego Chargers,legacy_yearly
+2014,STL,LAR,St. Louis Rams,legacy_yearly
+2014,OAK,LV,Oakland Raiders,legacy_yearly
+2014,MIA,MIA,Miami Dolphins,legacy_yearly
+2014,MIN,MIN,Minnesota Vikings,legacy_yearly
+2014,NWE,NE,New England Patriots,legacy_yearly
+2014,NOR,NO,New Orleans Saints,legacy_yearly
+2014,NYG,NYG,New York Giants,legacy_yearly
+2014,NYJ,NYJ,New York Jets,legacy_yearly
+2014,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2014,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2014,SEA,SEA,Seattle Seahawks,legacy_yearly
+2014,SFO,SF,San Francisco 49ers,legacy_yearly
+2014,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2014,TEN,TEN,Tennessee Titans,legacy_yearly
+2014,WAS,WAS,Washington Redskins,legacy_yearly
+2015,ARI,ARI,Arizona Cardinals,legacy_yearly
+2015,ATL,ATL,Atlanta Falcons,legacy_yearly
+2015,BAL,BAL,Baltimore Ravens,legacy_yearly
+2015,BUF,BUF,Buffalo Bills,legacy_yearly
+2015,CAR,CAR,Carolina Panthers,legacy_yearly
+2015,CHI,CHI,Chicago Bears,legacy_yearly
+2015,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2015,CLE,CLE,Cleveland Browns,legacy_yearly
+2015,DAL,DAL,Dallas Cowboys,legacy_yearly
+2015,DEN,DEN,Denver Broncos,legacy_yearly
+2015,DET,DET,Detroit Lions,legacy_yearly
+2015,GNB,GB,Green Bay Packers,legacy_yearly
+2015,HOU,HOU,Houston Texans,legacy_yearly
+2015,IND,IND,Indianapolis Colts,legacy_yearly
+2015,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2015,KAN,KC,Kansas City Chiefs,legacy_yearly
+2015,SDG,LAC,San Diego Chargers,legacy_yearly
+2015,STL,LAR,St. Louis Rams,legacy_yearly
+2015,OAK,LV,Oakland Raiders,legacy_yearly
+2015,MIA,MIA,Miami Dolphins,legacy_yearly
+2015,MIN,MIN,Minnesota Vikings,legacy_yearly
+2015,NWE,NE,New England Patriots,legacy_yearly
+2015,NOR,NO,New Orleans Saints,legacy_yearly
+2015,NYG,NYG,New York Giants,legacy_yearly
+2015,NYJ,NYJ,New York Jets,legacy_yearly
+2015,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2015,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2015,SEA,SEA,Seattle Seahawks,legacy_yearly
+2015,SFO,SF,San Francisco 49ers,legacy_yearly
+2015,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2015,TEN,TEN,Tennessee Titans,legacy_yearly
+2015,WAS,WAS,Washington Redskins,legacy_yearly
+2016,ARI,ARI,Arizona Cardinals,legacy_yearly
+2016,ATL,ATL,Atlanta Falcons,legacy_yearly
+2016,BAL,BAL,Baltimore Ravens,legacy_yearly
+2016,BUF,BUF,Buffalo Bills,legacy_yearly
+2016,CAR,CAR,Carolina Panthers,legacy_yearly
+2016,CHI,CHI,Chicago Bears,legacy_yearly
+2016,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2016,CLE,CLE,Cleveland Browns,legacy_yearly
+2016,DAL,DAL,Dallas Cowboys,legacy_yearly
+2016,DEN,DEN,Denver Broncos,legacy_yearly
+2016,DET,DET,Detroit Lions,legacy_yearly
+2016,GNB,GB,Green Bay Packers,legacy_yearly
+2016,HOU,HOU,Houston Texans,legacy_yearly
+2016,IND,IND,Indianapolis Colts,legacy_yearly
+2016,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2016,KAN,KC,Kansas City Chiefs,legacy_yearly
+2016,SDG,LAC,San Diego Chargers,legacy_yearly
+2016,LAR,LAR,Los Angeles Rams,legacy_yearly
+2016,OAK,LV,Oakland Raiders,legacy_yearly
+2016,MIA,MIA,Miami Dolphins,legacy_yearly
+2016,MIN,MIN,Minnesota Vikings,legacy_yearly
+2016,NWE,NE,New England Patriots,legacy_yearly
+2016,NOR,NO,New Orleans Saints,legacy_yearly
+2016,NYG,NYG,New York Giants,legacy_yearly
+2016,NYJ,NYJ,New York Jets,legacy_yearly
+2016,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2016,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2016,SEA,SEA,Seattle Seahawks,legacy_yearly
+2016,SFO,SF,San Francisco 49ers,legacy_yearly
+2016,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2016,TEN,TEN,Tennessee Titans,legacy_yearly
+2016,WAS,WAS,Washington Redskins,legacy_yearly
+2017,ARI,ARI,Arizona Cardinals,legacy_yearly
+2017,ATL,ATL,Atlanta Falcons,legacy_yearly
+2017,BAL,BAL,Baltimore Ravens,legacy_yearly
+2017,BUF,BUF,Buffalo Bills,legacy_yearly
+2017,CAR,CAR,Carolina Panthers,legacy_yearly
+2017,CHI,CHI,Chicago Bears,legacy_yearly
+2017,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2017,CLE,CLE,Cleveland Browns,legacy_yearly
+2017,DAL,DAL,Dallas Cowboys,legacy_yearly
+2017,DEN,DEN,Denver Broncos,legacy_yearly
+2017,DET,DET,Detroit Lions,legacy_yearly
+2017,GNB,GB,Green Bay Packers,legacy_yearly
+2017,HOU,HOU,Houston Texans,legacy_yearly
+2017,IND,IND,Indianapolis Colts,legacy_yearly
+2017,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2017,KAN,KC,Kansas City Chiefs,legacy_yearly
+2017,LAC,LAC,Los Angeles Chargers,legacy_yearly
+2017,LAR,LAR,Los Angeles Rams,legacy_yearly
+2017,OAK,LV,Oakland Raiders,legacy_yearly
+2017,MIA,MIA,Miami Dolphins,legacy_yearly
+2017,MIN,MIN,Minnesota Vikings,legacy_yearly
+2017,NWE,NE,New England Patriots,legacy_yearly
+2017,NOR,NO,New Orleans Saints,legacy_yearly
+2017,NYG,NYG,New York Giants,legacy_yearly
+2017,NYJ,NYJ,New York Jets,legacy_yearly
+2017,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2017,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2017,SEA,SEA,Seattle Seahawks,legacy_yearly
+2017,SFO,SF,San Francisco 49ers,legacy_yearly
+2017,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2017,TEN,TEN,Tennessee Titans,legacy_yearly
+2017,WAS,WAS,Washington Redskins,legacy_yearly
+2018,ARI,ARI,Arizona Cardinals,legacy_yearly
+2018,ATL,ATL,Atlanta Falcons,legacy_yearly
+2018,BAL,BAL,Baltimore Ravens,legacy_yearly
+2018,BUF,BUF,Buffalo Bills,legacy_yearly
+2018,CAR,CAR,Carolina Panthers,legacy_yearly
+2018,CHI,CHI,Chicago Bears,legacy_yearly
+2018,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2018,CLE,CLE,Cleveland Browns,legacy_yearly
+2018,DAL,DAL,Dallas Cowboys,legacy_yearly
+2018,DEN,DEN,Denver Broncos,legacy_yearly
+2018,DET,DET,Detroit Lions,legacy_yearly
+2018,GNB,GB,Green Bay Packers,legacy_yearly
+2018,HOU,HOU,Houston Texans,legacy_yearly
+2018,IND,IND,Indianapolis Colts,legacy_yearly
+2018,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2018,KAN,KC,Kansas City Chiefs,legacy_yearly
+2018,LAC,LAC,Los Angeles Chargers,legacy_yearly
+2018,LAR,LAR,Los Angeles Rams,legacy_yearly
+2018,OAK,LV,Oakland Raiders,legacy_yearly
+2018,MIA,MIA,Miami Dolphins,legacy_yearly
+2018,MIN,MIN,Minnesota Vikings,legacy_yearly
+2018,NWE,NE,New England Patriots,legacy_yearly
+2018,NOR,NO,New Orleans Saints,legacy_yearly
+2018,NYG,NYG,New York Giants,legacy_yearly
+2018,NYJ,NYJ,New York Jets,legacy_yearly
+2018,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2018,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2018,SEA,SEA,Seattle Seahawks,legacy_yearly
+2018,SFO,SF,San Francisco 49ers,legacy_yearly
+2018,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2018,TEN,TEN,Tennessee Titans,legacy_yearly
+2018,WAS,WAS,Washington Redskins,legacy_yearly
+2019,ARI,ARI,Arizona Cardinals,legacy_yearly
+2019,ATL,ATL,Atlanta Falcons,legacy_yearly
+2019,BAL,BAL,Baltimore Ravens,legacy_yearly
+2019,BUF,BUF,Buffalo Bills,legacy_yearly
+2019,CAR,CAR,Carolina Panthers,legacy_yearly
+2019,CHI,CHI,Chicago Bears,legacy_yearly
+2019,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2019,CLE,CLE,Cleveland Browns,legacy_yearly
+2019,DAL,DAL,Dallas Cowboys,legacy_yearly
+2019,DEN,DEN,Denver Broncos,legacy_yearly
+2019,DET,DET,Detroit Lions,legacy_yearly
+2019,GNB,GB,Green Bay Packers,legacy_yearly
+2019,HOU,HOU,Houston Texans,legacy_yearly
+2019,IND,IND,Indianapolis Colts,legacy_yearly
+2019,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2019,KAN,KC,Kansas City Chiefs,legacy_yearly
+2019,LAC,LAC,Los Angeles Chargers,legacy_yearly
+2019,LAR,LAR,Los Angeles Rams,legacy_yearly
+2019,OAK,LV,Oakland Raiders,legacy_yearly
+2019,MIA,MIA,Miami Dolphins,legacy_yearly
+2019,MIN,MIN,Minnesota Vikings,legacy_yearly
+2019,NWE,NE,New England Patriots,legacy_yearly
+2019,NOR,NO,New Orleans Saints,legacy_yearly
+2019,NYG,NYG,New York Giants,legacy_yearly
+2019,NYJ,NYJ,New York Jets,legacy_yearly
+2019,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2019,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2019,SEA,SEA,Seattle Seahawks,legacy_yearly
+2019,SFO,SF,San Francisco 49ers,legacy_yearly
+2019,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2019,TEN,TEN,Tennessee Titans,legacy_yearly
+2019,WAS,WAS,Washington Redskins,legacy_yearly
+2020,ARI,ARI,Arizona Cardinals,legacy_yearly
+2020,ATL,ATL,Atlanta Falcons,legacy_yearly
+2020,BAL,BAL,Baltimore Ravens,legacy_yearly
+2020,BUF,BUF,Buffalo Bills,legacy_yearly
+2020,CAR,CAR,Carolina Panthers,legacy_yearly
+2020,CHI,CHI,Chicago Bears,legacy_yearly
+2020,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2020,CLE,CLE,Cleveland Browns,legacy_yearly
+2020,DAL,DAL,Dallas Cowboys,legacy_yearly
+2020,DEN,DEN,Denver Broncos,legacy_yearly
+2020,DET,DET,Detroit Lions,legacy_yearly
+2020,GNB,GB,Green Bay Packers,legacy_yearly
+2020,HOU,HOU,Houston Texans,legacy_yearly
+2020,IND,IND,Indianapolis Colts,legacy_yearly
+2020,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2020,KAN,KC,Kansas City Chiefs,legacy_yearly
+2020,LAC,LAC,Los Angeles Chargers,legacy_yearly
+2020,LAR,LAR,Los Angeles Rams,legacy_yearly
+2020,LVR,LV,Las Vegas Raiders,legacy_yearly
+2020,MIA,MIA,Miami Dolphins,legacy_yearly
+2020,MIN,MIN,Minnesota Vikings,legacy_yearly
+2020,NWE,NE,New England Patriots,legacy_yearly
+2020,NOR,NO,New Orleans Saints,legacy_yearly
+2020,NYG,NYG,New York Giants,legacy_yearly
+2020,NYJ,NYJ,New York Jets,legacy_yearly
+2020,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2020,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2020,SEA,SEA,Seattle Seahawks,legacy_yearly
+2020,SFO,SF,San Francisco 49ers,legacy_yearly
+2020,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2020,TEN,TEN,Tennessee Titans,legacy_yearly
+2020,WAS,WAS,Washington Football Team,legacy_yearly
+2021,ARI,ARI,Arizona Cardinals,legacy_yearly
+2021,ATL,ATL,Atlanta Falcons,legacy_yearly
+2021,BAL,BAL,Baltimore Ravens,legacy_yearly
+2021,BUF,BUF,Buffalo Bills,legacy_yearly
+2021,CAR,CAR,Carolina Panthers,legacy_yearly
+2021,CHI,CHI,Chicago Bears,legacy_yearly
+2021,CIN,CIN,Cincinnati Bengals,legacy_yearly
+2021,CLE,CLE,Cleveland Browns,legacy_yearly
+2021,DAL,DAL,Dallas Cowboys,legacy_yearly
+2021,DEN,DEN,Denver Broncos,legacy_yearly
+2021,DET,DET,Detroit Lions,legacy_yearly
+2021,GNB,GB,Green Bay Packers,legacy_yearly
+2021,HOU,HOU,Houston Texans,legacy_yearly
+2021,IND,IND,Indianapolis Colts,legacy_yearly
+2021,JAX,JAX,Jacksonville Jaguars,legacy_yearly
+2021,KAN,KC,Kansas City Chiefs,legacy_yearly
+2021,LAC,LAC,Los Angeles Chargers,legacy_yearly
+2021,LAR,LAR,Los Angeles Rams,legacy_yearly
+2021,LVR,LV,Las Vegas Raiders,legacy_yearly
+2021,MIA,MIA,Miami Dolphins,legacy_yearly
+2021,MIN,MIN,Minnesota Vikings,legacy_yearly
+2021,NWE,NE,New England Patriots,legacy_yearly
+2021,NOR,NO,New Orleans Saints,legacy_yearly
+2021,NYG,NYG,New York Giants,legacy_yearly
+2021,NYJ,NYJ,New York Jets,legacy_yearly
+2021,PHI,PHI,Philadelphia Eagles,legacy_yearly
+2021,PIT,PIT,Pittsburgh Steelers,legacy_yearly
+2021,SEA,SEA,Seattle Seahawks,legacy_yearly
+2021,SFO,SF,San Francisco 49ers,legacy_yearly
+2021,TAM,TB,Tampa Bay Buccaneers,legacy_yearly
+2021,TEN,TEN,Tennessee Titans,legacy_yearly
+2021,WAS,WAS,Washington Football Team,legacy_yearly
+2022,ARI,ARI,Arizona Cardinals,nflverse_schedules
+2022,ATL,ATL,Atlanta Falcons,nflverse_schedules
+2022,BAL,BAL,Baltimore Ravens,nflverse_schedules
+2022,BUF,BUF,Buffalo Bills,nflverse_schedules
+2022,CAR,CAR,Carolina Panthers,nflverse_schedules
+2022,CHI,CHI,Chicago Bears,nflverse_schedules
+2022,CIN,CIN,Cincinnati Bengals,nflverse_schedules
+2022,CLE,CLE,Cleveland Browns,nflverse_schedules
+2022,DAL,DAL,Dallas Cowboys,nflverse_schedules
+2022,DEN,DEN,Denver Broncos,nflverse_schedules
+2022,DET,DET,Detroit Lions,nflverse_schedules
+2022,GB,GB,Green Bay Packers,nflverse_schedules
+2022,HOU,HOU,Houston Texans,nflverse_schedules
+2022,IND,IND,Indianapolis Colts,nflverse_schedules
+2022,JAX,JAX,Jacksonville Jaguars,nflverse_schedules
+2022,KC,KC,Kansas City Chiefs,nflverse_schedules
+2022,LAC,LAC,Los Angeles Chargers,nflverse_schedules
+2022,LA,LAR,Los Angeles Rams,nflverse_schedules
+2022,LV,LV,Las Vegas Raiders,nflverse_schedules
+2022,MIA,MIA,Miami Dolphins,nflverse_schedules
+2022,MIN,MIN,Minnesota Vikings,nflverse_schedules
+2022,NE,NE,New England Patriots,nflverse_schedules
+2022,NO,NO,New Orleans Saints,nflverse_schedules
+2022,NYG,NYG,New York Giants,nflverse_schedules
+2022,NYJ,NYJ,New York Jets,nflverse_schedules
+2022,PHI,PHI,Philadelphia Eagles,nflverse_schedules
+2022,PIT,PIT,Pittsburgh Steelers,nflverse_schedules
+2022,SEA,SEA,Seattle Seahawks,nflverse_schedules
+2022,SF,SF,San Francisco 49ers,nflverse_schedules
+2022,TB,TB,Tampa Bay Buccaneers,nflverse_schedules
+2022,TEN,TEN,Tennessee Titans,nflverse_schedules
+2022,WAS,WAS,Washington Commanders,nflverse_schedules
+2023,ARI,ARI,Arizona Cardinals,nflverse_schedules
+2023,ATL,ATL,Atlanta Falcons,nflverse_schedules
+2023,BAL,BAL,Baltimore Ravens,nflverse_schedules
+2023,BUF,BUF,Buffalo Bills,nflverse_schedules
+2023,CAR,CAR,Carolina Panthers,nflverse_schedules
+2023,CHI,CHI,Chicago Bears,nflverse_schedules
+2023,CIN,CIN,Cincinnati Bengals,nflverse_schedules
+2023,CLE,CLE,Cleveland Browns,nflverse_schedules
+2023,DAL,DAL,Dallas Cowboys,nflverse_schedules
+2023,DEN,DEN,Denver Broncos,nflverse_schedules
+2023,DET,DET,Detroit Lions,nflverse_schedules
+2023,GB,GB,Green Bay Packers,nflverse_schedules
+2023,HOU,HOU,Houston Texans,nflverse_schedules
+2023,IND,IND,Indianapolis Colts,nflverse_schedules
+2023,JAX,JAX,Jacksonville Jaguars,nflverse_schedules
+2023,KC,KC,Kansas City Chiefs,nflverse_schedules
+2023,LAC,LAC,Los Angeles Chargers,nflverse_schedules
+2023,LA,LAR,Los Angeles Rams,nflverse_schedules
+2023,LV,LV,Las Vegas Raiders,nflverse_schedules
+2023,MIA,MIA,Miami Dolphins,nflverse_schedules
+2023,MIN,MIN,Minnesota Vikings,nflverse_schedules
+2023,NE,NE,New England Patriots,nflverse_schedules
+2023,NO,NO,New Orleans Saints,nflverse_schedules
+2023,NYG,NYG,New York Giants,nflverse_schedules
+2023,NYJ,NYJ,New York Jets,nflverse_schedules
+2023,PHI,PHI,Philadelphia Eagles,nflverse_schedules
+2023,PIT,PIT,Pittsburgh Steelers,nflverse_schedules
+2023,SEA,SEA,Seattle Seahawks,nflverse_schedules
+2023,SF,SF,San Francisco 49ers,nflverse_schedules
+2023,TB,TB,Tampa Bay Buccaneers,nflverse_schedules
+2023,TEN,TEN,Tennessee Titans,nflverse_schedules
+2023,WAS,WAS,Washington Commanders,nflverse_schedules
 2024,ARI,ARI,Arizona Cardinals,nflverse_schedules
 2024,ATL,ATL,Atlanta Falcons,nflverse_schedules
 2024,BAL,BAL,Baltimore Ravens,nflverse_schedules
 2024,BUF,BUF,Buffalo Bills,nflverse_schedules
 2024,CAR,CAR,Carolina Panthers,nflverse_schedules
+2024,CHI,CHI,Chicago Bears,nflverse_schedules
+2024,CIN,CIN,Cincinnati Bengals,nflverse_schedules
+2024,CLE,CLE,Cleveland Browns,nflverse_schedules
+2024,DAL,DAL,Dallas Cowboys,nflverse_schedules
+2024,DEN,DEN,Denver Broncos,nflverse_schedules
+2024,DET,DET,Detroit Lions,nflverse_schedules
+2024,GB,GB,Green Bay Packers,nflverse_schedules
+2024,HOU,HOU,Houston Texans,nflverse_schedules
+2024,IND,IND,Indianapolis Colts,nflverse_schedules
+2024,JAX,JAX,Jacksonville Jaguars,nflverse_schedules
+2024,KC,KC,Kansas City Chiefs,nflverse_schedules
+2024,LAC,LAC,Los Angeles Chargers,nflverse_schedules
+2024,LA,LAR,Los Angeles Rams,nflverse_schedules
+2024,LV,LV,Las Vegas Raiders,nflverse_schedules
+2024,MIA,MIA,Miami Dolphins,nflverse_schedules
+2024,MIN,MIN,Minnesota Vikings,nflverse_schedules
+2024,NE,NE,New England Patriots,nflverse_schedules
+2024,NO,NO,New Orleans Saints,nflverse_schedules
+2024,NYG,NYG,New York Giants,nflverse_schedules
+2024,NYJ,NYJ,New York Jets,nflverse_schedules
+2024,PHI,PHI,Philadelphia Eagles,nflverse_schedules
+2024,PIT,PIT,Pittsburgh Steelers,nflverse_schedules
+2024,SEA,SEA,Seattle Seahawks,nflverse_schedules
+2024,SF,SF,San Francisco 49ers,nflverse_schedules
+2024,TB,TB,Tampa Bay Buccaneers,nflverse_schedules
+2024,TEN,TEN,Tennessee Titans,nflverse_schedules
+2024,WAS,WAS,Washington Commanders,nflverse_schedules
+2025,ARI,ARI,Arizona Cardinals,nflverse_schedules
+2025,ATL,ATL,Atlanta Falcons,nflverse_schedules
+2025,BAL,BAL,Baltimore Ravens,nflverse_schedules
+2025,BUF,BUF,Buffalo Bills,nflverse_schedules
+2025,CAR,CAR,Carolina Panthers,nflverse_schedules
+2025,CHI,CHI,Chicago Bears,nflverse_schedules
+2025,CIN,CIN,Cincinnati Bengals,nflverse_schedules
+2025,CLE,CLE,Cleveland Browns,nflverse_schedules
+2025,DAL,DAL,Dallas Cowboys,nflverse_schedules
+2025,DEN,DEN,Denver Broncos,nflverse_schedules
+2025,DET,DET,Detroit Lions,nflverse_schedules
+2025,GB,GB,Green Bay Packers,nflverse_schedules
+2025,HOU,HOU,Houston Texans,nflverse_schedules
+2025,IND,IND,Indianapolis Colts,nflverse_schedules
+2025,JAX,JAX,Jacksonville Jaguars,nflverse_schedules
+2025,KC,KC,Kansas City Chiefs,nflverse_schedules
+2025,LAC,LAC,Los Angeles Chargers,nflverse_schedules
+2025,LA,LAR,Los Angeles Rams,nflverse_schedules
+2025,LV,LV,Las Vegas Raiders,nflverse_schedules
+2025,MIA,MIA,Miami Dolphins,nflverse_schedules
+2025,MIN,MIN,Minnesota Vikings,nflverse_schedules
+2025,NE,NE,New England Patriots,nflverse_schedules
+2025,NO,NO,New Orleans Saints,nflverse_schedules
+2025,NYG,NYG,New York Giants,nflverse_schedules
+2025,NYJ,NYJ,New York Jets,nflverse_schedules
+2025,PHI,PHI,Philadelphia Eagles,nflverse_schedules
+2025,PIT,PIT,Pittsburgh Steelers,nflverse_schedules
+2025,SEA,SEA,Seattle Seahawks,nflverse_schedules
+2025,SF,SF,San Francisco 49ers,nflverse_schedules
+2025,TB,TB,Tampa Bay Buccaneers,nflverse_schedules
+2025,TEN,TEN,Tennessee Titans,nflverse_schedules
+2025,WAS,WAS,Washington Commanders,nflverse_schedules
+2026,ARI,ARI,Arizona Cardinals,nflverse_schedules
+2026,ATL,ATL,Atlanta Falcons,nflverse_schedules
+2026,BAL,BAL,Baltimore Ravens,nflverse_schedules
+2026,BUF,BUF,Buffalo Bills,nflverse_schedules
+2026,CAR,CAR,Carolina Panthers,nflverse_schedules
+2026,CHI,CHI,Chicago Bears,nflverse_schedules
+2026,CIN,CIN,Cincinnati Bengals,nflverse_schedules
+2026,CLE,CLE,Cleveland Browns,nflverse_schedules
+2026,DAL,DAL,Dallas Cowboys,nflverse_schedules
+2026,DEN,DEN,Denver Broncos,nflverse_schedules
+2026,DET,DET,Detroit Lions,nflverse_schedules
+2026,GB,GB,Green Bay Packers,nflverse_schedules
+2026,HOU,HOU,Houston Texans,nflverse_schedules
+2026,IND,IND,Indianapolis Colts,nflverse_schedules
+2026,JAX,JAX,Jacksonville Jaguars,nflverse_schedules
+2026,KC,KC,Kansas City Chiefs,nflverse_schedules
+2026,LAC,LAC,Los Angeles Chargers,nflverse_schedules
+2026,LA,LAR,Los Angeles Rams,nflverse_schedules
+2026,LV,LV,Las Vegas Raiders,nflverse_schedules
+2026,MIA,MIA,Miami Dolphins,nflverse_schedules
+2026,MIN,MIN,Minnesota Vikings,nflverse_schedules
+2026,NE,NE,New England Patriots,nflverse_schedules
+2026,NO,NO,New Orleans Saints,nflverse_schedules
+2026,NYG,NYG,New York Giants,nflverse_schedules
+2026,NYJ,NYJ,New York Jets,nflverse_schedules
+2026,PHI,PHI,Philadelphia Eagles,nflverse_schedules
+2026,PIT,PIT,Pittsburgh Steelers,nflverse_schedules
+2026,SEA,SEA,Seattle Seahawks,nflverse_schedules
+2026,SF,SF,San Francisco 49ers,nflverse_schedules
+2026,TB,TB,Tampa Bay Buccaneers,nflverse_schedules
+2026,TEN,TEN,Tennessee Titans,nflverse_schedules
+2026,WAS,WAS,Washington Commanders,nflverse_schedules

@@ -263,17 +263,48 @@ badly biased forecast at the top: regressing observed share on it in logs over
 
 A room leader who profiles at 0.26 should not be projected at 0.26.
 
-How much shrinkage is the open question. Players whose prior allocation landed
-in [0.23, 0.29) went on to average **0.2160** (median 0.2172, n=226). The model
-gives Smith 0.1770, about 18% below that. The log-log fit predicts 0.1879, but
-that is a conditional geometric mean and sits below the arithmetic mean by
-construction, so 0.2160 is the number a posterior *mean* should be compared
-against.
+How much shrinkage: the model is close to right, once the benchmark is built
+the way a forecast actually works.
 
-That 18% is suggestive and not yet a finding. Conditioning on the prior and
-conditioning on the model's own projection are different questions with opposite
-regression artifacts, so this must not be read as agreeing or disagreeing with
-the `warm_projected_top` over-projection measured above — those are counts per
-team game conditioned on the projection, these are shares conditioned on the
-prior. Settling it needs a walk-forward that reports projected-versus-observed
-*share* conditioned on the projected share, which nothing here has run.
+The calibration table above uses each row's *realized* snap share as exposure.
+That was the correct choice for screening a feature — routing it through a snap
+projection would fold that model's error into the answer — but it makes the
+table the wrong benchmark for a projection, because it gives the allocation
+perfect foresight of playing time that no forecast has. Rebuilding it on
+prior-season exposure, which is what a forecast holds:
+
+| exposure used | n | mean observed share | ratio to prior |
+|---|---:|---:|---:|
+| realized (perfect foresight) | 226 | 0.2160 | 0.839 |
+| **prior-season (what a forecast has)** | **203** | **0.1835** | **0.714** |
+
+Against the second row — the honest comparison — the model's 0.1770 for Smith is
+**3.5% low**, not the 18% the first row suggests. That is calibration, not a
+defect, and an earlier version of this section claiming otherwise was comparing
+against a benchmark the model could never reach.
+
+### What "66% of snaps" means
+
+`snap_share` is whole-season by construction: player offensive snaps summed over
+the weeks he played, divided by team snaps summed over *every* team game. Missed
+games depress it, so the column conflates per-game usage with availability.
+
+The pipeline is consistent about this — the softmax exposure offset is the
+whole-season share and season counts are `share × team season total`, so
+availability enters exactly once and is not applied twice — but it makes the
+number easy to misread. Smith:
+
+| | |
+|---|---:|
+| 2025 snap share | 0.8424 (17 of 17 games, so a clean per-game rate) |
+| 2026 projected snap share | 0.6618 |
+| 2026 projected games | 14.44 |
+| **implied per-game snap rate** | **0.7789** |
+
+His projected usage *when he plays* is 78%, not 66%. The rest of the gap is the
+availability projection, and that projection is well calibrated: established
+starters who played every game go on to average 14.16 games, against the 14.44
+the model gives him. Availability barely persists at all — the correlation
+between a starter's prior and next-season availability is **+0.079** — so the
+hard regression toward the league mean of 13.85 games is the right behaviour,
+not an insult to a player who has been durable.

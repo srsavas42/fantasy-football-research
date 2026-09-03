@@ -549,3 +549,59 @@ mechanical same-team confound, which noise does not usually do. But it is the
 reason the walk-forward is the arbiter and the screen is not, and it is the
 reason no further shape-hunting is planned. The marginal untested shape now has
 a poor prior.
+
+### The deep-history correction: the effect is real, and I was measuring it badly
+
+The feature above was built against team shapes from the walk-forward frames,
+which start in 2015. That silently discarded most of the evidence: of 1,630
+external play-calling stops behind 2016-2025 response seasons, **1,087 are
+pre-2015** and had no shape to attach, median around 2009. Only 65.8% of
+response team-seasons got any usable stop. The binding limit was never the
+coaching data — it was how far back the *player* data reached.
+
+nflverse player weeks run to 1999 and carry the three columns the shape needs,
+so `scripts/screen_coaching_deep_history.py` rebuilds them that far back. On raw
+shares the result was alarming:
+
+| team shapes from | n | partial r | p |
+|---|---:|---:|---:|
+| 2015 | 140 | +0.249 | 0.003 |
+| 2010 | 190 | +0.176 | 0.016 |
+| 2005 | 194 | **−0.039** | 0.60 |
+| 1999 | 197 | **−0.021** | 0.77 |
+
+Adding stops makes each coach's carried value *less* noisy, and attenuation
+runs the other way, so a real effect should have strengthened. Collapsing to
+zero looked like the original had been noise.
+
+It was an era artifact. League-wide running-back target share drifts hard —
+0.230 in 1999 against 0.175 in 2024 — so averaging a 2005 stop with a 2020 stop
+on the raw scale adds eras together, not tendencies. Z-scoring each stop within
+its own season fixes it:
+
+| team shapes from | n | partial r | p |
+|---|---:|---:|---:|
+| 2015 | 140 | +0.267 | 0.0016 |
+| 2010 | 190 | +0.222 | 0.0023 |
+| 2005 | 194 | +0.203 | 0.0049 |
+| **1999** | **197** | **+0.211** | **0.0032** |
+
+So the effect is considerably better established than first reported: n=197
+rather than 121, p=0.003 rather than 0.027, and stable across every window
+depth. Against the base rate noted above — a dozen hypotheses, one hit near
+p=0.03 — a hit at p=0.003 on 63% more rows is a different proposition.
+
+Recency weighting still barely matters (+0.223 at a 3-year half-life against
++0.216 at ten), and this time that means something: the earlier half-life sweep
+ran on a window where every stop was within nine years and had almost no range
+to resolve. With real range, flat still holds, so "stable career trait" survives
+a test that could actually have refuted it.
+
+Two consequences for the shipped feature, which used raw shares over 2015+ stops
+only: it needs era-normalised inputs, and it needs the deep window. Both are
+corrections to how the quantity is measured rather than new hypotheses.
+
+*(Noted in passing: 2004 reports a league mean of 0.400 at sd 0.548 for a
+bounded share, which is impossible and marks corrupt rows in that season.
+Z-scoring is self-limiting against it and the result is stable across windows
+that include and exclude it, so it is flagged rather than chased.)*

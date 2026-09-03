@@ -236,3 +236,46 @@ def test_parse_season_tokens_supports_ranges_and_lists():
     assert wiki.parse_season_tokens(["2020:2022", "2024,2025"]) == [
         2020, 2021, 2022, 2024, 2025
     ]
+
+
+def test_resolving_a_coach_page_survives_an_unlinked_name(monkeypatch, tmp_path):
+    """``coach_page_title`` is ``pd.NA`` for the "unlinked name" fallback row
+    ``_assignment_rows`` emits when a coach's name has no wiki link. Passing
+    that straight to ``page_title and not pd.isna(page_title)`` used to raise
+    ``TypeError: boolean value of NA is ambiguous`` -- pandas.NA refuses to be
+    coerced to bool, unlike None or NaN. Caught only once the scraper ran to
+    scale for the first time: every existing fixture here supplies a real
+    linked coach name, so this path had never been exercised.
+    """
+    calls = []
+
+    def fake_get(url, *, params=None, **kwargs):
+        calls.append(params)
+        if params.get("list") == "search":
+            return {"query": {"search": [{"title": "Some Coach (American football)"}]}}
+        return {"query": {"pages": [{"missing": True}]}}
+
+    monkeypatch.setattr(wiki, "get_json", fake_get)
+    client = wiki.WikipediaClient(tmp_path, delay_seconds=0)
+
+    result = wiki._resolve_coach_page(client, pd.NA, "Some Coach")
+
+    assert isinstance(result, wiki.WikipediaPage)
+    # Fell through to the name search rather than crashing on the NA title.
+    assert any(call.get("action") == "query" and "list" in call for call in calls)
+
+
+def test_resolving_a_coach_page_falls_back_to_the_name_when_title_is_na(monkeypatch, tmp_path):
+    """The final not-found fallback also read ``page_title`` truthily
+    (``page_title or coach_name``) and would have hit the identical crash one
+    call later, once the first one was fixed."""
+    def fake_get(url, *, params=None, **kwargs):
+        return {"query": {"pages": [{"missing": True}], "search": []}}
+
+    monkeypatch.setattr(wiki, "get_json", fake_get)
+    client = wiki.WikipediaClient(tmp_path, delay_seconds=0)
+
+    result = wiki._resolve_coach_page(client, pd.NA, "Some Coach")
+
+    assert result.missing
+    assert result.title == "Some Coach"

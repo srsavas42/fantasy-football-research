@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-09-03T13:18:21.081383+00:00",
+  "seasons": [
+    2024
+  ],
+  "team_filter": [],
+  "rows": {
+    "team_seasons": 5,
+    "assignments": 10,
+    "coach_history": 69,
+    "scheme_sources": 5,
+    "scheme_lineage": 22,
+    "review_queue": 5
+  },
+  "source": "https://en.wikipedia.org/w/api.php",
+  "license": "Wikipedia text: CC BY-SA 4.0; page revision attribution retained",
+  "selection_rule": "HC if prior OC; otherwise OC; HC fallback if no OC documented"
+}

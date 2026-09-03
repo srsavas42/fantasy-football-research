@@ -1,0 +1,6 @@
+season,team_code,franchise_code,team_name,data_source
+2024,ARI,ARI,Arizona Cardinals,nflverse_schedules
+2024,ATL,ATL,Atlanta Falcons,nflverse_schedules
+2024,BAL,BAL,Baltimore Ravens,nflverse_schedules
+2024,BUF,BUF,Buffalo Bills,nflverse_schedules
+2024,CAR,CAR,Carolina Panthers,nflverse_schedules

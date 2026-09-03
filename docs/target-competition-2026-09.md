@@ -206,3 +206,74 @@ starters is a real, replicated, two-sided bias and nothing here fixes it. It is
 not an allocation-noise question — that is what this measurement ruled out — so
 it belongs to the allocator's other inputs: the role prior, the snap projection,
 or the innovation *scale* rather than its mean.
+
+## Is the reallocation itself wrong? No — it is already proportional
+
+A natural suspicion is that vacated targets get spread evenly instead of in
+proportion to what each survivor already holds. They do not, and this is settled
+by algebra before any measurement: the share is `exp(s_i) / sum_j exp(s_j)`, and
+removing a player deletes one term from the denominator only. Every survivor's
+numerator is untouched, so every survivor's share scales by the identical factor
+`1 / (1 - p_departed)`.
+
+Put A.J. Brown back on the 2026 Philadelphia roster and take him out again:
+
+| player | with Brown | without | gain | multiplier |
+|---|---:|---:|---:|---:|
+| DeVonta Smith | 0.2071 | 0.2600 | **+0.0529** | 1.2555 |
+| Dallas Goedert | 0.1419 | 0.1781 | +0.0363 | 1.2555 |
+| Saquon Barkley | 0.0866 | 0.1088 | +0.0221 | 1.2555 |
+| Dontayvion Wicks | 0.0863 | 0.1084 | +0.0221 | 1.2555 |
+| Makai Lemon | 0.0799 | 0.1003 | +0.0204 | 1.2555 |
+
+Brown's 0.2035 split evenly across 16 survivors would be +0.0127 each. Smith
+gets +0.0529, four times that, because he holds four times the prior share. The
+multiplier is identical to four decimal places for every player in the room.
+
+So the departure *is* credited to Smith, and generously. His deterministic prior
+allocation is **0.2600** — above the 0.2435 he actually ran in 2025.
+
+Nor is it exposure. Holding every returning player at his 2025 snap share
+instead of the projection moves Smith to 0.2571, slightly *down*, because the
+projection lowers everyone's snaps together and the softmax only reads the
+ratios.
+
+### Where the number actually goes
+
+| | Smith target share |
+|---|---:|
+| 2025 observed | 0.2435 |
+| prior allocation, Brown removed | 0.2600 |
+| same at his 2025 snap share | 0.2571 |
+| **model output** | **0.1770** |
+
+The whole 0.2600 → 0.1770 move happens inside the fitted model — in `X·beta` and
+the innovation — not in the reallocation and not in the exposure.
+
+Most of that is shrinkage the model is right to apply. The prior allocation is a
+badly biased forecast at the top: regressing observed share on it in logs over
+2015-2025 gives a slope of **0.708**, and by band,
+
+| prior allocation | n | mean prior | mean observed | ratio |
+|---|---:|---:|---:|---:|
+| 0.02–0.05 | 776 | 0.0336 | 0.0445 | 1.323 |
+| 0.10–0.15 | 501 | 0.1243 | 0.1172 | 0.943 |
+| 0.20–0.25 | 229 | 0.2253 | 0.1916 | 0.851 |
+| 0.25+ | 277 | 0.3053 | 0.2481 | 0.813 |
+
+A room leader who profiles at 0.26 should not be projected at 0.26.
+
+How much shrinkage is the open question. Players whose prior allocation landed
+in [0.23, 0.29) went on to average **0.2160** (median 0.2172, n=226). The model
+gives Smith 0.1770, about 18% below that. The log-log fit predicts 0.1879, but
+that is a conditional geometric mean and sits below the arithmetic mean by
+construction, so 0.2160 is the number a posterior *mean* should be compared
+against.
+
+That 18% is suggestive and not yet a finding. Conditioning on the prior and
+conditioning on the model's own projection are different questions with opposite
+regression artifacts, so this must not be read as agreeing or disagreeing with
+the `warm_projected_top` over-projection measured above — those are counts per
+team game conditioned on the projection, these are shares conditioned on the
+prior. Settling it needs a walk-forward that reports projected-versus-observed
+*share* conditioned on the projected share, which nothing here has run.

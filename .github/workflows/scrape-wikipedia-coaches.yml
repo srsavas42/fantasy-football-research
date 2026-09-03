@@ -1,0 +1,154 @@
+name: Scrape Wikipedia coaching data
+
+# The season-average pipeline's coaching-tree features need the tables this
+# scraper builds (data/coaching/wikipedia/*), but the sandboxed research
+# environment's network policy denies the Wikipedia host, so the scrape has
+# never been able to run there. GitHub-hosted runners have open egress, so
+# this workflow runs it here instead and commits the result back to the repo
+# — after that, any environment that checks out the branch has the data
+# without needing to reach Wikipedia itself.
+#
+# Manual trigger only. This hits en.wikipedia.org for roughly one request per
+# team-season plus one per distinct coach, so it is not something to fire on
+# every push — run it when the tables are missing, stale, or a wider season
+# range is needed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: >
+          Years or inclusive ranges (e.g. "1970:2026" or "2020,2022,2024").
+          Blank defaults to 1970 through the current calendar year. Seasons
+          with a committed yearly/<year>.csv use that team list; later
+          seasons are discovered from nflverse schedules.
+        required: false
+        default: ""
+      teams:
+        description: 'Space-separated team/franchise codes for a focused run (e.g. "KC PHI"). Blank scrapes every team.'
+        required: false
+        default: ""
+      limit_team_seasons:
+        description: "Cap the number of team-seasons processed, for a smoke test. Blank means no limit."
+        required: false
+        default: ""
+      delay_seconds:
+        description: "Minimum seconds between Wikipedia API calls (politeness throttle)."
+        required: false
+        default: "0.2"
+      refresh:
+        description: "Re-fetch pages already in the disk cache instead of reusing them."
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: "Run the scrape and upload the result as a workflow artifact, but do not commit it to the branch."
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: wikipedia-coaches-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    # Generous but bounded: a full 1970-present backfill is roughly 1,500
+    # team-season pages plus a few hundred distinct coach pages. The 0.2s
+    # per-request delay alone is only a few minutes; this covers slow
+    # responses and retries without masking a genuinely stuck run.
+    timeout-minutes: 180
+    env:
+      SEASONS_INPUT: ${{ inputs.seasons }}
+      TEAMS_INPUT: ${{ inputs.teams }}
+      LIMIT_INPUT: ${{ inputs.limit_team_seasons }}
+      DELAY_INPUT: ${{ inputs.delay_seconds }}
+      REFRESH_INPUT: ${{ inputs.refresh }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project with scrape extras
+        run: pip install -e ".[scrape]"
+
+      # A grow-only cache: always saved under a run-unique key, always
+      # restored from the newest previous save. The client keys each page by
+      # a hash of its title and skips re-fetching anything already on disk,
+      # so a warm cache both speeds up reruns and is politer to Wikipedia.
+      - name: Cache Wikipedia page responses
+        uses: actions/cache@v4
+        with:
+          path: .cache/ffmodel/wikipedia/pages
+          key: wikipedia-pages-v1-${{ github.run_id }}
+          restore-keys: |
+            wikipedia-pages-v1-
+
+      - name: Run the scraper
+        run: |
+          set -euo pipefail
+          SEASONS="$SEASONS_INPUT"
+          if [ -z "$SEASONS" ]; then
+            SEASONS="1970:$(date -u +%Y)"
+          fi
+
+          args=(--seasons "$SEASONS" --delay "${DELAY_INPUT:-0.2}")
+          if [ -n "$TEAMS_INPUT" ]; then
+            # Deliberately unquoted: scrape_wikipedia_coaches.py's --teams
+            # takes one CLI token per code (argparse nargs="*"), so this
+            # needs to word-split "KC PHI" into two arguments.
+            args+=(--teams $TEAMS_INPUT)
+          fi
+          if [ -n "$LIMIT_INPUT" ]; then
+            args+=(--limit-team-seasons "$LIMIT_INPUT")
+          fi
+          if [ "$REFRESH_INPUT" = "true" ]; then
+            args+=(--refresh)
+          fi
+
+          echo "running: python scripts/scrape_wikipedia_coaches.py ${args[*]}"
+          python scripts/scrape_wikipedia_coaches.py "${args[@]}"
+
+      - name: Summarize the run
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "### Wikipedia coaching scrape"
+            python scripts/summarize_wikipedia_scrape.py data/coaching/wikipedia
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload scrape output as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wikipedia-coaching-tables
+          path: data/coaching/wikipedia/
+          if-no-files-found: error
+
+      - name: Commit and push the updated tables
+        if: ${{ inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/coaching/wikipedia
+          if git diff --cached --quiet; then
+            echo "no change to the coaching tables; nothing to commit"
+            exit 0
+          fi
+          git commit \
+            -m "Update Wikipedia coaching tables" \
+            -m "Automated refresh from the Scrape Wikipedia coaching data workflow. Seasons: ${SEASONS_INPUT:-1970:$(date -u +%Y)}"
+          # The branch may have moved since checkout (this repo sees active
+          # concurrent pushes); rebase once before pushing rather than
+          # failing outright on a non-fast-forward push.
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"

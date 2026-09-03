@@ -1,0 +1,20 @@
+{
+  "_frames": {
+    "cache_dir": ".cache/ffmodel-walkforward",
+    "digest": "5463871332ca3baa",
+    "player_rows": 7975,
+    "seasons": [
+      2015,
+      2025
+    ],
+    "team_rows": 352,
+    "version": 2
+  },
+  "_late_weight": {
+    "constant": 0.1,
+    "old": null,
+    "rows_at_young_weight": 0,
+    "young": null,
+    "young_max_experience": 3.0
+  }
+}

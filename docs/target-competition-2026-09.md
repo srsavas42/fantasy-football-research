@@ -703,3 +703,69 @@ That closes the coaching-history line. Roughly a dozen hypotheses screened, one
 survivor, and the survivor does not translate into forecast accuracy. The
 scraper, the tables and the screens stay — they are what make the conclusion
 trustworthy rather than assumed — but nothing from them ships.
+
+## The cold-start under-projection: the claim curve counts draft capital twice
+
+`measure_cold_start_bias.py` established the bias — cold rows under-projected on
+every fold and both streams, established starters over-projected to match, which
+inside a softmax is not two findings but one, since shares sum to one within a
+team. `scripts/diagnose_cold_start_prior.py` locates it.
+
+**It is the role prior, not the snap model.** Rebuild the deterministic
+allocation with each row's *observed* snap share — perfect foresight on playing
+time — and the gap barely moves:
+
+| population | target | carry |
+|---|---:|---:|
+| warm | +7.2% | +5.8% |
+| cold | **−39.3%** | **−26.9%** |
+| rookies | −27.5% | −28.0% |
+
+Nothing about projecting playing time is responsible.
+
+**Conditional on playing, draft capital barely moves per-snap usage.** Among
+cold players with 50+ snaps:
+
+| slot | curve pays | observed | paid/obs |
+|---|---:|---:|---:|
+| round 1 | 0.1491 | 0.1176 | 1.27 |
+| rounds 2–3 | 0.0735 | 0.0894 | 0.82 |
+| rounds 4–7 | 0.0248 | 0.0854 | **0.29** |
+| undrafted | 0.0093 | 0.0658 | **0.14** |
+
+Observed rate spans 1.8× end to end. The curve spans 17×. A late-round or
+undrafted player who earns a role is paid a seventh of what he produces.
+
+**The cause is a units mismatch, visible in the source.**
+`ffmodel.features.draft_calibration` fits every curve against `target_share` /
+`carry_share` — volume shares, which already contain playing time. But
+`_role_prior` consumes the result as a *per-snap rate*; its own comment says so
+outright ("the cold-start prior stands in for `per_snap_role` … so it has to be
+a per-snap rate"). The softmax score is `log(role_prior) + log(exposure)`, so
+exposure lands twice: once baked into a curve fitted on shares, and again as the
+offset.
+
+Round 1 against undrafted:
+
+| | ratio |
+|---|---:|
+| observed snap share (exposure) | 7.14× |
+| observed per-snap target rate | 1.79× |
+| **what the claim curve applies** | **29.96×** |
+
+So the model applies roughly **214×** of draft capital where the data supports
+about **13×**, and the softmax hands what it strips from late-round rows to
+whoever else is in the room — which is exactly why the same measurement finds
+established starters over-projected. One error, two symptoms.
+
+This also explains two earlier results that looked unrelated. The wide
+`cold_role_innovation` scale helps because a lognormal mean shift is a crude
+patch over a systematically-too-low location; and `mean_preserving_innovation`
+made every cold cell *worse* because removing that patch exposes the underlying
+error rather than fixing it. Neither was ever about allocation noise.
+
+**A second, smaller defect sits beside it.** `rookie_seasons` keeps only rows
+with a non-null `overall_pick`, so undrafted players are excluded from the fit
+entirely and then served by extrapolating the exponential to a stand-in pick of
+220. That is **61% of cold rows** taking a value from beyond the end of the
+fitted data, validated against nothing.

@@ -368,20 +368,33 @@ def _check_draft_priors_match_the_curve(
         pd.to_numeric(player_rows.get("experience"), errors="coerce").eq(0)
         & player_rows["overall_pick"].notna()
     ]
-    if rookies.empty or "draft_target_prior" not in rookies.columns:
+    if rookies.empty:
         return
-    row = rookies.iloc[0]
-    expected = _claim(row["overall_pick"], row["position"], "target")
-    cached = float(pd.to_numeric(row["draft_target_prior"], errors="coerce"))
-    if not np.isclose(cached, expected, rtol=1e-6, atol=1e-9):
-        raise SystemExit(
-            f"{cache_dir} holds draft priors from a "
-            f"different claim curve (cached {cached:.6f}, current curve "
-            f"{expected:.6f} for {row['position']} pick {row['overall_pick']}). "
-            "ROOKIE_CLAIM_CURVES has changed since this cache was built; delete "
-            "it and rebuild rather than evaluating the old curve under the new "
-            "source."
-        )
+    # The curve is keyed by (position, stream) and is an exponential in the
+    # pick, so a single sampled row pins one of twelve cells at one point.
+    # Take the earliest and latest pick in each position -- two points on a
+    # two-parameter curve -- and check every stream.
+    by_position = rookies.sort_values("overall_pick").groupby("position", sort=True)
+    sample = pd.concat([by_position.head(1), by_position.tail(1)])
+    for _, row in sample.iterrows():
+        for stream in ("target", "carry", "pass"):
+            column = f"draft_{stream}_prior"
+            if column not in rookies.columns:
+                continue
+            cached = pd.to_numeric(row[column], errors="coerce")
+            if pd.isna(cached):
+                continue
+            expected = _claim(row["overall_pick"], row["position"], stream)
+            if np.isclose(float(cached), expected, rtol=1e-6, atol=1e-9):
+                continue
+            raise SystemExit(
+                f"{cache_dir} holds draft priors from a different claim curve "
+                f"(cached {float(cached):.6f}, current curve {expected:.6f} for "
+                f"{row['position']} {stream} pick {row['overall_pick']}). "
+                "ROOKIE_CLAIM_CURVES has changed since this cache was built; "
+                "delete it and rebuild rather than evaluating the old curve "
+                "under the new source."
+            )
 
 
 def load_frames(cache_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -414,4 +427,3 @@ def gate_override(args: argparse.Namespace) -> bool | None:
     if args.no_couple_gate:
         return False
     return None
-

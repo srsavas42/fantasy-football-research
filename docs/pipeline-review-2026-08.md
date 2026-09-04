@@ -381,6 +381,11 @@ which consequently never emits `pred_pass_attempt_share` /
 discards both. `persistence_volume` currently has no callers, so this is dead
 code concealing a real defect rather than an active bug.
 
+**Fixed.** The two lines are back in `persistence_volume`, which now emits the
+pass stream it was already computing. Nothing downstream moves — the function
+still has no callers — but the unreachable block and the two unused locals are
+gone, and `evaluation/season_average.py` is clean under ruff.
+
 ### C2 — Variable shadowing in `player_preseason_rows`
 
 `features/season_average.py:604` rebinds `observed` — the list of observed

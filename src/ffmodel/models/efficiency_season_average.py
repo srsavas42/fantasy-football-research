@@ -25,6 +25,7 @@ from ffmodel.models.base import (
     sampling_quality,
     save_idata,
 )
+from ffmodel.models.design import collinearity_projection, project
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 
@@ -1001,20 +1002,8 @@ class PosteriorSeasonEfficiencyModel:
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         matrix = self._raw_matrix(rows, fit=fit)
         if fit:
-            if matrix.shape[1]:
-                _, singular_values, right = np.linalg.svd(matrix, full_matrices=False)
-                tolerance = (
-                    max(matrix.shape)
-                    * np.finfo(float).eps
-                    * singular_values.max(initial=0.0)
-                )
-                rank = int((singular_values > tolerance).sum())
-                self.feature_projection = right[:rank].T
-            else:
-                self.feature_projection = np.zeros((0, 0), dtype=float)
-        if self.feature_projection is None:
-            return matrix
-        return matrix @ np.asarray(self.feature_projection, dtype=float)
+            self.feature_projection = collinearity_projection(matrix)
+        return project(matrix, self.feature_projection)
 
     def _volume_feature_column(self) -> int | None:
         """Return the raw-design column for the fitted volume covariate."""
@@ -1250,11 +1239,7 @@ class PosteriorSeasonEfficiencyModel:
         if "position" not in out:
             raise ValueError("efficiency rows are missing position")
         raw_X = self._raw_matrix(out)
-        X = (
-            raw_X
-            if self.feature_projection is None
-            else raw_X @ np.asarray(self.feature_projection, dtype=float)
-        )
+        X = project(raw_X, self.feature_projection)
         posterior = self.idata.posterior
         available = int(posterior.sizes["chain"] * posterior.sizes["draw"])
         draws = available if draws is None else int(draws)
@@ -1293,6 +1278,9 @@ class PosteriorSeasonEfficiencyModel:
                             f"{self.spec.target} volume-feature draws must align "
                             "to requested posterior draws"
                         )
+                    # Pulls the coefficients back to raw-design space, which is
+                    # the space _volume_feature_column indexes. Not `project`:
+                    # that rotates a design forward, this is the transpose.
                     effective_beta = (
                         beta
                         if self.feature_projection is None

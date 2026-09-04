@@ -40,6 +40,7 @@ from ffmodel.models.base import (
     save_idata,
     simplex_shares,
 )
+from ffmodel.models.design import standardize
 from ffmodel.models.season_availability import (
     RESERVE_KIND_FEATURES,
     AVAILABILITY_HISTORY_FEATURES,
@@ -1119,16 +1120,13 @@ class SeasonRosterShareModel:
         return np.clip(prior.to_numpy(dtype=float), 1e-5, 1.0)
 
     def _matrix(self, d: pd.DataFrame) -> np.ndarray:
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(
-                d.get(name, pd.Series(np.nan, index=d.index)), errors="coerce"
-            ).fillna(self.feature_fill[name])
-            columns.append(
-                (values.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        return np.column_stack(columns) if columns else np.zeros((len(d), 0))
+        return standardize(
+            d.reindex(columns=self.feature_names),
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+        )
 
     def _design(
         self,

@@ -22,6 +22,12 @@ from ffmodel.models.base import (
     sample_model,
     simplex_shares,
 )
+from ffmodel.models.design import (
+    collinearity_projection,
+    project,
+    standardize,
+    varying_features,
+)
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
@@ -325,50 +331,20 @@ class SeasonAvailabilityModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
-            candidates = tuple(
-                dict.fromkeys((*AVAILABILITY_FEATURES, *self.extra_features))
+            self.feature_names = varying_features(
+                rows, AVAILABILITY_FEATURES, self.extra_features
             )
-            self.feature_names = [
-                name
-                for name in candidates
-                if name in rows
-                and pd.to_numeric(rows[name], errors="coerce").notna().any()
-                and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
-                > 1e-8
-            ]
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                scale = float(filled.std(ddof=0))
-                self.feature_fill[name] = fill
-                self.feature_mean[name] = float(filled.mean())
-                self.feature_scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.feature_fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        matrix = (
-            np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+        matrix = standardize(
+            rows,
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+            fit=fit,
         )
         if fit:
-            if matrix.shape[1]:
-                _, singular_values, right = np.linalg.svd(matrix, full_matrices=False)
-                tolerance = (
-                    max(matrix.shape)
-                    * np.finfo(float).eps
-                    * singular_values.max(initial=0.0)
-                )
-                rank = int((singular_values > tolerance).sum())
-                self.feature_projection = right[:rank].T
-            else:
-                self.feature_projection = np.zeros((0, 0), dtype=float)
-        if self.feature_projection is None:
-            return matrix
-        return matrix @ np.asarray(self.feature_projection, dtype=float)
+            self.feature_projection = collinearity_projection(matrix)
+        return project(matrix, self.feature_projection)
 
     def _slopes(self, pm, name: str, prior: float, features: int):
         """One shared slope vector, or one per position drawn around a shared mean.
@@ -687,30 +663,17 @@ class QBWorkloadShareModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
-            self.feature_names = [
-                name
-                for name in tuple(dict.fromkeys((*QB_WORKLOAD_FEATURES, *self.extra_features)))
-                if name in rows
-                and pd.to_numeric(rows[name], errors="coerce").notna().any()
-                and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
-                > 1e-8
-            ]
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                scale = float(filled.std(ddof=0))
-                self.feature_fill[name] = fill
-                self.feature_mean[name] = float(filled.mean())
-                self.feature_scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.feature_fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
+            self.feature_names = varying_features(
+                rows, QB_WORKLOAD_FEATURES, self.extra_features
             )
-        return np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+        return standardize(
+            rows,
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+            fit=fit,
+        )
 
     @staticmethod
     def _role_prior(rows: pd.DataFrame) -> np.ndarray:
@@ -1115,30 +1078,15 @@ class QBStarterModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
-            self.feature_names = [
-                name
-                for name in STARTER_FEATURES
-                if name in rows
-                and pd.to_numeric(rows[name], errors="coerce").notna().any()
-                and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
-                > 1e-8
-            ]
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                scale = float(filled.std(ddof=0))
-                self.feature_fill[name] = fill
-                self.feature_mean[name] = float(filled.mean())
-                self.feature_scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.feature_fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        return np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+            self.feature_names = varying_features(rows, STARTER_FEATURES)
+        return standardize(
+            rows,
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+            fit=fit,
+        )
 
     @staticmethod
     def _role_prior(rows: pd.DataFrame) -> np.ndarray:

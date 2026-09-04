@@ -70,7 +70,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import point_and_distribution
 from ffmodel.models.efficiency_season_average import (
     EFFICIENCY_MODEL_BY_TARGET,
     PosteriorSeasonEfficiencyModel,
@@ -84,17 +84,6 @@ ARMS = {
     "qb_share": ("prior_qb_carry_share",),
     "both": ("prior_qb_carry_share", "prior_team_pass_ypa"),
 }
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def teammate_context(cache: Path, seasons: list[int]) -> pd.DataFrame:
@@ -147,7 +136,7 @@ def _evaluate(train, test, features, *, fit_kwargs, seed):
     keep = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
     observed, samples = observed[keep], samples[keep]
     out = {
-        "overall": _metrics(observed, samples),
+        "overall": point_and_distribution(observed, samples),
         "ridge_features": len(model.ridge_model.feature_names) if model.ridge_model else 0,
     }
     share = pd.to_numeric(
@@ -157,9 +146,9 @@ def _evaluate(train, test, features, *, fit_kwargs, seed):
         top = np.isfinite(share) & (share >= np.nanquantile(share, 0.75))
         low = np.isfinite(share) & (share <= np.nanquantile(share, 0.25))
         if top.sum() >= 20:
-            out["mobile_qb"] = _metrics(observed[top], samples[top])
+            out["mobile_qb"] = point_and_distribution(observed[top], samples[top])
         if low.sum() >= 20:
-            out["pocket_qb"] = _metrics(observed[low], samples[low])
+            out["pocket_qb"] = point_and_distribution(observed[low], samples[low])
     del model, prediction, samples
     gc.collect()
     return out

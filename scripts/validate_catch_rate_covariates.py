@@ -52,7 +52,10 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import (
+    empirical_crps,
+    point_and_distribution,
+)
 from ffmodel.models.efficiency_season_average import (
     EFFICIENCY_MODEL_BY_TARGET,
     PERSISTENCE_MEAN_MODE,
@@ -68,17 +71,6 @@ NGS_FIELD = {
 }
 
 ARMS = ("baseline", "posterior", "ngs")
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def _ngs_column(stat_type: str, exposure: str, field: str, seasons: list[int]) -> pd.DataFrame:
@@ -150,7 +142,10 @@ def _evaluate(train, test, target, arm, *, fit_kwargs, seed):
         & np.isfinite(predictive).all(axis=1)
     )
     observed, samples, latent = observed[keep], predictive[keep], latent[keep]
-    out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out = {
+        "overall": point_and_distribution(observed, samples),
+        "features": len(model.feature_names),
+    }
     out["overall"]["crps_latent"] = float(empirical_crps(observed, latent).mean())
 
     # The population the covariate is supposed to move: the tail of the flagged
@@ -160,10 +155,10 @@ def _evaluate(train, test, target, arm, *, fit_kwargs, seed):
         cut = np.nanquantile(charted, 0.75)
         deep = np.isfinite(charted) & (charted >= cut)
         if deep.sum() >= 20:
-            out["high_metric"] = _metrics(observed[deep], samples[deep])
+            out["high_metric"] = point_and_distribution(observed[deep], samples[deep])
     covered = np.isfinite(charted)
     if covered.sum() >= 40:
-        out["ngs_covered"] = _metrics(observed[covered], samples[covered])
+        out["ngs_covered"] = point_and_distribution(observed[covered], samples[covered])
     del model, prediction, samples
     gc.collect()
     return out

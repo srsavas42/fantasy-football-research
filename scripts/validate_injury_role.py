@@ -78,7 +78,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import point_and_distribution
 from ffmodel.models.season_availability import RESERVE_KIND_FEATURES
 from ffmodel.models.volume_season_average import SeasonRosterShareModel
 
@@ -139,17 +139,6 @@ def _derive(frame: pd.DataFrame, stream: str) -> pd.DataFrame:
 MATERIAL = 0.0025
 
 
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
-
-
 def _evaluate(train, test, stream, features, *, fit_kwargs, seed):
     model = SeasonRosterShareModel(stream=stream, extra_features=tuple(features))
     model.fit(train, **fit_kwargs)
@@ -175,18 +164,23 @@ def _evaluate(train, test, stream, features, *, fit_kwargs, seed):
     ).fillna(0.0).to_numpy(dtype=float)
     samples = prediction.shares
 
-    out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out = {
+        "overall": point_and_distribution(observed, samples),
+        "features": len(model.feature_names),
+    }
     reserve = pd.to_numeric(
         rows.get("roster_reserve"), errors="coerce"
     ).fillna(0).gt(0).to_numpy()
     if reserve.sum() >= 5:
-        out["reserve"] = _metrics(observed[reserve], samples[reserve])
+        out["reserve"] = point_and_distribution(observed[reserve], samples[reserve])
     # The population the screen measured the gap on: someone who actually holds
     # a role, rather than the long tail of zero-share roster filler that
     # dominates a pooled average and moves for other reasons.
     holds_role = reserve & (observed > 0.02)
     if holds_role.sum() >= 5:
-        out["reserve_with_role"] = _metrics(observed[holds_role], samples[holds_role])
+        out["reserve_with_role"] = point_and_distribution(
+            observed[holds_role], samples[holds_role]
+        )
     # The recurrence population, which is a different and much larger set than
     # the reserve one: episode count rises with role, so this is not the thin
     # slice the bare flag was diluted into.
@@ -195,7 +189,9 @@ def _evaluate(train, test, stream, features, *, fit_kwargs, seed):
     ).fillna(0).to_numpy()
     recurrent = (episodes >= 2) & (observed > 0.02)
     if recurrent.sum() >= 5:
-        out["recurrent_with_role"] = _metrics(observed[recurrent], samples[recurrent])
+        out["recurrent_with_role"] = point_and_distribution(
+            observed[recurrent], samples[recurrent]
+        )
     del model, prediction, samples
     gc.collect()
     return out

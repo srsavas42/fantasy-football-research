@@ -41,7 +41,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import point_and_distribution
 from ffmodel.models.efficiency_season_average import (
     EFFICIENCY_MODEL_BY_TARGET,
     PosteriorSeasonEfficiencyModel,
@@ -55,17 +55,6 @@ ARMS = {
     "short_yardage": ("prior_rush_short_yardage_share",),
     "situational": ("prior_rush_short_yardage_share", "prior_rush_ydstogo_mean"),
 }
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def rushing_context(cache: Path, seasons: list[int]) -> pd.DataFrame:
@@ -128,7 +117,7 @@ def _evaluate(train, test, features, *, fit_kwargs, seed):
     keep = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
     observed, samples = observed[keep], samples[keep]
     out = {
-        "overall": _metrics(observed, samples),
+        "overall": point_and_distribution(observed, samples),
         "ridge_features": len(model.ridge_model.feature_names) if model.ridge_model else 0,
     }
     share = pd.to_numeric(
@@ -138,10 +127,14 @@ def _evaluate(train, test, features, *, fit_kwargs, seed):
         cut = np.nanquantile(share, 0.75)
         heavy = np.isfinite(share) & (share >= cut)
         if heavy.sum() >= 20:
-            out["short_yardage_backs"] = _metrics(observed[heavy], samples[heavy])
+            out["short_yardage_backs"] = point_and_distribution(
+                observed[heavy], samples[heavy]
+            )
         light = np.isfinite(share) & (share <= np.nanquantile(share, 0.25))
         if light.sum() >= 20:
-            out["open_field_backs"] = _metrics(observed[light], samples[light])
+            out["open_field_backs"] = point_and_distribution(
+                observed[light], samples[light]
+            )
     del model, prediction, samples
     gc.collect()
     return out

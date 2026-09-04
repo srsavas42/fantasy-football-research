@@ -38,7 +38,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import point_and_distribution
 from ffmodel.models.season_availability import (
     RESERVE_KIND_FEATURES,
     SeasonAvailabilityModel,
@@ -53,17 +53,6 @@ ARMS = {
 
 # The package's materiality floor; a smaller move is not claimed either way.
 MATERIAL = 0.0025
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def _evaluate(train, test, *, truncate, split, fit_kwargs, seed):
@@ -83,7 +72,10 @@ def _evaluate(train, test, *, truncate, split, fit_kwargs, seed):
     ).fillna(0.0).to_numpy(dtype=float)
     samples = prediction.availability
 
-    out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out = {
+        "overall": point_and_distribution(observed, samples),
+        "features": len(model.feature_names),
+    }
     groups = {
         "reserve": pd.to_numeric(rows.get("roster_reserve"), errors="coerce").fillna(0).gt(0),
         "pup_or_nfi": (
@@ -97,7 +89,7 @@ def _evaluate(train, test, *, truncate, split, fit_kwargs, seed):
     for name, mask in groups.items():
         mask = mask.to_numpy()
         if mask.sum() >= 5:
-            out[name] = _metrics(observed[mask], samples[mask])
+            out[name] = point_and_distribution(observed[mask], samples[mask])
     # Twelve fits in one process, each holding a posterior and a draw array.
     # Without this the run dies partway through with no traceback, which reads
     # as a crash rather than as running out of room.

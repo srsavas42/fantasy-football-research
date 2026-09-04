@@ -379,3 +379,22 @@ def pit_calibration(observed, samples, bins: int = 10) -> dict[str, object]:
         "shape": shape,
         "mean_pit": mean_pit,
     }
+
+
+def point_and_distribution(observed, samples) -> dict[str, float]:
+    """The standard held-out summary: point error, sharpness, calibration, n.
+
+    Nine validation scripts had defined this identically and four more had
+    defined near-variants, which is how "MAE" comes to mean slightly different
+    things in two reports that sit in the same directory. The keys are the
+    union the identical copies used, so their JSON is unchanged.
+    """
+    observed, samples = _inputs(observed, samples)
+    mean = samples.mean(axis=1)
+    return {
+        "mae": float(np.abs(observed - mean).mean()),
+        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
+        "crps": float(empirical_crps(observed, samples).mean()),
+        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
+        "n": int(len(observed)),
+    }

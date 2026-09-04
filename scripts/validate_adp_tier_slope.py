@@ -41,7 +41,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import point_and_distribution
 from ffmodel.models.efficiency_season_average import (
     EFFICIENCY_MODEL_BY_TARGET,
     PERSISTENCE_MEAN_MODE,
@@ -60,17 +60,6 @@ ARMS = ("baseline", "tier_slope")
 
 def mean_mode(target: str) -> str:
     return PERSISTENCE_MEAN_MODE.get(target) or POSTERIOR_MEAN_MODE[target]
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def _evaluate(train, test, target, arm, *, fit_kwargs, seed):
@@ -93,17 +82,20 @@ def _evaluate(train, test, target, arm, *, fit_kwargs, seed):
     observed = pd.to_numeric(rows[target], errors="coerce").to_numpy(dtype=float)
     keep = np.isfinite(observed) & np.isfinite(predictive).all(axis=1)
     observed, samples = observed[keep], predictive[keep]
-    out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out = {
+        "overall": point_and_distribution(observed, samples),
+        "features": len(model.feature_names),
+    }
     drafted = (
         pd.to_numeric(rows.get("adp_drafted"), errors="coerce")
         .fillna(0).eq(1).to_numpy()[keep]
     )
     if drafted.sum() >= 25:
-        out["drafted"] = _metrics(observed[drafted], samples[drafted])
+        out["drafted"] = point_and_distribution(observed[drafted], samples[drafted])
     rank = pd.to_numeric(rows.get("adp_rank"), errors="coerce").to_numpy()[keep]
     early = np.isfinite(rank) & (rank <= 150)
     if early.sum() >= 25:
-        out["adp_top150"] = _metrics(observed[early], samples[early])
+        out["adp_top150"] = point_and_distribution(observed[early], samples[early])
     del model, prediction, predictive
     gc.collect()
     return out

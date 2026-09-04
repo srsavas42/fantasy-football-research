@@ -35,23 +35,15 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.evaluation.efficiency_posterior import score_fantasy_points_posterior
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import (
+    empirical_crps,
+    point_and_distribution,
+)
 from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.models.efficiency_season_average import EFFICIENCY_MODEL_SPECS
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 
 MATERIAL = 0.0025
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def _availability_metrics(prediction, exposure_floor: int) -> dict[str, object]:
@@ -61,17 +53,17 @@ def _availability_metrics(prediction, exposure_floor: int) -> dict[str, object]:
     ).to_numpy(dtype=float)
     samples = np.asarray(prediction.volume.availability, dtype=float)
     valid = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
-    out = {"overall": _metrics(observed[valid], samples[valid])}
+    out = {"overall": point_and_distribution(observed[valid], samples[valid])}
     reserve = pd.to_numeric(
         rows.get("roster_reserve"), errors="coerce"
     ).fillna(0).gt(0).to_numpy() & valid
     if reserve.sum() >= 5:
-        out["reserve"] = _metrics(observed[reserve], samples[reserve])
+        out["reserve"] = point_and_distribution(observed[reserve], samples[reserve])
     ir = pd.to_numeric(
         rows.get("roster_injured_reserve"), errors="coerce"
     ).fillna(0).gt(0).to_numpy() & valid
     if ir.sum() >= 5:
-        out["injured_reserve"] = _metrics(observed[ir], samples[ir])
+        out["injured_reserve"] = point_and_distribution(observed[ir], samples[ir])
     return out
 
 
@@ -87,7 +79,7 @@ def _volume_metrics(prediction) -> dict[str, dict[str, object]]:
         samples = np.asarray(samples, dtype=float)
         valid = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
         if valid.sum() >= 20:
-            out[stream] = _metrics(observed[valid], samples[valid])
+            out[stream] = point_and_distribution(observed[valid], samples[valid])
     return out
 
 
@@ -138,7 +130,7 @@ def _efficiency_metrics(
         )
         valid = eligible & np.isfinite(observed) & np.isfinite(samples).all(axis=1)
         if valid.sum() >= 20:
-            out[spec.target] = _metrics(observed[valid], samples[valid])
+            out[spec.target] = point_and_distribution(observed[valid], samples[valid])
             out[spec.target]["crps_latent"] = float(
                 empirical_crps(observed[valid], latent[valid]).mean()
             )

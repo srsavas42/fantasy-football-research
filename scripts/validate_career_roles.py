@@ -45,7 +45,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
+from ffmodel.evaluation.metrics import point_and_distribution
 from ffmodel.models.season_opportunity import SeasonSnapShareModel
 from ffmodel.models.volume_season_average import SeasonRosterShareModel
 
@@ -58,17 +58,6 @@ SHARE_STREAMS = {
 }
 SNAP_FEATURE = "prior_snap_share_career"
 ARMS = ("baseline", "career")
-
-
-def _metrics(observed: np.ndarray, samples: np.ndarray) -> dict[str, float]:
-    mean = samples.mean(axis=1)
-    return {
-        "mae": float(np.abs(observed - mean).mean()),
-        "rmse": float(np.sqrt(np.mean((observed - mean) ** 2))),
-        "crps": float(empirical_crps(observed, samples).mean()),
-        "coverage_80": float(interval_coverage(observed, samples, level=0.8)["coverage"]),
-        "n": int(len(observed)),
-    }
 
 
 def _observed_snaps(prepared: pd.DataFrame) -> np.ndarray:
@@ -103,17 +92,22 @@ def _evaluate_share(train, test, stream, arm, *, fit_kwargs, seed):
         rows[observed_column], errors="coerce"
     ).fillna(0.0).to_numpy(dtype=float)
     samples = prediction.shares
-    out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out = {
+        "overall": point_and_distribution(observed, samples),
+        "features": len(model.feature_names),
+    }
     # A pooled average over the roster is dominated by zero-share filler that
     # moves for other reasons; the population the feature is about is players
     # who actually hold a role.
     holds_role = observed > 0.02
     if holds_role.sum() >= 20:
-        out["holds_role"] = _metrics(observed[holds_role], samples[holds_role])
+        out["holds_role"] = point_and_distribution(
+            observed[holds_role], samples[holds_role]
+        )
     history = pd.to_numeric(rows.get(feature), errors="coerce").to_numpy()
     veteran = np.isfinite(history) & holds_role
     if veteran.sum() >= 20:
-        out["has_history"] = _metrics(observed[veteran], samples[veteran])
+        out["has_history"] = point_and_distribution(observed[veteran], samples[veteran])
     del model, prediction, samples
     gc.collect()
     return out
@@ -134,10 +128,13 @@ def _evaluate_snap(train, test, arm, *, fit_kwargs, seed):
     samples = np.asarray(prediction.snap_share, dtype=float)
     keep = np.isfinite(observed) & np.isfinite(samples).all(axis=1)
     observed, samples = observed[keep], samples[keep]
-    out = {"overall": _metrics(observed, samples), "features": len(model.feature_names)}
+    out = {
+        "overall": point_and_distribution(observed, samples),
+        "features": len(model.feature_names),
+    }
     playing = observed > 0.10
     if playing.sum() >= 20:
-        out["plays"] = _metrics(observed[playing], samples[playing])
+        out["plays"] = point_and_distribution(observed[playing], samples[playing])
     del model, prediction, samples
     gc.collect()
     return out

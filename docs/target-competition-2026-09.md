@@ -875,3 +875,53 @@ spread projected exposure fails to carry has to live somewhere, and under the
 legacy curve it lived in the steepness the diagnosis called a double count.
 
 `scripts/diagnose_rookie_exposure_spread.py` measures that directly.
+
+## Held out on 2024, both arms
+
+`scripts/measure_cold_start_bias.py`, fitted on seasons before 2024 and scored
+on it, 500 draws / 500 tune, legacy curves against refit:
+
+| | n | legacy bias | refit bias | legacy MAE | refit MAE |
+|---|---:|---:|---:|---:|---:|
+| target / all | 485 | +1.52% | −0.27% | 0.8763 | 1.0111 |
+| target / warm | 347 | +1.97% | −8.22% | 1.0246 | 1.0187 |
+| target / cold | 138 | **−1.47%** | **+53.08%** | 0.5035 | **0.9919** |
+| target / rookie | 90 | −6.63% | +20.01% | 0.6698 | 1.0465 |
+| carry / cold | 159 | −24.11% | +5.24% | 0.4946 | 0.6184 |
+| carry / rookie | 101 | −37.23% | −25.98% | 0.6003 | 0.6502 |
+
+Targets on this fold were very nearly unbiased under the old curve, and the
+refit turned a 1.5% shortfall into a 53% overshoot while doubling cold MAE.
+That is the 2024 target MAE blowout, located.
+
+Carries are the cleaner illustration of the distinction. Bias genuinely
+improves, −24.11% to +5.24%, and MAE gets worse anyway — because lifting
+several hundred players who will never take a snap moves the population mean
+toward the truth and moves nearly every individual projection away from it.
+Bias and accuracy are different questions, and only one of them is what a
+drafter reads.
+
+## Verdict
+
+**Reverted.** `ROOKIE_CLAIM_CURVES` goes back to the share-fit table byte for
+byte, and `_role_prior` now carries the reasoning at the point of use so the
+next reader does not re-derive the units argument and re-apply the same fix.
+
+What survives:
+
+* `rookie_seasons(..., include_undrafted=)` and rate-mode fitting stay in
+  `draft_calibration`, with tests. The measurement is worth repeating even
+  though its answer was not shippable.
+* `load_frames` now refuses a cache whose draft priors disagree with the
+  current claim curve. The refit left exactly that mismatch on disk — the cache
+  held the refit priors while the source declared legacy ones — so the next
+  walk-forward would have silently evaluated a curve that no longer existed.
+
+What was wrong in how this was run, and worth not repeating:
+
+* `test_retained_streams_still_match_the_hand_set_curve` exists so "a future
+  refit cannot quietly move something that was never validated". It fired on
+  `WR/target` and `QB/pass` — both of which had *lost* their holdout and were
+  being kept as hand-set values — and the commit went in anyway.
+* The first held-out measurement scored bias only, and bias was the one metric
+  that could not distinguish this change from a good one.

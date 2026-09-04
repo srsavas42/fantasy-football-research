@@ -1076,6 +1076,25 @@ class SeasonRosterShareModel:
         return float(np.clip(cold_rms / warm_rms, 1.0, self.cold_role_multiplier_cap))
 
     def _role_prior(self, d: pd.DataFrame) -> np.ndarray:
+        """The offset the softmax scores against, as a per-snap rate.
+
+        Four sources in order: the player's own per-snap rate, a geometric
+        blend of that with last season's share, last season's share alone, the
+        draft prior, and the position mean. The score is
+        ``log(role_prior) + log(exposure) + X.beta + innovation``, so whatever
+        this returns is multiplied by projected playing time downstream.
+
+        The draft branch is knowingly not a per-snap rate. ``ROOKIE_CLAIM_CURVES``
+        is fitted against volume *shares*, which already contain playing time,
+        so on the arithmetic alone exposure lands twice here. That was measured
+        and the correction was worse: refitting the curve on a per-snap rate
+        (2026-09) was rejected on every fold of every volume stream and turned a
+        1.5% cold-target bias into a 53% overshoot. The steepness is doing a
+        second job the units argument does not see -- pricing whether draft
+        capital converts into a role *at all*, which projected exposure does not
+        fully carry for a player with no NFL history. Read
+        docs/target-competition-2026-09.md before touching these curves again.
+        """
         per_snap = pd.to_numeric(
             d.get(
                 STREAMS[self.stream].get("per_snap_role"),

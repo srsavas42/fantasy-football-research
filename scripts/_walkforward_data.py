@@ -207,6 +207,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--legacy-rookie-prior",
+        action="store_true",
+        help="rebuild the draft priors from the pre-2026-09 share-fit curves, "
+             "for the paired arm of the rookie-prior refit",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="skip holdouts already present in this label's report, provided "

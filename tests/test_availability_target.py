@@ -98,3 +98,27 @@ def test_the_target_round_trips_so_a_restored_model_keeps_its_exposure():
     # And the default for an artifact written before the field existed is the
     # historical pairing, not an error.
     assert str({}.get("availability_target", "roster")) == "roster"
+
+
+def test_a_saved_pipeline_comes_back_pointing_at_the_same_exposure():
+    """The pairing has to survive save/load, and it did not.
+
+    ``from_metadata`` rebuilds the sub-models at their class defaults and then
+    restored only the pipeline-level ``availability_target``, so a pipeline fitted
+    against ``snap`` came back predicting against ``games`` and
+    ``observed_availability`` while still reporting ``availability_target ==
+    "snap"``. That is the silent 2.6x this module exists to prevent, reached by
+    a different door.
+    """
+    pipeline = SeasonAverageVolumePipeline()
+    pipeline.availability_target = "snap"
+    pipeline._point_availability_layers()
+
+    # What from_metadata does: fresh sub-models, target carried over.
+    reloaded = SeasonAverageVolumePipeline(availability_target="snap")
+    assert reloaded.availability_model.games_column == "games"
+    assert reloaded.snap_model.availability_column == "observed_availability"
+
+    reloaded._point_availability_layers()
+    assert reloaded.availability_model.games_column == "snap_games"
+    assert reloaded.snap_model.availability_column == "snap_availability"

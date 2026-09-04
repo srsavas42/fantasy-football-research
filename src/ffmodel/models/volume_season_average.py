@@ -1533,27 +1533,28 @@ class SeasonAverageVolumePipeline:
     # The scheme carrier's carried backfield tendency, interacted with the back
     # indicator. See ffmodel.features.coaching_scheme: the level would cancel
     # exactly in a softmax that normalises within team-season, so the feature
-    # ships as an interaction or not at all. Off until the gate speaks --
-    # screened at partial r=+0.204 (p=0.027, n=121 team-seasons) against the
-    # team's own previous three seasons, which is thin, and team-level inputs
-    # are the family that has failed every forecast test in this package.
+    # ships as an interaction or not at all.
+    #
+    # **The gate rejects it**, at +0.056% on the target stream. The screen was
+    # the strongest of roughly a dozen coaching hypotheses -- partial r=+0.211
+    # at p=0.003 on n=197 team-seasons, era-normalised over stops back to 1999,
+    # controlling for the team's own previous three seasons -- and it still
+    # bought nothing. The lesson is worth more than the feature: a screen that
+    # controls for team history is not a proxy for a model that already
+    # conditions on each *player's* history, which is most of what a coaching
+    # tendency would have told it.
     coaching_scheme_features: bool = False
-    # Preseason market consensus in the role and playing-time regressions. Off
-    # until measured: it is the one input not derived from play-by-play, so a
-    # gain would be real new information and a loss would say the market adds
-    # nothing the history does not already carry. See
-    # ``_enable_market_adp_features`` and ffmodel.features.market.
-    # Leakage-safe injury history and preseason injury snapshot in the
-    # availability regression. Screened at the availability layer first
-    # (docs/injury-availability-2026-08.md): CRPS -2.39% pooled and 3/3 folds,
-    # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
-    # because availability feeds exposure and a gain there is not a gain here.
     # Injured reserve, PUP and non-football-injury as deviations from the
     # pooled reserve flag. Promoted 2026-09-01: availability CRPS -1.12% and MAE
     # -1.46% on three holdouts of three, almost all of it injured reserve at
     # CRPS -9.24% and MAE -18.38%. See RESERVE_KIND_FEATURES for the one
     # population it does not help.
     reserve_kind_features: bool = True
+    # Leakage-safe injury history and preseason injury snapshot in the
+    # availability regression. Screened at the availability layer first
+    # (docs/injury-availability-2026-08.md): CRPS -2.39% pooled and 3/3 folds,
+    # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
+    # because availability feeds exposure and a gain there is not a gain here.
     injury_availability_features: bool = False
     # Let the availability regression read the player's own availability
     # history, not only last season. See ``AVAILABILITY_HISTORY_FEATURES``:
@@ -1562,6 +1563,11 @@ class SeasonAverageVolumePipeline:
     # reproducible, and so a frame built before the pathway features can still
     # be fitted by turning it off.
     availability_history_features: bool = True
+    # Preseason market consensus in the role and playing-time regressions. Off
+    # until measured: it is the one input not derived from play-by-play, so a
+    # gain would be real new information and a loss would say the market adds
+    # nothing the history does not already carry. See
+    # ``_enable_market_adp_features`` and ffmodel.features.market.
     market_adp_features: bool = False
     # Per-position rank slopes and drafted effects. Measured and rejected:
     # worse on three drafted-pool holdouts of three at double the fit time,
@@ -1646,8 +1652,11 @@ class SeasonAverageVolumePipeline:
     # The tail under-coverage on total fantasy points is almost entirely theirs:
     # 28% of rows with no prior snap share fall outside a 95% interval against a
     # 5% nominal, 32 of 33 above it, while rows with an established role sit at
-    # 2.6%. Off until validated in-window -- 2025 diagnosed it and must not size
-    # it. See docs/out-of-sample-2025.md.
+    # 2.6%. Promoted 2026-08-04 with cold_role_scale_mode "measured", sized on
+    # the three in-window folds rather than on the 2025 rows that diagnosed it:
+    # the rookie miss rate falls 14.8% -> 4.9% and the no-prior-snap-share band
+    # 12.8% -> 5.1%, both landing on nominal rather than over it. See
+    # docs/out-of-sample-2025.md.
     cold_role_innovation: bool = True
     # "relative" or "measured"; see ``SeasonRosterShareModel``.
     cold_role_scale_mode: str = "measured"
@@ -1970,7 +1979,7 @@ class SeasonAverageVolumePipeline:
         "snap": ("snap_games", "snap_availability"),
     }
 
-    def _apply_availability_target(self, player_rows: pd.DataFrame) -> None:
+    def _point_availability_layers(self) -> tuple[str, str]:
         """Point the availability and snap layers at the same exposure.
 
         These two settings are one decision. The availability model fits a
@@ -1981,6 +1990,11 @@ class SeasonAverageVolumePipeline:
         exposure and multiplies by another, and nothing downstream would raise
         -- the projection would simply be wrong by the ratio between them,
         which for undrafted quarterbacks is a factor of 2.6.
+
+        Separate from ``_apply_availability_target`` because a pipeline loaded
+        from disk has to re-point the two layers without any frame to validate
+        against: the sub-models are rebuilt at their class defaults, so a
+        pipeline saved under one target would otherwise come back mismatched.
         """
         try:
             games_column, availability_column = self.AVAILABILITY_TARGETS[
@@ -1992,6 +2006,13 @@ class SeasonAverageVolumePipeline:
                 f"{sorted(self.AVAILABILITY_TARGETS)}, got "
                 f"{self.availability_target!r}"
             ) from None
+        self.availability_model.games_column = games_column
+        self.snap_model.availability_column = availability_column
+        return games_column, availability_column
+
+    def _apply_availability_target(self, player_rows: pd.DataFrame) -> None:
+        """Point both layers, and check the frame can actually serve them."""
+        games_column, availability_column = self._point_availability_layers()
         missing = [
             name
             for name in (games_column, availability_column)
@@ -2020,8 +2041,6 @@ class SeasonAverageVolumePipeline:
                 "snap source cannot count weeks with a snap; build the frames "
                 "from nflverse to use this target"
             )
-        self.availability_model.games_column = games_column
-        self.snap_model.availability_column = availability_column
 
     def _enable_availability_history(self, player_rows: pd.DataFrame) -> None:
         """Append the career availability mean to the availability regression.
@@ -2716,7 +2735,7 @@ class SeasonAverageVolumePipeline:
             if "model" not in likelihood_state:
                 raise ValueError("saved regime-likelihood pipeline is missing its classifier")
             likelihood_regime_model = SeasonRegimeModel.from_state(likelihood_state["model"])
-        return cls(
+        pipeline = cls(
             team_model=team,
             availability_model=availability,
             workload_model=workload,
@@ -2752,6 +2771,12 @@ class SeasonAverageVolumePipeline:
             regime_model=(likelihood_regime_model or regime_model),
             regime_coupler=regime_coupler,
         )
+        # The sub-models were rebuilt at their class defaults, so the exposure
+        # pairing has to be re-established here. Without it a pipeline saved
+        # under a non-default ``availability_target`` predicts against the
+        # roster columns while claiming the snap ones, silently.
+        pipeline._point_availability_layers()
+        return pipeline
 
     @staticmethod
     def _restore_feature_metadata(model, state: dict[str, object]) -> None:

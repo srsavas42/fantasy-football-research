@@ -659,3 +659,47 @@ Read against the one hit, the pattern sharpens usefully. A play-caller carries
 **which back gets the work**, which is a personnel decision made with the roster
 he is handed. That is the same line the depth-of-target nulls drew, and it is
 now drawn from four directions.
+
+### The gate rejects it
+
+Both arms on identical rebuilt frames (fingerprint verified equal), 500 draws /
+500 tune, holdouts 2022/2023/2024:
+
+| stream | metric | pooled | per fold | folds better |
+|---|---|---:|---|---:|
+| target | MAE | **+0.056%** | +0.007 / +0.089 / +0.072 | 0/3 |
+| target | CRPS | **+0.016%** | −0.008 / +0.038 / +0.019 | 1/3 |
+| carry, pass_qb, snap, availability | both | identical on every fold | — | — |
+
+The gate wants material (>0.25%) *and* every fold. This is neither: the pooled
+effect is roughly **four times smaller than the materiality floor**, and MAE is
+worse on all three folds. `coaching_scheme_features` stays `False`.
+
+Sampling was halved to fit this container's kill window, which costs Monte Carlo
+precision, and the plan was to call for a full-sampling re-run if the result
+landed *near* the floor. It did not — it sits far inside the null zone, and all
+three MAE folds share a sign, which is not the signature of noise concealing a
+benefit. The reduced precision does not change the call.
+
+### Why a screen at +0.211, p=0.003 buys nothing in the model
+
+This is the useful part, and it generalises past coaching.
+
+The screen controlled for the **team's** previous three seasons. The model does
+something much stronger: it conditions on each **player's** own prior role. For
+a returning back, his own prior target share already encodes most of what his
+offence does with the backfield — including whatever his coach's tendency
+contributed to it. The coach term was adding information over a team-level
+baseline and then being asked to add information over a player-level one, and
+almost all of it was already there.
+
+So the screen was not wrong; it was answering an easier question than the gate
+asks. **A screen that controls for team history is not a proxy for a model that
+already conditions on player history.** Any future feature that lives at
+team-season granularity faces the same gap, and the screen threshold that would
+justify building it needs to be far above "clears a team-level control".
+
+That closes the coaching-history line. Roughly a dozen hypotheses screened, one
+survivor, and the survivor does not translate into forecast accuracy. The
+scraper, the tables and the screens stay — they are what make the conclusion
+trustworthy rather than assumed — but nothing from them ships.

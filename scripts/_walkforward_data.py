@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 DEFAULT_CACHE = Path(".cache/ffmodel-walkforward")
@@ -207,12 +208,6 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
-        "--legacy-rookie-prior",
-        action="store_true",
-        help="rebuild the draft priors from the pre-2026-09 share-fit curves, "
-             "for the paired arm of the rookie-prior refit",
-    )
-    parser.add_argument(
         "--resume",
         action="store_true",
         help="skip holdouts already present in this label's report, provided "
@@ -354,13 +349,50 @@ def frames_fingerprint(
     }
 
 
+def _check_draft_priors_match_the_curve(
+    player_rows: pd.DataFrame, cache_dir: Path
+) -> None:
+    """Refuse a cache whose draft priors came from a different claim curve.
+
+    ``ROOKIE_CLAIM_CURVES`` is a hand-edited constant table that gets retuned,
+    and the priors derived from it are frozen into the pickle at build time.
+    Nothing else here notices when the two disagree: the fingerprint identifies
+    which build a run read, not whether that build still matches the source, so
+    a retuned curve silently evaluates the *old* one until someone remembers to
+    delete the cache. That happened during the 2026-09 rookie-prior refit and
+    its revert, which is why this exists.
+    """
+    from ffmodel.features.draft import _claim
+
+    rookies = player_rows[
+        pd.to_numeric(player_rows.get("experience"), errors="coerce").eq(0)
+        & player_rows["overall_pick"].notna()
+    ]
+    if rookies.empty or "draft_target_prior" not in rookies.columns:
+        return
+    row = rookies.iloc[0]
+    expected = _claim(row["overall_pick"], row["position"], "target")
+    cached = float(pd.to_numeric(row["draft_target_prior"], errors="coerce"))
+    if not np.isclose(cached, expected, rtol=1e-6, atol=1e-9):
+        raise SystemExit(
+            f"{cache_dir} holds draft priors from a "
+            f"different claim curve (cached {cached:.6f}, current curve "
+            f"{expected:.6f} for {row['position']} pick {row['overall_pick']}). "
+            "ROOKIE_CLAIM_CURVES has changed since this cache was built; delete "
+            "it and rebuild rather than evaluating the old curve under the new "
+            "source."
+        )
+
+
 def load_frames(cache_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Cached player/team season rows, building them on first use."""
     cache_dir = Path(cache_dir)
     player_path = cache_dir / "player_rows.pkl"
     team_path = cache_dir / "team_rows.pkl"
     if player_path.exists() and team_path.exists():
-        return pd.read_pickle(player_path), pd.read_pickle(team_path)
+        player_rows = pd.read_pickle(player_path)
+        _check_draft_priors_match_the_curve(player_rows, cache_dir)
+        return player_rows, pd.read_pickle(team_path)
 
     from ffmodel.features.season_average import build_season_average_data
 
@@ -383,35 +415,3 @@ def gate_override(args: argparse.Namespace) -> bool | None:
         return False
     return None
 
-
-def apply_legacy_rookie_prior(*frames) -> None:
-    """Rebuild the three draft-prior columns from the pre-refit share curves.
-
-    In place, on frames that have already been built, so the two arms of the
-    rookie-prior comparison differ only in the curve. Rebuilding the cache
-    instead would give the baseline arm a different frames fingerprint and the
-    comparison would stop being paired.
-    """
-    import numpy as np
-    import pandas as pd
-
-    from ffmodel.features.draft import LEGACY_SHARE_FIT_CURVES
-
-    def claim(pick, position: str, stream: str) -> float:
-        base, scale = LEGACY_SHARE_FIT_CURVES.get((position, stream), (0.0, 60.0))
-        if base <= 0:
-            return 0.0
-        slot = 220.0 if pick is None or pd.isna(pick) else float(pick)
-        return float(base * np.exp(-(slot - 1.0) / scale))
-
-    for frame in frames:
-        picks = frame["overall_pick"]
-        for stream, column in (
-            ("target", "draft_target_prior"),
-            ("carry", "draft_carry_prior"),
-            ("pass", "draft_pass_prior"),
-        ):
-            frame[column] = [
-                claim(pick, position, stream)
-                for pick, position in zip(picks, frame["position"])
-            ]

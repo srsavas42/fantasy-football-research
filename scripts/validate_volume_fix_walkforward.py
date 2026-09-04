@@ -28,7 +28,6 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _walkforward_data import (
     add_common_arguments,
-    apply_legacy_rookie_prior,
     frames_fingerprint,
     gate_override,
     load_frames,
@@ -125,8 +124,6 @@ def main(argv=None) -> None:
             pipeline.market_win_total_features = args.market_win_totals
         if args.market_adp_interactions is not None:
             pipeline.market_adp_interactions = args.market_adp_interactions
-        if args.legacy_rookie_prior:
-            apply_legacy_rookie_prior(train.player_rows, test.player_rows)
         if args.coaching_scheme is not None:
             pipeline.coaching_scheme_features = args.coaching_scheme
         if args.room_structure is not None:

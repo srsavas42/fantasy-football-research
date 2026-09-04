@@ -54,58 +54,33 @@ DRAFT_COLUMNS = [
 _HAND_SET_SCALE = 60.0
 ROOKIE_CLAIM_CURVES: dict[tuple[str, str], tuple[float, float]] = {
     # position, stream: (base, scale)
-    #
-    # Refitted 2026-09 against a per-snap *rate* rather than a volume share.
-    # The share fit was the cold-start under-projection's root cause: a share
-    # already contains playing time, _role_prior consumes this as a per-snap
-    # rate, and the softmax then multiplies by exposure again -- applying about
-    # 214x of draft capital where the data supports about 13x. See
-    # scripts/diagnose_cold_start_prior.py and
-    # docs/target-competition-2026-09.md.
-    #
-    # Every fitted scale runs to 398, the top of _SCALE_GRID. That is the grid
-    # doing its job rather than a failure: the module bounds it "well outside
-    # anything the data has supported so a fit that runs to an edge is visible
-    # rather than silent". What it makes visible is that an exponential is the
-    # wrong shape for a per-snap rate -- conditional on playing, usage is very
-    # nearly flat in draft slot (observed round-1 : undrafted is 1.79x, and the
-    # refit curves land at 1.7x against the old 6-30x). A long scale is how an
-    # exponential expresses "almost constant".
-    #
-    # The structural zeros are kept deliberately. The rate fit returns small
-    # non-zero claims for them (WR carry 0.0097, TE carry 0.0010, QB target
-    # 0.0004), but those streams were zeroed by earlier holdout results, and a
-    # refit aimed at a different defect is not a reason to reopen them.
-    ("QB", "pass"): (0.6198, 398.0),  # rate-fit
-    ("QB", "carry"): (0.0886, 398.0),  # rate-fit
-    ("QB", "target"): (0.0, _HAND_SET_SCALE),  # retained: structural zero
-    ("RB", "carry"): (0.4734, 398.0),  # rate-fit
-    ("RB", "target"): (0.1226, 398.0),  # rate-fit
-    ("RB", "pass"): (0.0, _HAND_SET_SCALE),  # retained: structural zero
-    ("WR", "target"): (0.1412, 398.0),  # rate-fit
+    ("QB", "pass"): (0.78, _HAND_SET_SCALE),  # retained: lost the holdout
+    ("QB", "carry"): (0.1153, 66.0),  # fit: rookie passers do carry
+    ("QB", "target"): (0.0, _HAND_SET_SCALE),  # retained
+    ("RB", "carry"): (0.4835, 112.0),  # fit
+    ("RB", "target"): (0.1062, 106.0),  # fit
+    ("RB", "pass"): (0.0, _HAND_SET_SCALE),  # retained
+    ("WR", "target"): (0.22, _HAND_SET_SCALE),  # retained: lost the walk-forward
     ("WR", "carry"): (0.0, _HAND_SET_SCALE),  # retained: lost the holdout
-    ("WR", "pass"): (0.0, _HAND_SET_SCALE),  # retained: structural zero
-    ("TE", "target"): (0.0970, 398.0),  # rate-fit
-    ("TE", "carry"): (0.0, _HAND_SET_SCALE),  # retained: structural zero
-    ("TE", "pass"): (0.0, _HAND_SET_SCALE),  # retained: structural zero
+    ("WR", "pass"): (0.0, _HAND_SET_SCALE),  # retained
+    ("TE", "target"): (0.1735, 68.0),  # fit
+    ("TE", "carry"): (0.0, _HAND_SET_SCALE),  # retained
+    ("TE", "pass"): (0.0, _HAND_SET_SCALE),  # retained
 }
 
-# The curves this replaced, kept so the paired walk-forward can rebuild the
-# old draft priors on identical frames rather than needing a separate build.
-LEGACY_SHARE_FIT_CURVES: dict[tuple[str, str], tuple[float, float]] = {
-    ("QB", "pass"): (0.78, _HAND_SET_SCALE),
-    ("QB", "carry"): (0.1153, 66.0),
-    ("QB", "target"): (0.0, _HAND_SET_SCALE),
-    ("RB", "carry"): (0.4835, 112.0),
-    ("RB", "target"): (0.1062, 106.0),
-    ("RB", "pass"): (0.0, _HAND_SET_SCALE),
-    ("WR", "target"): (0.22, _HAND_SET_SCALE),
-    ("WR", "carry"): (0.0, _HAND_SET_SCALE),
-    ("WR", "pass"): (0.0, _HAND_SET_SCALE),
-    ("TE", "target"): (0.1735, 68.0),
-    ("TE", "carry"): (0.0, _HAND_SET_SCALE),
-    ("TE", "pass"): (0.0, _HAND_SET_SCALE),
-}
+# A 2026-09 refit against a per-snap *rate* rather than a volume share was
+# measured and reverted. The units argument behind it is correct as far as it
+# goes -- a share already contains playing time, ``_role_prior`` consumes this
+# as a per-snap rate, and the softmax multiplies by exposure again -- but the
+# rate fit has to condition on 50+ snaps to get a rate worth fitting, so it
+# describes rookies who earned a role and is then applied to every rookie.
+# Flattening moved undrafted players from 22% to 55% of all cold prior mass and
+# the gate rejected it on every fold of every volume stream (target MAE +5.55%,
+# carry +2.94%, pass +1.92%). Held out on 2024 it turned a cold target bias of
+# -1.5% into +53.1% and doubled cold MAE. The steepness here is not only
+# pricing per-snap usage; it is also pricing whether draft capital converts
+# into a role at all, which projected exposure does not fully carry. See
+# docs/target-competition-2026-09.md.
 
 # A pick this late stands in for undrafted, matching the previous behaviour.
 _UNDRAFTED_PICK = 220.0

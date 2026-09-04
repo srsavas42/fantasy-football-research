@@ -201,6 +201,51 @@ The next architecture challenger is documented in
 leakage-safe player-season state is sampled jointly into role/volume and
 efficiency, with role-only and efficiency-only ablations first.
 
+### Kickers and team defenses
+
+The weekly layer covers all six startable slots. K and DST get their own panel
+rather than a position dummy on the skill panel, because opportunity share --
+targets, carries, snaps -- means nothing for either; they share the row schema,
+the walk-forward and the estimator protocol, so all six positions concatenate
+into one table of comparable points.
+
+```python
+from ffmodel.weekly.specialists import (
+    add_defense_features, add_kicker_features, attach_market,
+    build_defense_panel, build_kicker_panel, kicker_ladder,
+)
+from ffmodel.weekly.weather import attach_weather
+
+kickers = add_kicker_features(attach_weather(attach_market(build_kicker_panel(range(2016, 2026)))))
+```
+
+Scoring is ESPN-style and configurable in `config.KickerRules` /
+`config.DefenseRules` -- distance-tiered field goals read straight from
+nflverse's per-bucket columns, and the points-allowed step function. Both
+reproduce the real 2024 leaderboards.
+
+Against a persistence baseline, walk-forward over 2023/2024/2025: kickers −2.6%
+CRPS, defenses −4.4%. The defense result is the interesting one -- **a defense's
+own box-score history adds nothing** over its own recent fantasy points, while
+the opponent plus the closing line is worth −4.4% and nearly triples
+within-position ordering. A DST projection is mostly a projection of the
+opponent, because the points-allowed half of the response is a step function of
+the other side's final score.
+
+Rest of season for both promotes the direct regression over the latent-player
+simulator; see the document for the diagnosis of the simulator's bias.
+
+### Weather
+
+`roof`, `temp` and `wind` are joined by `ffmodel.weekly.weather` and measured
+rather than assumed. On skill positions they are a **null** -- and the test was
+generous, using the conditions recorded at the game rather than a forecast, so it
+measures the ceiling a perfect forecast would reach. On kickers the readings are
+worth −0.45% CRPS (the roof alone is a tie), which clears the materiality floor
+on 2 folds of 3 and is not promoted pending a forecast join through
+`ffmodel.data.weather`. See
+[specialists & weather](docs/specialists-and-weather-2026-09.md).
+
 ### Data acquisition
 
 The provider-aware data CLI caches parquet plus provenance manifests and keeps
@@ -268,8 +313,8 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | |
-| 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)) |
+| 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 
 # Fantasy Football Data Sets

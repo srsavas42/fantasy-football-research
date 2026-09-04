@@ -202,6 +202,41 @@ def load_weekly(
     return conform(df)
 
 
+def load_kicking(
+    seasons: Iterable[int],
+    refresh: bool = False,
+    cache_dir: Path | None = None,
+    *,
+    season_type: str = "REG",
+) -> pd.DataFrame:
+    """Kicker-week lines, **unconformed**.
+
+    :func:`load_weekly` maps the feed onto the canonical player-week schema,
+    and that schema has no room for a field goal: every kicking column is
+    dropped on the way through. Kickers therefore read the same cached parquet
+    directly, keeping the distance buckets (``fg_made_0_19`` through
+    ``fg_made_60_``) that make a kicker projection worth doing at all.
+
+    No conform step, so the caller gets nflverse column names as published.
+    """
+    if season_type not in {"REG", "POST"}:
+        raise ValueError("season_type must be 'REG' or 'POST'")
+    raw = _by_season(
+        "player_stats",
+        seasons,
+        params={"summary_level": "week"},
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+    if raw.empty:
+        return raw
+    if "season_type" in raw.columns:
+        raw = raw[raw["season_type"] == season_type]
+    if "position" in raw.columns:
+        raw = raw[raw["position"].astype(str) == "K"]
+    return raw.reset_index(drop=True)
+
+
 def load_pbp(seasons: Iterable[int], refresh: bool = False, cache_dir=None) -> pd.DataFrame:
     """Play-by-play data (large; cached one parquet per season)."""
     return _by_season("pbp", seasons, refresh=refresh, cache_dir=cache_dir)

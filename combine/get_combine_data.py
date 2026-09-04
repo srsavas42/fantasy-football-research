@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup as BS
 import os
-import pandas as pd; pd.set_option('display.max_columns', None);
+import pandas as pd; pd.set_option('display.max_columns', None)
 
 ENDPOINT = "https://www.pro-football-reference.com/play-index/nfl-combine-results.cgi?request=1&year_min={year}&year_max={year}&height_min=65&height_max=82&weight_min=140&weight_max=400&pos%5B%5D={position}&show=p&order_by=year_id"
 

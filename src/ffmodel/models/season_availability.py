@@ -22,10 +22,39 @@ from ffmodel.models.base import (
     sample_model,
     simplex_shares,
 )
+from ffmodel.models.design import (
+    collinearity_projection,
+    project,
+    standardize,
+    varying_features,
+)
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
 PLAYER_KEYS = GROUP_KEYS + ["player_key"]
+
+# The reserve flag split into the populations it pools. On 2021-2025 week-1
+# placements injured reserve costs 16.2 games, PUP 13.5 and NFI 15.8, and
+# injured reserve supplies 266 of the 683 pooled rows, so one shared coefficient
+# was fitted mostly on injured reserve and then applied to everyone.
+# ``roster_reserve`` stays in the base set and these are the deviations from it.
+#
+# Promoted 2026-09-01 on holdouts 2023/2024/2025: availability CRPS -1.12% and
+# MAE -1.46% overall, three folds of three. Nearly all of it is injured reserve,
+# where CRPS falls 9.24% and MAE 18.38%, also three of three, with coverage
+# moving from 0.993 toward nominal at 0.970. See reports/pup.json and
+# scripts/validate_pup_availability.py.
+#
+# One documented exception: on the PUP/NFI population alone the split costs MAE
+# +3.57% and wins one fold of three on CRPS. That population is eleven rows a
+# season, so it is noise as much as signal, and the mandatory-minimum floor
+# recovers it to CRPS -4.81% on three folds -- but it is the one place the split
+# does not obviously help.
+RESERVE_KIND_FEATURES = (
+    "roster_injured_reserve",
+    "roster_pup",
+    "roster_nfi",
+)
 
 AVAILABILITY_FEATURES = (
     "prior_availability",
@@ -39,6 +68,26 @@ AVAILABILITY_FEATURES = (
     "qb_listed_starter",
     "is_replacement_player",
 )
+
+# A player's own availability history, beyond the single season the layer has
+# always read.
+#
+# ``features/season_pathways.py`` has built this for every row since the
+# pathway work: a career exponentially-weighted mean at alpha 0.50, grouped by
+# ``player_key`` so it follows a trade, over inputs that are already lagged.
+# ``build_season_average_data`` attaches it to every frame. Nothing read it.
+#
+# One lagged season is a poor estimate of a durability trait -- pooled
+# year-over-year availability correlation is 0.365 -- and averaging three is a
+# better one. Measured by ``scripts/measure_history_depth.py`` on a 2018-2024
+# build: held-out availability MAE 0.25836 -> 0.25271, **-2.19% on five folds of
+# five**, against the package's 0.25% materiality floor.
+#
+# The trend term is deliberately not here. It exists (``prior_availability_trend``)
+# but it needs two *consecutive* prior seasons and is missing on roughly half the
+# rows, and a half-missing feature in a design that median-fills is a different
+# and larger change than adding a mean.
+AVAILABILITY_HISTORY_FEATURES = ("prior_availability_3yr",)
 
 STARTER_FEATURES = (
     "prior_availability",
@@ -113,6 +162,10 @@ def _feature_defaults(rows: pd.DataFrame) -> pd.DataFrame:
         "cold_start": 1.0,
         "roster_active": 1.0,
         "roster_reserve": 0.0,
+        "roster_injured_reserve": 0.0,
+        "roster_pup": 0.0,
+        "roster_nfi": 0.0,
+        "mandatory_missed_games": 0.0,
         "depth_rank": np.nan,
         "qb_depth_rank": np.nan,
         "qb_listed_starter": 0.0,
@@ -126,6 +179,70 @@ def _feature_defaults(rows: pd.DataFrame) -> pd.DataFrame:
         if name not in out:
             out[name] = value
     return out
+
+
+def _eligible_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
+    """Team games less any games a known suspension already removes.
+
+    A ban whose length was announced before the season is not a hazard to be
+    sampled -- the games are gone with certainty -- so it is subtracted from the
+    exposure the hurdle draws against rather than fed to the regression as a
+    covariate. The denominator is deliberately *not* changed with it: the share
+    layers divide by ``team_games`` to get per-team-game role intensities, and a
+    suspended player is the same player per game he plays. Shrinking both would
+    hold his season totals flat, which is the opposite of the intended effect.
+
+    Defaults to zero, so a frame without the column reproduces the pre-existing
+    behaviour exactly.
+    """
+    suspended = pd.to_numeric(
+        rows.get("suspended_games", pd.Series(0.0, index=rows.index)),
+        errors="coerce",
+    ).fillna(0.0).to_numpy(dtype=float)
+    if (suspended < 0).any():
+        raise ValueError("suspended_games must be nonnegative")
+    return np.clip(team_games - np.rint(suspended).astype(int), 0, None)
+
+
+def _playable_games(rows: pd.DataFrame, team_games: np.ndarray) -> np.ndarray:
+    """Upper bound on games a mandatory reserve minimum still allows.
+
+    PUP and non-football-injury placements that survive to week 1 carry a fixed
+    minimum absence -- four games from 2022, six before -- so a draw giving such
+    a player sixteen games is describing something the rules forbid.
+
+    This is a *cap*, not a subtraction, and the difference matters. A suspension
+    sits on top of ordinary injury risk, so it comes off the exposure. A PUP
+    placement is already why the player is flagged reserve, and the availability
+    regression has learned from every past PUP player how much football that
+    costs -- a median of nine games. Subtracting four more would charge him
+    twice for one injury. Truncating removes only the mass the rule forbids and
+    leaves the fitted mean, which on 2021-2025 is within 0.6 games of right,
+    alone.
+
+    The two absences are *sequential*, not overlapping. A player has to be on
+    the active roster to serve a suspension, so weeks spent on PUP or the
+    non-football-injury list do not count toward it -- the ban waits until he is
+    healthy. Mike Woods in 2023 is the pattern in the feed: eleven weeks on NFI,
+    then a six-game ban in weeks 12-18, seventeen games gone rather than the
+    eleven an overlapping reading would give. So the cap subtracts both.
+
+    Defaults to no cap, so a frame without the columns is unchanged.
+    """
+    mandatory = pd.to_numeric(
+        rows.get("mandatory_missed_games", pd.Series(0.0, index=rows.index)),
+        errors="coerce",
+    ).fillna(0.0).to_numpy(dtype=float)
+    if (mandatory < 0).any():
+        raise ValueError("mandatory_missed_games must be nonnegative")
+    suspended = pd.to_numeric(
+        rows.get("suspended_games", pd.Series(0.0, index=rows.index)),
+        errors="coerce",
+    ).fillna(0.0).to_numpy(dtype=float)
+    if (suspended < 0).any():
+        raise ValueError("suspended_games must be nonnegative")
+    unavailable = np.rint(mandatory).astype(int) + np.rint(suspended).astype(int)
+    return np.clip(team_games - unavailable, 0, None)
 
 
 @dataclass
@@ -214,50 +331,20 @@ class SeasonAvailabilityModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
-            candidates = tuple(
-                dict.fromkeys((*AVAILABILITY_FEATURES, *self.extra_features))
+            self.feature_names = varying_features(
+                rows, AVAILABILITY_FEATURES, self.extra_features
             )
-            self.feature_names = [
-                name
-                for name in candidates
-                if name in rows
-                and pd.to_numeric(rows[name], errors="coerce").notna().any()
-                and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
-                > 1e-8
-            ]
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                scale = float(filled.std(ddof=0))
-                self.feature_fill[name] = fill
-                self.feature_mean[name] = float(filled.mean())
-                self.feature_scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.feature_fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        matrix = (
-            np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+        matrix = standardize(
+            rows,
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+            fit=fit,
         )
         if fit:
-            if matrix.shape[1]:
-                _, singular_values, right = np.linalg.svd(matrix, full_matrices=False)
-                tolerance = (
-                    max(matrix.shape)
-                    * np.finfo(float).eps
-                    * singular_values.max(initial=0.0)
-                )
-                rank = int((singular_values > tolerance).sum())
-                self.feature_projection = right[:rank].T
-            else:
-                self.feature_projection = np.zeros((0, 0), dtype=float)
-        if self.feature_projection is None:
-            return matrix
-        return matrix @ np.asarray(self.feature_projection, dtype=float)
+            self.feature_projection = collinearity_projection(matrix)
+        return project(matrix, self.feature_projection)
 
     def _slopes(self, pm, name: str, prior: float, features: int):
         """One shared slope vector, or one per position drawn around a shared mean.
@@ -397,7 +484,8 @@ class SeasonAvailabilityModel:
                 team_games = np.asarray(team_games, dtype=int)
             if team_games.shape != (len(out),) or (team_games <= 0).any():
                 raise ValueError("team_games must be positive for every player")
-            games_active = rng.binomial(team_games[:, None], probability)
+            eligible = _eligible_games(out, team_games)
+            games_active = rng.binomial(eligible[:, None], probability)
             availability = games_active / team_games[:, None]
             return AvailabilityPrediction(
                 rows=out,
@@ -442,15 +530,22 @@ class SeasonAvailabilityModel:
             team_games = np.asarray(team_games, dtype=int)
         if team_games.shape != (len(out),) or (team_games <= 0).any():
             raise ValueError("team_games must be positive for every player")
-        played = rng.binomial(1, any_probability)
+        eligible = _eligible_games(out, team_games)
+        # A ban covering the whole season leaves no game for the hurdle to
+        # clear, so the "plays at all" draw is forced to zero rather than left
+        # to grant him the guaranteed first appearance the hurdle assumes.
+        played = rng.binomial(1, any_probability) * (eligible > 0)[:, None]
         remaining_games = rng.binomial(
-            np.maximum(team_games - 1, 0)[:, None], conditional_probability
+            np.maximum(eligible - 1, 0)[:, None], conditional_probability
         )
         games_active = played * (1 + remaining_games)
         expected_games = any_probability * (
             1.0
-            + np.maximum(team_games - 1, 0)[:, None] * conditional_probability
-        )
+            + np.maximum(eligible - 1, 0)[:, None] * conditional_probability
+        ) * (eligible > 0)[:, None]
+        playable = _playable_games(out, team_games)
+        games_active = np.minimum(games_active, playable[:, None])
+        expected_games = np.minimum(expected_games, playable[:, None].astype(float))
         probability = expected_games / team_games[:, None]
         availability = games_active / team_games[:, None]
         return AvailabilityPrediction(
@@ -549,6 +644,11 @@ class QBWorkloadShareModel:
     couple_gate_to_availability: bool = True
     hurdle_availability_mean: float = 0.0
     hurdle_availability_scale: float = 1.0
+    # Allocate week by week rather than multiplying by season-average
+    # availability and renormalising once. Opt-in and off by default; see
+    # ``volume_season_average._per_game_shares``.
+    per_game_allocation: bool = False
+    allocation_games: int = 17
     idata: object = None
 
     def _prepare_all(self, rows: pd.DataFrame) -> pd.DataFrame:
@@ -563,30 +663,17 @@ class QBWorkloadShareModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
-            self.feature_names = [
-                name
-                for name in tuple(dict.fromkeys((*QB_WORKLOAD_FEATURES, *self.extra_features)))
-                if name in rows
-                and pd.to_numeric(rows[name], errors="coerce").notna().any()
-                and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
-                > 1e-8
-            ]
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                scale = float(filled.std(ddof=0))
-                self.feature_fill[name] = fill
-                self.feature_mean[name] = float(filled.mean())
-                self.feature_scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.feature_fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
+            self.feature_names = varying_features(
+                rows, QB_WORKLOAD_FEATURES, self.extra_features
             )
-        return np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+        return standardize(
+            rows,
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+            fit=fit,
+        )
 
     @staticmethod
     def _role_prior(rows: pd.DataFrame) -> np.ndarray:
@@ -927,8 +1014,10 @@ class QBWorkloadShareModel:
                 active = design["mask"][group_i].astype(bool)
                 indices = design["full_index"][group_i, active]
                 availability[group_i, active] = availability_samples[indices]
-            log_availability = np.log(np.clip(availability, 0.03, 1.0))
-            eta = eta + log_availability
+            clipped_availability = np.clip(availability, 0.03, 1.0)
+            log_availability = np.log(clipped_availability)
+            if not self.per_game_allocation:
+                eta = eta + log_availability
         eta = eta + np.einsum("gkf,fs->gks", design["X"], beta)
         rng = np.random.default_rng(seed)
         innovation = rng.normal(size=eta.shape) * self.role_innovation_scale
@@ -937,7 +1026,21 @@ class QBWorkloadShareModel:
         if gate is not None:
             live = live & gate
         live = np.ascontiguousarray(live)
-        if self.mean_preserving_innovation:
+        if self.per_game_allocation and log_availability is not None:
+            # The most concentrated room in the pipeline, so the room the
+            # season-average softmax is most wrong about: a starter at 92% of
+            # his room is handed back roughly 1.7x what a spell out should cost
+            # him. See ``_per_game_shares``.
+            from ffmodel.models.volume_season_average import _per_game_shares
+
+            probability = _per_game_shares(
+                eta + innovation,
+                live,
+                clipped_availability,
+                games=int(self.allocation_games),
+                seed=seed + 991,
+            )
+        elif self.mean_preserving_innovation:
             probability = mean_preserving_shares(eta, eta + innovation, live)
         else:
             probability = simplex_shares(eta + innovation, live)
@@ -975,30 +1078,15 @@ class QBStarterModel:
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         if fit:
-            self.feature_names = [
-                name
-                for name in STARTER_FEATURES
-                if name in rows
-                and pd.to_numeric(rows[name], errors="coerce").notna().any()
-                and pd.to_numeric(rows[name], errors="coerce").fillna(0).std(ddof=0)
-                > 1e-8
-            ]
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                scale = float(filled.std(ddof=0))
-                self.feature_fill[name] = fill
-                self.feature_mean[name] = float(filled.mean())
-                self.feature_scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.feature_fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        return np.column_stack(columns) if columns else np.zeros((len(rows), 0))
+            self.feature_names = varying_features(rows, STARTER_FEATURES)
+        return standardize(
+            rows,
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+            fit=fit,
+        )
 
     @staticmethod
     def _role_prior(rows: pd.DataFrame) -> np.ndarray:

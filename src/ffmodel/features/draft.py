@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from pathlib import Path
 
 import pandas as pd
 
@@ -67,6 +66,20 @@ ROOKIE_CLAIM_CURVES: dict[tuple[str, str], tuple[float, float]] = {
     ("TE", "carry"): (0.0, _HAND_SET_SCALE),  # retained
     ("TE", "pass"): (0.0, _HAND_SET_SCALE),  # retained
 }
+
+# A 2026-09 refit against a per-snap *rate* rather than a volume share was
+# measured and reverted. The units argument behind it is correct as far as it
+# goes -- a share already contains playing time, ``_role_prior`` consumes this
+# as a per-snap rate, and the softmax multiplies by exposure again -- but the
+# rate fit has to condition on 50+ snaps to get a rate worth fitting, so it
+# describes rookies who earned a role and is then applied to every rookie.
+# Flattening moved undrafted players from 22% to 55% of all cold prior mass and
+# the gate rejected it on every fold of every volume stream (target MAE +5.55%,
+# carry +2.94%, pass +1.92%). Held out on 2024 it turned a cold target bias of
+# -1.5% into +53.1% and doubled cold MAE. The steepness here is not only
+# pricing per-snap usage; it is also pricing whether draft capital converts
+# into a role at all, which projected exposure does not fully carry. See
+# docs/target-competition-2026-09.md.
 
 # A pick this late stands in for undrafted, matching the previous behaviour.
 _UNDRAFTED_PICK = 220.0

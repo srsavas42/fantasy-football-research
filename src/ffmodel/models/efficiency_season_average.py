@@ -25,6 +25,7 @@ from ffmodel.models.base import (
     sampling_quality,
     save_idata,
 )
+from ffmodel.models.design import collinearity_projection, project
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 
@@ -66,6 +67,11 @@ EFFICIENCY_MODEL_SPECS = (
             "prior_pass_air_yards_per_attempt",
             "prior_pass_yac_per_completion",
             "prior_pass_first_down_rate",
+            # -2.14% MAE and -1.75% CRPS, three folds of three. Held on a small
+            # population -- roughly 49 quarterbacks a holdout -- so it is the
+            # weaker of the two career promotions, and the fold record rather
+            # than the size of the number is what carries it.
+            "prior_pass_completion_rate_career",
         ),
         likelihood="beta_binomial",
         numerator="eff_pass_cmp",
@@ -101,7 +107,18 @@ EFFICIENCY_MODEL_SPECS = (
         0.0,
         1.0,
         50,
-        ("prior_pass_epa_per_attempt", "prior_pass_first_down_rate"),
+        (
+            "prior_pass_epa_per_attempt",
+            "prior_pass_first_down_rate",
+            # A separate persistence slope for the quarterbacks a draft is
+            # about. -2.55% MAE and -2.62% CRPS overall and -1.42% and -2.08% on
+            # the drafted population, three folds of three on both -- the only
+            # response where the tier interaction cleared the drafted population
+            # as well as the pooled one. The indicator carries the level so the
+            # interaction is left carrying only the slope.
+            "prior_pass_td_rate_x_drafted",
+            "adp_drafted",
+        ),
         likelihood="beta_binomial",
         numerator="eff_pass_td",
         prior_concentration=200.0,
@@ -195,7 +212,22 @@ EFFICIENCY_MODEL_SPECS = (
         -2.0,
         15.0,
         20,
-        ("prior_rush_epa_per_carry", "prior_rush_first_down_rate"),
+        (
+            "prior_rush_epa_per_carry",
+            "prior_rush_first_down_rate",
+            # The situation the carries came from, not just how they went.
+            # -1.12% MAE and -1.03% CRPS on 2023/2024/2025, three folds of
+            # three, and -5.60% on the quartile of backs who actually run in
+            # short yardage against +0.46% on the quartile who do not.
+            "prior_rush_short_yardage_share",
+            # The player's own history rather than only last season. -2.99% MAE
+            # and -2.77% CRPS, three folds of three -- the largest efficiency
+            # gain in this line of work, on the response a one-season ceiling
+            # analysis had called nearly exhausted. It is not a contradiction:
+            # that ceiling bounds what a covariate can add *given* a one-season
+            # prior, and a better prior moves the ceiling itself.
+            "prior_rush_yards_per_carry_career",
+        ),
         numerator="eff_rush_yds",
     ),
     EfficiencyModelSpec(
@@ -214,9 +246,17 @@ EFFICIENCY_MODEL_SPECS = (
         numerator="eff_rush_td",
         prior_concentration=120.0,
     ),
+    # Fumbles committed, not fumbles lost. Recovery is close to a coin flip
+    # (49.8% lost league-wide, 2014-2025) and does not repeat for a player
+    # (lost-given-fumbled persists at r = +0.094, p = 0.10), so the lost rate is
+    # the committed rate plus a season of noise. Fitting through the noise costs
+    # signal: the committed rate persists at r2 1.95% against the lost rate's
+    # 0.59%, and predicts next season's lost rate better (0.89%) than the lost
+    # rate predicts itself (0.59%). The scoring layer thins this back to lost
+    # fumbles with a league share fitted on training seasons.
     EfficiencyModelSpec(
-        "fumble_lost_rate",
-        "prior_fumble_lost_rate",
+        "fumble_rate",
+        "prior_fumble_rate",
         "fumble_opportunities",
         "prior_fumble_opportunities",
         "oof_fumble_opportunities_per_team_game",
@@ -227,7 +267,7 @@ EFFICIENCY_MODEL_SPECS = (
         20,
         (),
         likelihood="beta_binomial",
-        numerator="eff_fumbles_lost",
+        numerator="eff_fumbles",
         prior_concentration=250.0,
     ),
 )
@@ -260,7 +300,50 @@ BASE_EFFICIENCY_FEATURES = (
 # Rushing is left out on purpose: the mechanism by which a passer changes yards
 # per carry is indirect at best, and testing where there is no story to tell is
 # how a feature earns a fold win by chance.
-TEAMMATE_QUALITY_TARGETS = ("rec_catch_rate", "rec_yards_per_target", "rec_td_rate")
+# Responses allowed to read the projected starting quarterback's prior passing
+# quality. The three receiving rates were the original set; rush_td_rate was
+# added after scripts/screen_qb_context_rb.py measured it, and it is the
+# strongest of the four.
+#
+# That screen went looking for the "a back is worse without his quarterback"
+# effect and found it in exactly one place. Partial correlation with the
+# response, controlling for the player's own lagged rate:
+#
+#   RB carry share            -0.024   (p=0.42)   nothing
+#   RB target share           -0.003   (p=0.94)   nothing
+#   RB rush_yards_per_carry   +0.065   (p=0.12)   nothing
+#   RB rush_td_rate           +0.171   (p=3.8e-05)
+#   RB rec_yards_per_target   +0.149   (p=1.4e-03)  <- the promoted effect,
+#                                                      as a positive control
+#
+# So the quarterback does not move a back's *workload* at all, and does not move
+# his yards per carry. What he moves is the rate at which carries become
+# touchdowns, which is a red-zone story: a better passer reaches the goal line
+# more often and the back gets the carries there. rush_td_rate reads only
+# prior_rush_epa_per_carry and prior_rush_first_down_rate, neither of which
+# carries offensive context, so this is new information rather than a
+# re-transform of something already in the design. The signal is flat at +0.17
+# across three control sets, including the spec's own covariates and the back's
+# own prior_rush_short_yardage_share -- it is not his goal-line role in
+# disguise.
+TEAMMATE_QUALITY_TARGETS = (
+    "rec_catch_rate",
+    "rec_yards_per_target",
+    "rec_td_rate",
+    "rush_td_rate",
+)
+
+# Reserve status on the one efficiency response that was measured to want it.
+#
+# Deliberately not the three receiving responses. rec_yards_per_target is what
+# the walk-forward scored: MAE -0.37% and CRPS -0.26% overall and -2.48% and
+# -1.85% on the reserve population, three holdouts of three. rec_catch_rate
+# admits no covariates at all -- its mean mode returns an empty design, so every
+# arm on it produced byte-identical numbers -- and rec_td_rate was never scored.
+# Extending an accepted result to responses it was not measured on is how a
+# promotion quietly becomes three unvalidated arms.
+RESERVE_EFFICIENCY_TARGETS = ("rec_yards_per_target",)
+RESERVE_EFFICIENCY_FEATURES = ("roster_reserve",)
 
 # Production mean gate after the 2022-2024 posterior screen. The posterior
 # challenger improved receiving yards/target by 1.22% with two fold wins. Every
@@ -272,12 +355,157 @@ POSTERIOR_MEAN_MODE = {
     "pass_yards_per_attempt": "ridge",
     "pass_td_rate": "ridge",
     "pass_int_rate": "ridge",
-    "rec_catch_rate": "prior",
+    "rec_catch_rate": "posterior",
     "rec_yards_per_target": "posterior",
     "rec_td_rate": "prior",
     "rush_yards_per_carry": "ridge",
-    "rush_td_rate": "prior",
-    "fumble_lost_rate": "prior",
+    "rush_td_rate": "posterior",
+    "fumble_rate": "prior",
+}
+
+# The ``prior`` responses, with the one thing the mean gate never offered them.
+#
+# ``prior`` mode is an identity map: ``_prior_signal`` links the lagged feature
+# and subtracts a centre, ``_prior_mean`` re-adds that centre and inverts the
+# link, so the conditional mean handed to the simulator *is*
+# ``prior_<response>`` exactly. Its implied persistence coefficient on the
+# shrunk feature is 1.000, and the whole of the layer's regression to the mean
+# is therefore the pseudo-count ``K`` in ``EFFICIENCY_SPECS``.
+#
+# Measured by ``scripts/measure_efficiency_reversion.py`` over nflverse
+# 1999-2025, walk-forward, scored in touchdowns at realized next-season
+# exposure so the volume layer is held out of it:
+#
+#   response          K     effective persistence   slope the data wants   held-out MAE
+#   rec_td_rate       120           0.413                   0.591          -3.15%, 12/15
+#   rush_td_rate      120           0.572                   0.441          -5.42%, 12/18
+#   rec_catch_rate     40           0.671                   0.795          -2.38%, 13/15
+#
+# The error is a location bias that changes sign across the distribution, which
+# is why a pooled metric could not see it: by quintile of the lagged feature,
+# the top fifth is projected +5.1 PPR points high at receiver and +8.0 at
+# running back, the bottom fifth the same distance low, with the sign flipping
+# at the median on 15 and 18 folds.
+#
+# The efficiency-v2 gate is not evidence against this. Its challenger was the
+# full posterior regression -- fitted persistence *plus* the base-feature block,
+# the advanced-efficiency block and the projected-volume covariate, all admitted
+# at once on roughly 2,000 rows -- and it lost 0/3 folds on receiving touchdown
+# rate. There was no mode between "use the feature raw" and "regress on
+# everything". This is that mode: an intercept, sum-to-zero position offsets,
+# and a slope. Position offsets are not optional -- the shrinkage pools toward a
+# season-and-position mean, so a single shared intercept would pull three
+# positions with genuinely different touchdown rates toward one grand mean.
+#
+# It is a strict generalisation of ``prior``: slope 1, intercept at the prior
+# centre and zero position offsets reproduce today's behaviour exactly, so the
+# arm cannot lose by more than sampling noise.
+#
+# ``fumble_lost_rate`` stays on ``prior``. It is 0.05% of points variance and
+# was not measured; there is no reason to widen the surface for it.
+#
+# Validated by ``scripts/validate_persistence_mean.py`` -- both arms the real
+# model on the 2015-2025 frame, holding out 2022/2023/2024, 600 draws, four
+# chains, zero divergences and max R-hat 1.01 throughout:
+#
+#   response          fitted slope    MAE            CRPS
+#   rec_catch_rate    0.537-0.545     -1.00%  3/3    -1.45%  3/3
+#   rush_td_rate      0.327-0.361     -2.48%  2/3    -0.26%  1/3
+#   rec_td_rate       0.310-0.342     -1.10%  2/3    +2.00%  1/3
+#
+# The finding holds everywhere: the fitted slope excludes 1.000 on every fold of
+# every response, so the layer was asserting a persistence the data does not
+# support. The *remedy* only half works, and the reason is visible in the
+# likelihood. A Beta-Binomial has one location and one dispersion. With the mean
+# pinned to an identity map that is wrong at the tails, the only free parameter
+# left to explain the residual is the concentration, so it is fitted small and
+# the predictive comes out wide. Fit the mean, the residual shrinks, the
+# concentration is fitted larger, and the predictive narrows -- correct for a
+# model whose only spread is Beta-Binomial noise, wrong here, because much of
+# the real season-to-season spread in touchdown rate is player-season
+# heterogeneity that no covariate in this arm explains. Sharpening the location
+# leaves nothing holding that variance open, and CRPS charges for it.
+#
+# CRPS was first reported against the *latent* rate draws, and that is the wrong
+# target. The response is an observed season rate and carries binomial sampling
+# noise at the player's exposure; the latent draws do not. Scoring one against
+# the other penalises whichever arm has the tighter latent distribution -- and
+# fitting the mean is exactly what tightens it, so the better arm took the
+# larger penalty. Re-scored against the posterior predictive at realized
+# exposure, on the same fits:
+#
+#   response          CRPS vs latent draws    CRPS vs posterior predictive
+#   rec_catch_rate    -1.45%  3/3             -2.08%  3/3
+#   rush_td_rate      -0.26%  1/3             -2.31%  3/3
+#   rec_td_rate       +2.00%  1/3             -0.31%  1/3
+#
+# Nothing regresses on the correct target. Two responses improve materially and
+# unanimously; ``rec_td_rate`` is immaterial either way but no longer negative,
+# and it clears the efficiency-v2 mean gate on MAE (-1.10%, two folds of three).
+# All three are promoted.
+#
+# 80% coverage of the predictive, against a nominal 0.80: catch rate 0.870 ->
+# 0.872, rushing TD 0.918 -> 0.918, receiving TD 0.899 -> 0.908. The layer
+# over-covers, in the base arm as much as the challenger, and this change does
+# not move it. That reproduces the efficiency-v2 table (0.899 and 0.917) closely
+# enough to be a useful check on the harness.
+# Two of the three came back off persistence. Measured by
+# ``scripts/validate_catch_rate_covariates.py`` on holdouts 2023/2024/2025, 600
+# draws and four chains, zero divergences, scored against the posterior
+# predictive at realized exposure on each spec's eligible population:
+#
+#   response          MAE            CRPS           cov80
+#   rec_catch_rate    -1.53%  3/3    -1.10%  3/3    0.839 -> 0.844
+#   rush_td_rate      -1.13%  3/3    -1.24%  3/3    0.900 -> 0.906
+#
+# This does not overturn the reasoning above; it narrows it. The claim that the
+# layer was asserting a persistence the data does not support still stands, and
+# ``persistence`` mode is still better than ``prior``. What the note above got
+# wrong was the scope of the efficiency-v2 evidence: the full posterior
+# regression lost 0/3 folds on *receiving touchdown rate*, and that one result
+# was generalized to all three responses. It does not transfer. rec_td_rate is
+# the response with no covariate that correlates with it at all -- a situational
+# screen over target depth, air-yards spread, screen share and end-zone share
+# found nothing beyond the prior -- so an empty design costs it nothing, and it
+# stays here. The other two have covariates their own specs already name and
+# were discarding: aDOT for catch rate, prior EPA and first-down rate for
+# rushing touchdowns.
+#
+# Against the obvious story: the catch-rate gain is *not* concentrated on deep
+# receivers. The top aDOT quartile improves 3/3 folds but by -1.09% MAE, about
+# what the whole population gets, so this is a response wanting a fitted
+# covariate design rather than deep threats having been mispredicted in
+# particular.
+#
+# ``fumble_lost_rate`` stays on ``prior`` for the reason given above, unmeasured
+# and immaterial.
+# Share of committed fumbles that are lost, league-wide over 2014-2025. Used as
+# the prior and the fallback when a training frame carries no fumbles to count.
+LEAGUE_FUMBLE_LOST_SHARE = 0.498
+
+
+def _fumble_lost_share(rows: pd.DataFrame) -> float:
+    """Lost fumbles over committed fumbles, on whatever rows are handed in.
+
+    Membership is checked on the columns rather than on the result of
+    ``to_numeric``: ``rows.get`` on an absent column returns ``None``, and
+    ``pd.to_numeric(None)`` is ``nan`` rather than ``None``, so an ``is None``
+    guard downstream of the conversion never fires and the fallback is never
+    reached.
+    """
+    if "eff_fumbles" not in rows or "eff_fumbles_lost" not in rows:
+        return LEAGUE_FUMBLE_LOST_SHARE
+    committed = pd.to_numeric(rows["eff_fumbles"], errors="coerce")
+    lost = pd.to_numeric(rows["eff_fumbles_lost"], errors="coerce")
+    total = float(np.nansum(committed.to_numpy(dtype=float)))
+    if not np.isfinite(total) or total <= 0:
+        return LEAGUE_FUMBLE_LOST_SHARE
+    share = float(np.nansum(lost.to_numpy(dtype=float))) / total
+    return float(np.clip(share, 0.0, 1.0))
+
+
+PERSISTENCE_MEAN_MODE = {
+    "rec_td_rate": "persistence",
 }
 
 
@@ -559,6 +787,9 @@ class PosteriorSeasonEfficiencyModel:
     use_volume: bool = True
     use_advanced: bool = True
     mean_mode: str | None = None
+    # Covariates on trial, appended to the response's own design. Opt-in and
+    # empty by default, so a model fitted without them is byte-identical.
+    extra_features: tuple[str, ...] = ()
     ridge_alpha: float = 500.0
     # Backward-compatible override for early efficiency-v2 checkpoints.
     prior_only: bool | None = None
@@ -582,14 +813,30 @@ class PosteriorSeasonEfficiencyModel:
             mode = "prior" if self.prior_only else "posterior"
         else:
             mode = POSTERIOR_MEAN_MODE[self.spec.target]
-        if mode not in {"prior", "ridge", "posterior"}:
+        if mode not in {"prior", "ridge", "posterior", "persistence"}:
             raise ValueError(f"unsupported posterior mean mode: {mode}")
         return mode
 
     def _uses_prior_only(self) -> bool:
         return self._mean_mode() == "prior"
 
+    def _fits_the_mean(self) -> bool:
+        """Whether the likelihood estimates the location as well as the spread.
+
+        ``prior`` and ``ridge`` hand the likelihood a fixed mean computed
+        outside it. ``posterior`` and ``persistence`` both build a linear
+        predictor the sampler fits; they differ only in whether the covariate
+        block is admitted, and ``_candidates`` is what decides that.
+        """
+        return self._mean_mode() in {"posterior", "persistence"}
+
     def _candidates(self) -> tuple[str, ...]:
+        # ``persistence`` is the shrunk prior with a fitted intercept, position
+        # offsets and a slope, and nothing else -- an empty design is the
+        # point of it, not an oversight. Its own exposure already entered
+        # through the ``den / (den + K)`` weight in the feature.
+        if self._mean_mode() == "persistence":
+            return ()
         names = [self.spec.prior_exposure]
         if self._mean_mode() == "posterior":
             names.extend(BASE_EFFICIENCY_FEATURES)
@@ -597,6 +844,7 @@ class PosteriorSeasonEfficiencyModel:
                 names.append(self.spec.volume_feature)
             if self.use_advanced:
                 names.extend(self.spec.advanced_features)
+            names.extend(self.extra_features)
         return tuple(dict.fromkeys(name for name in names if name))
 
     def _prior_signal(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
@@ -677,6 +925,29 @@ class PosteriorSeasonEfficiencyModel:
             else:
                 numerator = target * exposure
             valid &= numerator.notna() & np.isfinite(numerator)
+            # A numerator larger than its own exposure is not a rate, and it is
+            # not rare enough to ignore: 71 rows of 7,937 on the 2015-2025
+            # frame, in every season of the shipping window.
+            #
+            # The cause is a scope mismatch rather than bad source data.
+            # ``player_preseason_rows`` merges the efficiency labels on
+            # ``(season, player_key)`` while the frame is keyed by
+            # ``(season, team, player_key)``, so the numerator (``eff_*``) is
+            # the player's season total across every team he played for while
+            # the exposure stays team-scoped to his Week-1 roster snapshot. A
+            # mid-season move therefore pairs one team's targets with the whole
+            # season's receptions -- Shaun Draughn in 2015 arrives as 27
+            # receptions on 3 targets.
+            #
+            # ``fit`` clips success to exposure, so before this filter those
+            # rows trained as a rate of exactly 1.000: a fabricated label, not a
+            # dropped one. Excluding them is the conservative half of the fix
+            # and is obviously right on its own. The other half is larger and
+            # deliberately not done here: roughly 3.9% of rows (7.8% of
+            # team-changers) carry the same mismatch without tripping the
+            # inequality, and correcting those means changing the exposure the
+            # whole layer trains on, which needs its own gate.
+            valid &= numerator.le(exposure)
         replacement = pd.to_numeric(
             out.get("is_replacement_player", pd.Series(0, index=out.index)),
             errors="coerce",
@@ -731,20 +1002,8 @@ class PosteriorSeasonEfficiencyModel:
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
         matrix = self._raw_matrix(rows, fit=fit)
         if fit:
-            if matrix.shape[1]:
-                _, singular_values, right = np.linalg.svd(matrix, full_matrices=False)
-                tolerance = (
-                    max(matrix.shape)
-                    * np.finfo(float).eps
-                    * singular_values.max(initial=0.0)
-                )
-                rank = int((singular_values > tolerance).sum())
-                self.feature_projection = right[:rank].T
-            else:
-                self.feature_projection = np.zeros((0, 0), dtype=float)
-        if self.feature_projection is None:
-            return matrix
-        return matrix @ np.asarray(self.feature_projection, dtype=float)
+            self.feature_projection = collinearity_projection(matrix)
+        return project(matrix, self.feature_projection)
 
     def _volume_feature_column(self) -> int | None:
         """Return the raw-design column for the fitted volume covariate."""
@@ -834,7 +1093,7 @@ class PosteriorSeasonEfficiencyModel:
             raise ValueError(f"unsupported efficiency likelihood: {self.spec.likelihood}")
 
         with pm.Model() as model:
-            if mode != "posterior":
+            if not self._fits_the_mean():
                 # Preserve the point forecast that survived the walk-forward
                 # mean gate and estimate only the dispersion needed downstream.
                 mean = np.clip(
@@ -874,12 +1133,16 @@ class PosteriorSeasonEfficiencyModel:
                 prior_persistence = pm.Normal(
                     "prior_persistence", mu=0.80, sigma=0.25
                 )
-                beta = pm.Normal("beta", 0.0, 0.30, shape=X.shape[1])
-                eta = (
-                    intercept
-                    + prior_persistence * prior_signal
-                    + pm.math.dot(X, beta)
-                )
+                eta = intercept + prior_persistence * prior_signal
+                # ``persistence`` mode has no covariates by construction, and a
+                # zero-length Normal is not a random variable the sampler can
+                # be asked for. Guarding here rather than materialising an
+                # empty ``beta`` also keeps it out of the posterior, so
+                # ``diagnostics`` does not look for a variable that is not
+                # there.
+                if X.shape[1]:
+                    beta = pm.Normal("beta", 0.0, 0.30, shape=X.shape[1])
+                    eta = eta + pm.math.dot(X, beta)
                 if len(self.spec.positions) > 1:
                     raw = pm.Normal(
                         "position_effect_raw",
@@ -976,16 +1239,12 @@ class PosteriorSeasonEfficiencyModel:
         if "position" not in out:
             raise ValueError("efficiency rows are missing position")
         raw_X = self._raw_matrix(out)
-        X = (
-            raw_X
-            if self.feature_projection is None
-            else raw_X @ np.asarray(self.feature_projection, dtype=float)
-        )
+        X = project(raw_X, self.feature_projection)
         posterior = self.idata.posterior
         available = int(posterior.sizes["chain"] * posterior.sizes["draw"])
         draws = available if draws is None else int(draws)
         indices = _sample_indices(available, draws, seed)
-        if self._mean_mode() != "posterior":
+        if not self._fits_the_mean():
             if (
                 self._mean_mode() == "ridge"
                 and volume_feature_samples is not None
@@ -1019,6 +1278,9 @@ class PosteriorSeasonEfficiencyModel:
                             f"{self.spec.target} volume-feature draws must align "
                             "to requested posterior draws"
                         )
+                    # Pulls the coefficients back to raw-design space, which is
+                    # the space _volume_feature_column indexes. Not `project`:
+                    # that rotates a design forward, this is the transpose.
                     effective_beta = (
                         beta
                         if self.feature_projection is None
@@ -1142,6 +1404,30 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     # everywhere. Taking the per-fold winner instead would be fitting the noise
     # this procedure exists to avoid.
     exposure_floor: int | None = 5
+    # Give the ``prior``-mode responses a fitted intercept, position offsets and
+    # a persistence slope instead of asserting a slope of 1.000. See
+    # ``PERSISTENCE_MEAN_MODE`` for what it replaces and what it is worth. Kept
+    # as its own flag so the single-season identity-map arm stays reproducible.
+    fitted_persistence_means: bool = True
+    # Share of committed fumbles that are lost, fitted on the training rows the
+    # pipeline is handed and used by the scoring layer to thin the modeled
+    # fumble rate back into lost fumbles. Fitted rather than hardcoded so a
+    # holdout never sees its own season's recoveries; it is a stable league
+    # constant near 0.50, so the fit is a formality, but a formality that keeps
+    # the walk-forward honest.
+    fumble_lost_share: float = LEAGUE_FUMBLE_LOST_SHARE
+    # Reserve status on rec_yards_per_target. Promoted 2026-09-01: the flag is
+    # worth MAE -0.37% and CRPS -0.26% overall and -2.48% and -1.85% on the
+    # reserve population, winning three holdouts of three in every population
+    # scored. See scripts/validate_injury_efficiency.py and
+    # reports/injury_efficiency.json.
+    #
+    # It is the only injury covariate that has cleared a gate outside the
+    # availability layer. Four encodings were rejected in the role layer, and
+    # injury recurrence adds nothing here either (-0.06%, two folds of three),
+    # so this is the pooled reserve flag on one response, not injury information
+    # in general.
+    reserve_efficiency_features: bool = True
     models: dict[str, PosteriorSeasonEfficiencyModel] = field(default_factory=dict)
     fit_seconds: dict[str, float] = field(default_factory=dict)
 
@@ -1152,6 +1438,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         targets: tuple[str, ...] | list[str] | None = None,
         **sample_kwargs,
     ) -> "SeasonAveragePosteriorEfficiencyPipeline":
+        self.fumble_lost_share = _fumble_lost_share(rows)
         selected = (
             set(EFFICIENCY_MODEL_BY_TARGET)
             if targets is None
@@ -1172,6 +1459,16 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 "is not in the rows; rebuild the frames with "
                 "add_teammate_quality_features rather than fitting a model that "
                 "quietly ignores the flag"
+            )
+        if self.reserve_efficiency_features and "roster_reserve" not in rows:
+            # Same failure the teammate-quality flag hit: ``_matrix`` keeps only
+            # the features present in the frame, so a missing one is dropped
+            # without a word and the model fits as though the flag were off.
+            raise ValueError(
+                "reserve_efficiency_features is on but roster_reserve is not in "
+                "the rows; rebuild the frames with "
+                "scripts/build_projection_cache.py rather than fitting a model "
+                "that quietly ignores the flag"
             )
         unknown = selected - set(EFFICIENCY_MODEL_BY_TARGET)
         if unknown:
@@ -1194,11 +1491,24 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                         "teammate_qb_quality_signal",
                     ),
                 )
+            mean_mode = (
+                PERSISTENCE_MEAN_MODE.get(spec.target)
+                if self.fitted_persistence_means
+                else None
+            )
+            extra_features = (
+                RESERVE_EFFICIENCY_FEATURES
+                if self.reserve_efficiency_features
+                and spec.target in RESERVE_EFFICIENCY_TARGETS
+                else ()
+            )
             model = PosteriorSeasonEfficiencyModel(
                 spec,
+                mean_mode=mean_mode,
                 use_volume=self.use_volume,
                 use_advanced=self.use_advanced,
                 ridge_alpha=self.ridge_alpha,
+                extra_features=extra_features,
             )
             started = perf_counter()
             try:
@@ -1260,14 +1570,16 @@ class SeasonAveragePosteriorEfficiencyPipeline:
     def diagnostics(self, *, min_bulk_ess: float = 100.0) -> dict[str, object]:
         results = {}
         for target, model in self.models.items():
-            if model._mean_mode() != "posterior":
+            if not model._fits_the_mean():
                 variables = (
                     ["concentration"]
                     if model.spec.likelihood == "beta_binomial"
                     else ["season_sigma", "opportunity_sigma"]
                 )
             else:
-                variables = ["intercept", "prior_persistence", "beta"]
+                variables = ["intercept", "prior_persistence"]
+                if model.feature_names:
+                    variables.append("beta")
                 if len(model.spec.positions) > 1:
                     variables.append("position_effect")
                 if model.spec.likelihood == "beta_binomial":
@@ -1313,6 +1625,12 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             "prior_only": model.prior_only,
             "mean_mode": model._mean_mode(),
             "ridge_alpha": model.ridge_alpha,
+            # ``feature_names`` is restored directly, so prediction is correct
+            # without this. It is written for the same reason ``exposure_floor``
+            # is: a refit from a reloaded pipeline would otherwise rebuild the
+            # design from whatever the current default is, and silently drop a
+            # covariate the artifact was fitted with.
+            "extra_features": list(model.extra_features),
             "ridge_model": ridge_state,
             "prior_fill": model.prior_fill,
             "prior_position_fill": model.prior_position_fill,
@@ -1382,6 +1700,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
             "architecture_version": 1,
             "use_volume": self.use_volume,
             "use_advanced": self.use_advanced,
+            "fumble_lost_share": float(self.fumble_lost_share),
             "ridge_alpha": self.ridge_alpha,
             # Records which rows the responses were fitted on. It has no effect
             # at prediction time, which is exactly why it has to be written
@@ -1405,6 +1724,9 @@ class SeasonAveragePosteriorEfficiencyPipeline:
         directory = Path(directory)
         metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
         pipeline = cls(
+            fumble_lost_share=float(
+                metadata.get("fumble_lost_share", LEAGUE_FUMBLE_LOST_SHARE)
+            ),
             use_volume=bool(metadata["use_volume"]),
             use_advanced=bool(metadata["use_advanced"]),
             ridge_alpha=float(metadata.get("ridge_alpha", 500.0)),
@@ -1435,6 +1757,7 @@ class SeasonAveragePosteriorEfficiencyPipeline:
                 mean_mode=state.get("mean_mode"),
                 ridge_alpha=float(state.get("ridge_alpha", 500.0)),
                 prior_only=state.get("prior_only"),
+                extra_features=tuple(state.get("extra_features", ())),
             )
             cls._restore_model_state(model, state)
             model.idata = load_idata(directory / f"{target}.nc")

@@ -22,6 +22,7 @@ from ffmodel.features.volume import (
     opportunity_position,
 )
 from ffmodel.models.base import sample_model
+from ffmodel.models.design import standardize
 
 GROUP_COLUMNS = ["season", "week", "team"]
 
@@ -196,16 +197,13 @@ class OpportunityShareModel:
         }
 
     def _matrix(self, d: pd.DataFrame) -> np.ndarray:
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(
-                d.get(name, pd.Series(np.nan, index=d.index)), errors="coerce"
-            ).fillna(self.feature_fill[name])
-            columns.append(
-                (values.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        return np.column_stack(columns)
+        return standardize(
+            d.reindex(columns=self.feature_names),
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+        )
 
     def _design(self, frame: pd.DataFrame, *, fit: bool = False) -> GroupDesign:
         d = self._eligible_rows(frame, valid_only=fit)

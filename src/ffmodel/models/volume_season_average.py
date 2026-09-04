@@ -40,7 +40,10 @@ from ffmodel.models.base import (
     save_idata,
     simplex_shares,
 )
+from ffmodel.models.design import standardize
 from ffmodel.models.season_availability import (
+    RESERVE_KIND_FEATURES,
+    AVAILABILITY_HISTORY_FEATURES,
     AvailabilityPrediction,
     QBWorkloadShareModel,
     SeasonAvailabilityModel,
@@ -59,6 +62,7 @@ from ffmodel.models.season_regime import (
     add_walk_forward_regime_probabilities,
 )
 from ffmodel.models.season_regime_coupling import SeasonRegimeRoleCoupling
+from ffmodel.features.coaching_scheme import COACHING_SCHEME_FEATURES
 from ffmodel.models.volume_team import _sum_to_zero_basis
 
 GROUP_KEYS = ["season", "team"]
@@ -146,6 +150,36 @@ ACCEPTED_VOLUME_EFFICIENCY_FEATURES = {
     "target": (),
     "carry": (),
 }
+
+# Within-room structure for the target allocator.
+#
+# The softmax normalises over the whole team roster and has no notion of a
+# positional room, so nothing in the score distinguishes "third of four wide
+# receivers" from "third of eleven skill players". When a room loses its alpha,
+# the vacated share is redistributed in proportion to the survivors' own priors
+# and no term lets the best remaining option take more than its proportional cut.
+#
+# Screened in scripts/screen_target_room_quality.py against the deterministic
+# prior allocation, controlling for position and for log prior share -- the
+# latter is not optional, since the residual is a ratio and small priors have
+# more room above than below. Partial correlations with the allocation residual,
+# reported on both the log ratio and the signed difference because a candidate
+# that only survives the log metric is a floor artifact:
+#
+#   feature                            log ratio      signed difference
+#   prior_target_role_uncertainty      +0.197 ***     +0.173 ***
+#   prior_rec_room_quality_advantage   +0.035         +0.062 **
+#   prior_target_room_competition      -0.025         +0.009
+#   prior_target_team_competition      -0.037 *       +0.009
+#
+# The last two are team- or room-level constants -- every receiver on a team
+# shares the value -- so they cannot separate players within a room and measure
+# as nothing. They are left out. The first two vary per player and survive both
+# metrics.
+TARGET_ROOM_FEATURES = (
+    "prior_target_role_uncertainty",
+    "prior_rec_room_quality_advantage",
+)
 
 PARTICIPATION_VOLUME_FEATURES = {
     "pass": (),
@@ -711,6 +745,13 @@ class SeasonRosterShareModel:
     # was chosen before any result and has never been selected against folds.
     # Whatever it is worth, it is the least evidenced number in this feature.
     cold_role_multiplier_cap: float = 6.0
+    # Allocate week by week instead of multiplying by season-average
+    # availability and renormalising once. See ``_per_game_shares`` for what the
+    # default approximation costs and who it costs it to. Opt-in: it changes
+    # every share a low-availability player takes, so it needs its own
+    # walk-forward before it can be the default.
+    per_game_allocation: bool = False
+    allocation_games: int = 17
     idata: object = None
 
     def __post_init__(self):
@@ -1036,6 +1077,25 @@ class SeasonRosterShareModel:
         return float(np.clip(cold_rms / warm_rms, 1.0, self.cold_role_multiplier_cap))
 
     def _role_prior(self, d: pd.DataFrame) -> np.ndarray:
+        """The offset the softmax scores against, as a per-snap rate.
+
+        Four sources in order: the player's own per-snap rate, a geometric
+        blend of that with last season's share, last season's share alone, the
+        draft prior, and the position mean. The score is
+        ``log(role_prior) + log(exposure) + X.beta + innovation``, so whatever
+        this returns is multiplied by projected playing time downstream.
+
+        The draft branch is knowingly not a per-snap rate. ``ROOKIE_CLAIM_CURVES``
+        is fitted against volume *shares*, which already contain playing time,
+        so on the arithmetic alone exposure lands twice here. That was measured
+        and the correction was worse: refitting the curve on a per-snap rate
+        (2026-09) was rejected on every fold of every volume stream and turned a
+        1.5% cold-target bias into a 53% overshoot. The steepness is doing a
+        second job the units argument does not see -- pricing whether draft
+        capital converts into a role *at all*, which projected exposure does not
+        fully carry for a player with no NFL history. Read
+        docs/target-competition-2026-09.md before touching these curves again.
+        """
         per_snap = pd.to_numeric(
             d.get(
                 STREAMS[self.stream].get("per_snap_role"),
@@ -1060,16 +1120,13 @@ class SeasonRosterShareModel:
         return np.clip(prior.to_numpy(dtype=float), 1e-5, 1.0)
 
     def _matrix(self, d: pd.DataFrame) -> np.ndarray:
-        columns = []
-        for name in self.feature_names:
-            values = pd.to_numeric(
-                d.get(name, pd.Series(np.nan, index=d.index)), errors="coerce"
-            ).fillna(self.feature_fill[name])
-            columns.append(
-                (values.to_numpy(dtype=float) - self.feature_mean[name])
-                / self.feature_scale[name]
-            )
-        return np.column_stack(columns) if columns else np.zeros((len(d), 0))
+        return standardize(
+            d.reindex(columns=self.feature_names),
+            self.feature_names,
+            self.feature_fill,
+            self.feature_mean,
+            self.feature_scale,
+        )
 
     def _design(
         self,
@@ -1238,6 +1295,7 @@ class SeasonRosterShareModel:
         draws = beta.shape[-1]
         eta = np.log(design["role_prior"])[..., None]
         exposure_samples = snap_samples if snap_samples is not None else availability_samples
+        exposure_matrix: np.ndarray | None = None
         if exposure_samples is None:
             eta = eta + design["availability_offset"][..., None]
         else:
@@ -1246,11 +1304,11 @@ class SeasonRosterShareModel:
                 raise ValueError(
                     "exposure samples must align to roster rows and posterior draws"
                 )
-            eta = eta + np.log(
-                _roster_sample_matrix(
-                    design, np.clip(exposure_samples, 1e-5, 1.0), fill=1.0
-                )
+            exposure_matrix = _roster_sample_matrix(
+                design, np.clip(exposure_samples, 1e-5, 1.0), fill=1.0
             )
+            if not self.per_game_allocation:
+                eta = eta + np.log(exposure_matrix)
         if self.stream == "pass" and starter_probability_samples is not None:
             starter_probability_samples = np.asarray(
                 starter_probability_samples, dtype=float
@@ -1314,7 +1372,15 @@ class SeasonRosterShareModel:
             np.einsum("gkj,gjs->gks", design["innovation_basis"], innovation_z)
             * scale[..., None]
         )
-        if self.mean_preserving_innovation:
+        if self.per_game_allocation and exposure_matrix is not None:
+            probability = _per_game_shares(
+                eta + innovation,
+                live,
+                exposure_matrix,
+                games=int(self.allocation_games),
+                seed=seed + 991,
+            )
+        elif self.mean_preserving_innovation:
             probability = mean_preserving_shares(eta, eta + innovation, live)
         else:
             probability = simplex_shares(eta + innovation, live)
@@ -1425,6 +1491,13 @@ class SeasonAverageVolumePipeline:
     carry_eligibility_model: SeasonCarryEligibilityModel = field(
         default_factory=SeasonCarryEligibilityModel
     )
+    # Allocate roster shares week by week rather than multiplying by
+    # season-average availability and renormalising once. Set together for all
+    # three streams because they share the misspecification and a run with it on
+    # for carries and off for passes is neither of the two models. Off by
+    # default: it moves every low-availability share, so it needs a walk-forward
+    # of its own before it can ship. See ``_per_game_shares``.
+    per_game_allocation: bool = False
     # Experimental role-only challenger. The default baseline is unchanged.
     role_regime_coupling: bool = False
     # Upstream likelihood challenger: out-of-fold regime probabilities enter
@@ -1438,17 +1511,80 @@ class SeasonAverageVolumePipeline:
     # 2/3. See docs/pipeline-followups-2026-08.md and
     # docs/postseason-history-assessment.md.
     postseason_role_features: bool = True
-    # Preseason market consensus in the role and playing-time regressions. Off
-    # until measured: it is the one input not derived from play-by-play, so a
-    # gain would be real new information and a loss would say the market adds
-    # nothing the history does not already carry. See
-    # ``_enable_market_adp_features`` and ffmodel.features.market.
+    # The player's own decayed exposure-weighted carry share, in the carry room
+    # only. Promoted on 2023/2024/2025 at 400 draws and four chains: carry MAE
+    # -0.65% and CRPS -0.55% overall, -1.20% and -1.03% on the players who have
+    # history for it to summarise, three folds of three on both.
+    #
+    # Carries only, and the reason is measured rather than assumed. A season's
+    # observed role share is very nearly noise-free -- split-half reliability is
+    # 96.7% on carry share and 93.0% on target share -- and this feature is a
+    # denoiser, so there is little for it to remove. On targets it removes
+    # nothing and adds variance: +7.56% MAE and +3.76% CRPS, losing every fold.
+    # Snaps land on the floor rather than over it (-0.24% MAE, -0.27% CRPS, and
+    # 2/3 on the players who actually play) and are left out.
+    career_role_features: bool = True
+    # Within-room structure in the target softmax. See TARGET_ROOM_FEATURES for
+    # what was screened and what was left out.
+    #
+    # **The gate rejects it.** Against the same frames on 2022/2023/2024, target
+    # MAE +4.63% pooled (+2.77 / +4.57 / +6.75) and CRPS +2.37% (+0.92 / +2.32 /
+    # +4.03), losing every fold on both. Coverage moves slightly away from
+    # nominal at both levels. Every other stream is identical to the last digit,
+    # which confirms the arm changed only what it meant to.
+    #
+    # Why it fails is the useful part. prior_target_role_uncertainty correlates
+    # -0.605 with log(role_prior x exposure) -- the offset the softmax already
+    # carries as a *fixed* term. Offering it as a free covariate lets the model
+    # partially re-weight an input it was handed as known, which is exactly the
+    # double-counting the target stream's beta_scale of 0.05 exists to prevent.
+    # The screen could not see this: it residualises *against* the prior
+    # allocation, so it measures what that allocation gets wrong, and a feature
+    # can carry that signal honestly and still be unusable by a model built on
+    # the allocation itself.
+    #
+    # Kept off, with the code, because the measurement is worth having and the
+    # room-structure question is real -- it just needs an instrument that does
+    # not collide with the offset.
+    room_structure_features: bool = False
+    # The scheme carrier's carried backfield tendency, interacted with the back
+    # indicator. See ffmodel.features.coaching_scheme: the level would cancel
+    # exactly in a softmax that normalises within team-season, so the feature
+    # ships as an interaction or not at all.
+    #
+    # **The gate rejects it**, at +0.056% on the target stream. The screen was
+    # the strongest of roughly a dozen coaching hypotheses -- partial r=+0.211
+    # at p=0.003 on n=197 team-seasons, era-normalised over stops back to 1999,
+    # controlling for the team's own previous three seasons -- and it still
+    # bought nothing. The lesson is worth more than the feature: a screen that
+    # controls for team history is not a proxy for a model that already
+    # conditions on each *player's* history, which is most of what a coaching
+    # tendency would have told it.
+    coaching_scheme_features: bool = False
+    # Injured reserve, PUP and non-football-injury as deviations from the
+    # pooled reserve flag. Promoted 2026-09-01: availability CRPS -1.12% and MAE
+    # -1.46% on three holdouts of three, almost all of it injured reserve at
+    # CRPS -9.24% and MAE -18.38%. See RESERVE_KIND_FEATURES for the one
+    # population it does not help.
+    reserve_kind_features: bool = True
     # Leakage-safe injury history and preseason injury snapshot in the
     # availability regression. Screened at the availability layer first
     # (docs/injury-availability-2026-08.md): CRPS -2.39% pooled and 3/3 folds,
     # -5.15% on the injury-exposed half. Off until it clears the scoring gate,
     # because availability feeds exposure and a gain there is not a gain here.
     injury_availability_features: bool = False
+    # Let the availability regression read the player's own availability
+    # history, not only last season. See ``AVAILABILITY_HISTORY_FEATURES``:
+    # -2.19% held-out MAE on five folds of five, from a column the frame has
+    # carried all along. Kept as its own flag so the arm without it stays
+    # reproducible, and so a frame built before the pathway features can still
+    # be fitted by turning it off.
+    availability_history_features: bool = True
+    # Preseason market consensus in the role and playing-time regressions. Off
+    # until measured: it is the one input not derived from play-by-play, so a
+    # gain would be real new information and a loss would say the market adds
+    # nothing the history does not already carry. See
+    # ``_enable_market_adp_features`` and ffmodel.features.market.
     market_adp_features: bool = False
     # Per-position rank slopes and drafted effects. Measured and rejected:
     # worse on three drafted-pool holdouts of three at double the fit time,
@@ -1533,8 +1669,11 @@ class SeasonAverageVolumePipeline:
     # The tail under-coverage on total fantasy points is almost entirely theirs:
     # 28% of rows with no prior snap share fall outside a 95% interval against a
     # 5% nominal, 32 of 33 above it, while rows with an established role sit at
-    # 2.6%. Off until validated in-window -- 2025 diagnosed it and must not size
-    # it. See docs/out-of-sample-2025.md.
+    # 2.6%. Promoted 2026-08-04 with cold_role_scale_mode "measured", sized on
+    # the three in-window folds rather than on the 2025 rows that diagnosed it:
+    # the rookie miss rate falls 14.8% -> 4.9% and the no-prior-snap-share band
+    # 12.8% -> 5.1%, both landing on nominal rather than over it. See
+    # docs/out-of-sample-2025.md.
     cold_role_innovation: bool = True
     # "relative" or "measured"; see ``SeasonRosterShareModel``.
     cold_role_scale_mode: str = "measured"
@@ -1565,6 +1704,78 @@ class SeasonAverageVolumePipeline:
         self._apply_availability_target(data.player_rows)
         if self.postseason_role_features:
             self._enable_postseason_role_features()
+        if self.career_role_features:
+            self.carry_model.extra_features = tuple(
+                dict.fromkeys(
+                    (*self.carry_model.extra_features, "prior_carry_share_career")
+                )
+            )
+        if self.coaching_scheme_features:
+            missing = [
+                name
+                for name in COACHING_SCHEME_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                raise ValueError(
+                    f"coaching_scheme_features is on but {missing} are absent "
+                    "from the player rows; rebuild the frames with "
+                    "add_coaching_scheme_features rather than fitting a model "
+                    "that would quietly ignore the flag"
+                )
+            self.target_model.extra_features = tuple(
+                dict.fromkeys(
+                    (*self.target_model.extra_features, *COACHING_SCHEME_FEATURES)
+                )
+            )
+        if self.room_structure_features:
+            missing = [
+                name
+                for name in TARGET_ROOM_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                # ``_fit_metadata`` keeps only the features present in the
+                # frame, so an absent one is dropped without a word and the
+                # model fits as though the flag were off. That is how the
+                # teammate-quality flag's first walk-forward came back identical
+                # to its baseline on every metric.
+                raise ValueError(
+                    f"room_structure_features is on but {missing} are absent "
+                    "from the player rows; rebuild the frames with "
+                    "add_conditional_volume_efficiency_features and "
+                    "add_player_pathway_features rather than fitting a model "
+                    "that would quietly ignore the flag"
+                )
+            self.target_model.extra_features = tuple(
+                dict.fromkeys(
+                    (*self.target_model.extra_features, *TARGET_ROOM_FEATURES)
+                )
+            )
+        if self.availability_history_features:
+            self._enable_availability_history(data.player_rows)
+        if self.reserve_kind_features:
+            missing = [
+                name
+                for name in RESERVE_KIND_FEATURES
+                if name not in data.player_rows.columns
+            ]
+            if missing:
+                raise ValueError(
+                    f"reserve_kind_features is on but {missing} are absent from "
+                    "the player rows. Rebuild the cache with "
+                    "scripts/build_projection_cache.py, or set "
+                    "reserve_kind_features=False to fit the pooled reserve flag "
+                    "deliberately rather than by accident"
+                )
+            self.availability_model.extra_features = tuple(
+                dict.fromkeys(
+                    (
+                        *self.availability_model.extra_features,
+                        *RESERVE_KIND_FEATURES,
+                    )
+                )
+            )
         if self.injury_availability_features:
             missing = [
                 name
@@ -1785,7 +1996,7 @@ class SeasonAverageVolumePipeline:
         "snap": ("snap_games", "snap_availability"),
     }
 
-    def _apply_availability_target(self, player_rows: pd.DataFrame) -> None:
+    def _point_availability_layers(self) -> tuple[str, str]:
         """Point the availability and snap layers at the same exposure.
 
         These two settings are one decision. The availability model fits a
@@ -1796,6 +2007,11 @@ class SeasonAverageVolumePipeline:
         exposure and multiplies by another, and nothing downstream would raise
         -- the projection would simply be wrong by the ratio between them,
         which for undrafted quarterbacks is a factor of 2.6.
+
+        Separate from ``_apply_availability_target`` because a pipeline loaded
+        from disk has to re-point the two layers without any frame to validate
+        against: the sub-models are rebuilt at their class defaults, so a
+        pipeline saved under one target would otherwise come back mismatched.
         """
         try:
             games_column, availability_column = self.AVAILABILITY_TARGETS[
@@ -1807,6 +2023,13 @@ class SeasonAverageVolumePipeline:
                 f"{sorted(self.AVAILABILITY_TARGETS)}, got "
                 f"{self.availability_target!r}"
             ) from None
+        self.availability_model.games_column = games_column
+        self.snap_model.availability_column = availability_column
+        return games_column, availability_column
+
+    def _apply_availability_target(self, player_rows: pd.DataFrame) -> None:
+        """Point both layers, and check the frame can actually serve them."""
+        games_column, availability_column = self._point_availability_layers()
         missing = [
             name
             for name in (games_column, availability_column)
@@ -1835,8 +2058,34 @@ class SeasonAverageVolumePipeline:
                 "snap source cannot count weeks with a snap; build the frames "
                 "from nflverse to use this target"
             )
-        self.availability_model.games_column = games_column
-        self.snap_model.availability_column = availability_column
+
+    def _enable_availability_history(self, player_rows: pd.DataFrame) -> None:
+        """Append the career availability mean to the availability regression.
+
+        Raises rather than dropping silently. ``_matrix`` keeps only features
+        present in the frame, so a cache built before the pathway features
+        would fit a model nobody chose and report nothing about it.
+        """
+        missing = [
+            name
+            for name in AVAILABILITY_HISTORY_FEATURES
+            if name not in player_rows.columns
+        ]
+        if missing:
+            raise ValueError(
+                f"availability_history_features is on but {missing} are absent "
+                "from the player rows. Rebuild the cache, or set "
+                "availability_history_features=False to fit the single-season "
+                "layer deliberately rather than by accident"
+            )
+        self.availability_model.extra_features = tuple(
+            dict.fromkeys(
+                (
+                    *self.availability_model.extra_features,
+                    *AVAILABILITY_HISTORY_FEATURES,
+                )
+            )
+        )
 
     def _enable_market_adp_availability(self, player_rows: pd.DataFrame) -> None:
         """Append preseason consensus to the availability regression only.
@@ -1913,6 +2162,11 @@ class SeasonAverageVolumePipeline:
         self, data: SeasonAverageData, *, games=None, seed: int = 0
     ) -> SeasonAveragePrediction:
         prediction_rows = data.player_rows
+        # Propagate here rather than in ``fit``: the flag only changes how
+        # fitted shares are allocated at prediction time, so a pipeline loaded
+        # from disk honours it too.
+        for share_model in (self.target_model, self.carry_model, self.workload_model):
+            share_model.per_game_allocation = self.per_game_allocation
         regime_probability: np.ndarray | None = None
         if self.regime_likelihood_features:
             if self.regime_model is None:
@@ -2498,7 +2752,7 @@ class SeasonAverageVolumePipeline:
             if "model" not in likelihood_state:
                 raise ValueError("saved regime-likelihood pipeline is missing its classifier")
             likelihood_regime_model = SeasonRegimeModel.from_state(likelihood_state["model"])
-        return cls(
+        pipeline = cls(
             team_model=team,
             availability_model=availability,
             workload_model=workload,
@@ -2534,6 +2788,12 @@ class SeasonAverageVolumePipeline:
             regime_model=(likelihood_regime_model or regime_model),
             regime_coupler=regime_coupler,
         )
+        # The sub-models were rebuilt at their class defaults, so the exposure
+        # pairing has to be re-established here. Without it a pipeline saved
+        # under a non-default ``availability_target`` predicts against the
+        # roster columns while claiming the snap ones, silently.
+        pipeline._point_availability_layers()
+        return pipeline
 
     @staticmethod
     def _restore_feature_metadata(model, state: dict[str, object]) -> None:
@@ -2562,6 +2822,51 @@ class SeasonAverageVolumePipeline:
 
 
 PLAYER_ID_COLUMNS = ["season", "team", "player_key"]
+
+
+def _per_game_shares(
+    eta: np.ndarray,
+    live: np.ndarray,
+    exposure: np.ndarray,
+    *,
+    games: int,
+    seed: int,
+) -> np.ndarray:
+    """Season share as the average of per-game allocations, not one allocation.
+
+    The default path forms ``softmax(log w + log e)``: it multiplies a player's
+    weight by his season-average availability and renormalises once. The
+    quantity that stands for is the season average of what happens each week --
+    the players who are actually there split the ball -- and those are not the
+    same number, because softmax is nonlinear and ``softmax(E[presence]) !=
+    E[softmax(presence)]``.
+
+    The gap is signed and it is not small. For a two-player room it is available
+    in closed form: a player whose full-strength share is ``s`` and who is
+    present a fraction ``e`` of games is over-allocated by ``1 / (1 - s(1-e))``.
+    That is 1.05x for a dilute receiver at 10% of a room, 1.45x for a workhorse
+    back at 67%, and 1.72x for a starting quarterback at 92% -- the error grows
+    with concentration, because a player who *is* most of the denominator
+    shrinks the denominator when he sits, and hands himself back most of what he
+    lost.
+
+    Simulating presence removes the approximation rather than tuning it: draw
+    who is available each week, allocate among them, average over weeks. The
+    cost is one softmax per game instead of one per season.
+    """
+    if games <= 0:
+        raise ValueError("allocation_games must be positive")
+    rng = np.random.default_rng(seed)
+    total = np.zeros_like(eta)
+    for _ in range(games):
+        present = rng.random(eta.shape) < exposure
+        # A week in which a room empties has to allocate its carries to
+        # somebody, so fall back to the roster the season-average path would
+        # have used rather than dropping the team's volume on the floor.
+        available = live & present
+        empty = ~available.any(axis=1, keepdims=True)
+        total += simplex_shares(eta, np.where(empty, live, available))
+    return total / games
 
 
 def _roster_sample_matrix(

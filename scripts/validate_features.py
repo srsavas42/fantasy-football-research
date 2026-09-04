@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import sys
 
-import numpy as np
 import pandas as pd
 
 from ffmodel.features import build_features

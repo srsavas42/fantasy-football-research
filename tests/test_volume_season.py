@@ -1,6 +1,5 @@
 """Cross-season Beta model + projection smoke tests (small, fast PyMC runs)."""
 
-import numpy as np
 import pytest
 
 pytest.importorskip("pymc")

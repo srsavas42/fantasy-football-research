@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 DEFAULT_CACHE = Path(".cache/ffmodel-walkforward")
@@ -207,6 +208,46 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="force the cold-role widening off, for ablations",
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="skip holdouts already present in this label's report, provided "
+             "its frames fingerprint matches this run",
+    )
+    parser.add_argument(
+        "--coaching-scheme",
+        dest="coaching_scheme",
+        action="store_const",
+        const=True,
+        default=None,
+        help="let the target softmax read the scheme carrier's carried "
+             "backfield tendency, interacted with the back indicator "
+             "(see ffmodel.features.coaching_scheme)",
+    )
+    parser.add_argument(
+        "--no-coaching-scheme",
+        dest="coaching_scheme",
+        action="store_const",
+        const=False,
+        help="force the coaching-scheme feature out, for the paired arm",
+    )
+    parser.add_argument(
+        "--room-structure",
+        dest="room_structure",
+        action="store_const",
+        const=True,
+        default=None,
+        help="let the target softmax read within-room structure -- the "
+             "player's share of his own positional room and his receiving "
+             "quality against the rest of it (see TARGET_ROOM_FEATURES)",
+    )
+    parser.add_argument(
+        "--no-room-structure",
+        dest="room_structure",
+        action="store_const",
+        const=False,
+        help="force the room-structure features out, for the paired arm",
+    )
+    parser.add_argument(
         "--teammate-quality",
         action="store_true",
         help="let the receiving efficiency responses read the projected "
@@ -308,13 +349,63 @@ def frames_fingerprint(
     }
 
 
+def _check_draft_priors_match_the_curve(
+    player_rows: pd.DataFrame, cache_dir: Path
+) -> None:
+    """Refuse a cache whose draft priors came from a different claim curve.
+
+    ``ROOKIE_CLAIM_CURVES`` is a hand-edited constant table that gets retuned,
+    and the priors derived from it are frozen into the pickle at build time.
+    Nothing else here notices when the two disagree: the fingerprint identifies
+    which build a run read, not whether that build still matches the source, so
+    a retuned curve silently evaluates the *old* one until someone remembers to
+    delete the cache. That happened during the 2026-09 rookie-prior refit and
+    its revert, which is why this exists.
+    """
+    from ffmodel.features.draft import _claim
+
+    rookies = player_rows[
+        pd.to_numeric(player_rows.get("experience"), errors="coerce").eq(0)
+        & player_rows["overall_pick"].notna()
+    ]
+    if rookies.empty:
+        return
+    # The curve is keyed by (position, stream) and is an exponential in the
+    # pick, so a single sampled row pins one of twelve cells at one point.
+    # Take the earliest and latest pick in each position -- two points on a
+    # two-parameter curve -- and check every stream.
+    by_position = rookies.sort_values("overall_pick").groupby("position", sort=True)
+    sample = pd.concat([by_position.head(1), by_position.tail(1)])
+    for _, row in sample.iterrows():
+        for stream in ("target", "carry", "pass"):
+            column = f"draft_{stream}_prior"
+            if column not in rookies.columns:
+                continue
+            cached = pd.to_numeric(row[column], errors="coerce")
+            if pd.isna(cached):
+                continue
+            expected = _claim(row["overall_pick"], row["position"], stream)
+            if np.isclose(float(cached), expected, rtol=1e-6, atol=1e-9):
+                continue
+            raise SystemExit(
+                f"{cache_dir} holds draft priors from a different claim curve "
+                f"(cached {float(cached):.6f}, current curve {expected:.6f} for "
+                f"{row['position']} {stream} pick {row['overall_pick']}). "
+                "ROOKIE_CLAIM_CURVES has changed since this cache was built; "
+                "delete it and rebuild rather than evaluating the old curve "
+                "under the new source."
+            )
+
+
 def load_frames(cache_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Cached player/team season rows, building them on first use."""
     cache_dir = Path(cache_dir)
     player_path = cache_dir / "player_rows.pkl"
     team_path = cache_dir / "team_rows.pkl"
     if player_path.exists() and team_path.exists():
-        return pd.read_pickle(player_path), pd.read_pickle(team_path)
+        player_rows = pd.read_pickle(player_path)
+        _check_draft_priors_match_the_curve(player_rows, cache_dir)
+        return player_rows, pd.read_pickle(team_path)
 
     from ffmodel.features.season_average import build_season_average_data
 

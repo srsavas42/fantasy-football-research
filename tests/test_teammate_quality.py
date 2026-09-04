@@ -74,10 +74,26 @@ def test_it_ignores_primary_qb_entirely():
     )
 
 
-def test_the_flag_reaches_only_the_receiving_responses():
-    """Rushing is excluded deliberately. The mechanism by which a passer changes
-    yards per carry is indirect at best, and testing where there is no story to
-    tell is how a feature earns a fold win by chance."""
+def test_the_flag_reaches_the_receiving_responses_and_one_rushing_rate():
+    """Rushing is admitted one response at a time, on a measured mechanism.
+
+    This test used to exclude rushing entirely, on the grounds that the
+    mechanism by which a passer changes yards per carry is indirect at best and
+    that testing where there is no story to tell is how a feature earns a fold
+    win by chance. Both halves of that still hold, and
+    scripts/screen_qb_context_rb.py bears out the first: yards per carry
+    measures +0.065 (p=0.12), which is nothing.
+
+    rush_td_rate is the exception it turned up, and it has the story the
+    original reasoning asked for. A back's touchdowns per carry is a red-zone
+    quantity, a better passer reaches the red zone more often, and the measured
+    partial correlation is +0.171 (p=3.8e-05) -- stronger than the receiving
+    effect already in the set, and flat across three control sets including the
+    back's own prior_rush_short_yardage_share.
+
+    What the screen found nothing for stays out: carry share (-0.024),
+    target share (-0.003), yards per carry (+0.065).
+    """
     from ffmodel.models.efficiency_season_average import (
         EFFICIENCY_MODEL_SPECS,
         TEAMMATE_QUALITY_TARGETS,
@@ -87,7 +103,9 @@ def test_the_flag_reaches_only_the_receiving_responses():
         "rec_catch_rate",
         "rec_yards_per_target",
         "rec_td_rate",
+        "rush_td_rate",
     }
+    assert "rush_yards_per_carry" not in TEAMMATE_QUALITY_TARGETS
     targets = {spec.target for spec in EFFICIENCY_MODEL_SPECS}
     assert set(TEAMMATE_QUALITY_TARGETS) <= targets
 

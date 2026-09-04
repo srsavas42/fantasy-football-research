@@ -1,0 +1,259 @@
+{
+  "episodes": [
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 2,
+      "first_week": 1,
+      "games_missed": 3,
+      "last_week": 2,
+      "player_name": "Su'a Cravens",
+      "position": "DB",
+      "season": 2017,
+      "team": "WAS",
+      "weeks_remaining": 17
+    },
+    {
+      "censored": true,
+      "converted_to_suspension": false,
+      "exempt_weeks": 5,
+      "first_week": 13,
+      "games_missed": 5,
+      "last_week": 17,
+      "player_name": "Reuben Foster",
+      "position": "LB",
+      "season": 2018,
+      "team": "SF",
+      "weeks_remaining": 5
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 2,
+      "first_week": 1,
+      "games_missed": 3,
+      "last_week": 2,
+      "player_name": "Carl Granderson",
+      "position": "DL",
+      "season": 2019,
+      "team": "NO",
+      "weeks_remaining": 17
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 2,
+      "first_week": 13,
+      "games_missed": 2,
+      "last_week": 14,
+      "player_name": "Jared Veldheer",
+      "position": "OL",
+      "season": 2019,
+      "team": "GB",
+      "weeks_remaining": 5
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 3,
+      "first_week": 1,
+      "games_missed": 4,
+      "last_week": 3,
+      "player_name": "Temuchin Hodges",
+      "position": "TE",
+      "season": 2019,
+      "team": "NYJ",
+      "weeks_remaining": 17
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 2,
+      "first_week": 1,
+      "games_missed": 9,
+      "last_week": 9,
+      "player_name": "Tyrel Dodson",
+      "position": "LB",
+      "season": 2019,
+      "team": "BUF",
+      "weeks_remaining": 17
+    },
+    {
+      "censored": true,
+      "converted_to_suspension": false,
+      "exempt_weeks": 2,
+      "first_week": 17,
+      "games_missed": 2,
+      "last_week": 18,
+      "player_name": "Andrew Ogletree",
+      "position": "TE",
+      "season": 2023,
+      "team": "IND",
+      "weeks_remaining": 2
+    },
+    {
+      "censored": true,
+      "converted_to_suspension": false,
+      "exempt_weeks": 17,
+      "first_week": 1,
+      "games_missed": 18,
+      "last_week": 18,
+      "player_name": "Chris Claybrooks",
+      "position": "DB",
+      "season": 2023,
+      "team": "JAX",
+      "weeks_remaining": 18
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 2,
+      "first_week": 1,
+      "games_missed": 3,
+      "last_week": 2,
+      "player_name": "Hassan Haskins",
+      "position": "RB",
+      "season": 2023,
+      "team": "TEN",
+      "weeks_remaining": 18
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 6,
+      "first_week": 8,
+      "games_missed": 8,
+      "last_week": 15,
+      "player_name": "Justyn Ross",
+      "position": "WR",
+      "season": 2023,
+      "team": "KC",
+      "weeks_remaining": 11
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 7,
+      "first_week": 6,
+      "games_missed": 8,
+      "last_week": 12,
+      "player_name": "Jabrill Peppers",
+      "position": "DB",
+      "season": 2024,
+      "team": "NE",
+      "weeks_remaining": 13
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": true,
+      "exempt_weeks": 4,
+      "first_week": 1,
+      "games_missed": 6,
+      "last_week": 4,
+      "player_name": "Mike Hall Jr.",
+      "position": "DL",
+      "season": 2024,
+      "team": "CLE",
+      "weeks_remaining": 18
+    },
+    {
+      "censored": false,
+      "converted_to_suspension": false,
+      "exempt_weeks": 3,
+      "first_week": 1,
+      "games_missed": 4,
+      "last_week": 3,
+      "player_name": "Jimmie Ward",
+      "position": "DB",
+      "season": 2025,
+      "team": "HOU",
+      "weeks_remaining": 18
+    }
+  ],
+  "filter_sensitivity": {
+    "1": {
+      "censored": 3,
+      "episodes": 41,
+      "hazard_mean": 0.312,
+      "mean_games_missed": 3.26,
+      "median_games_missed": 2,
+      "p10": 1,
+      "p90": 7,
+      "p_misses_at_least_4": 0.33,
+      "p_misses_season": 0.004,
+      "weeks_remaining": 18
+    },
+    "2": {
+      "censored": 3,
+      "episodes": 13,
+      "hazard_mean": 0.1341,
+      "mean_games_missed": 7.18,
+      "median_games_missed": 5,
+      "p10": 1,
+      "p90": 18,
+      "p_misses_at_least_4": 0.651,
+      "p_misses_season": 0.113,
+      "weeks_remaining": 18
+    },
+    "3": {
+      "censored": 2,
+      "episodes": 7,
+      "hazard_mean": 0.1,
+      "mean_games_missed": 8.89,
+      "median_games_missed": 7,
+      "p10": 1,
+      "p90": 18,
+      "p_misses_at_least_4": 0.729,
+      "p_misses_season": 0.208,
+      "weeks_remaining": 18
+    }
+  },
+  "min_weeks": 2,
+  "posterior_predictive": {
+    "max": {
+      "observed": 9.0,
+      "p": 0.95
+    },
+    "mean": {
+      "observed": 5.0,
+      "p": 0.83
+    },
+    "median": {
+      "observed": 4.0,
+      "p": 0.79
+    },
+    "p25": {
+      "observed": 3.0,
+      "p": 0.55
+    },
+    "p75": {
+      "observed": 7.5,
+      "p": 0.72
+    }
+  },
+  "preseason_only": false,
+  "seasons": [
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "summary": {
+    "censored": 3,
+    "episodes": 13,
+    "hazard_mean": 0.1341,
+    "mean_games_missed": 7.18,
+    "median_games_missed": 5,
+    "p10": 1,
+    "p90": 18,
+    "p_misses_at_least_4": 0.651,
+    "p_misses_season": 0.113,
+    "weeks_remaining": 18
+  }
+}

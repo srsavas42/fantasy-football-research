@@ -41,7 +41,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.features.market import ADP_FEATURES, ADP_INTERACTION_FEATURES
-from ffmodel.models.season_opportunity import SNAP_FEATURES, SeasonSnapShareModel
+from ffmodel.models.season_opportunity import SeasonSnapShareModel
 
 
 def main(argv=None) -> int:

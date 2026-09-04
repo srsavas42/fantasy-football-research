@@ -19,7 +19,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from ffmodel.config import NFLVERSE_INJURY_FIRST_SEASON, NFLVERSE_INJURY_LAST_SEASON
+from ffmodel.config import NFLVERSE_INJURY_FIRST_SEASON
 from ffmodel.data import load_player_weeks
 from ffmodel.data import ingest, legacy
 from ffmodel.data.wikipedia_coaching import team_identity
@@ -31,7 +31,13 @@ from ffmodel.features.draft import (
     expected_rookie_pass_claim,
     load_draft_capital,
 )
+from ffmodel.features.carry_context import (
+    merge_carry_context,
+    weekly_carry_context,
+)
+from ffmodel.features.coaching_scheme import add_coaching_scheme_features
 from ffmodel.features.season_efficiency import (
+    add_career_efficiency_priors,
     CONDITIONAL_VOLUME_EFFICIENCY_FEATURES,
     EFFICIENCY_LABEL_COLUMNS,
     EFFICIENCY_NUMERATOR_COLUMNS,
@@ -49,6 +55,11 @@ from ffmodel.features.season_injury import (
     INJURY_AVAILABILITY_FEATURES,
     add_season_injury_features,
 )
+from ffmodel.features.suspensions import (
+    classify_reserve,
+    classify_suspension,
+    mandatory_missed_games,
+)
 from ffmodel.features.season_pathways import (
     PLAYER_PATHWAY_FEATURES,
     add_player_pathway_features,
@@ -61,7 +72,11 @@ from ffmodel.features.volume import (
 
 TEAM_KEYS = ["season", "team"]
 PLAYER_KEYS = ["season", "team", "player_key"]
-ROSTER_STATUSES = frozenset({"ACT", "RES", "INA", "EXE"})
+# ``SUS`` is the pre-2020 encoding of a suspension; from 2020 the same event is
+# ``RES`` carrying reason code ``R40``. Without ``SUS`` here the older rows were
+# not merely mislabelled but dropped, so a suspended player left the snapshot
+# entirely in one half of the training window and stayed in it in the other.
+ROSTER_STATUSES = frozenset({"ACT", "RES", "INA", "EXE", "SUS"})
 
 # Realized current-season quantities. On a projection season these do not exist,
 # and the label merge zero-fills them, so they are restored to missing. ``games``
@@ -179,6 +194,94 @@ def preseason_roster_snapshot(
     ).astype(int)
     out["roster_active"] = out["roster_status"].eq("ACT").astype(int)
     out["roster_reserve"] = out["roster_status"].isin({"RES", "INA", "EXE"}).astype(int)
+    # Why the reserve flag is split. It pools populations that miss very
+    # different amounts of football -- 16.2 games on injured reserve against
+    # 13.5 on PUP and 11.1 suspended, on 2021-2025 week-1 placements -- and
+    # injured reserve is 266 of the 683 pooled rows, so one shared coefficient
+    # is fitted mostly on injured reserve and then applied to everyone.
+    reserve_kind = classify_reserve(all_rosters)
+    for name, label in (
+        ("roster_injured_reserve", "injured_reserve"),
+        ("roster_pup", "pup"),
+        ("roster_nfi", "nfi"),
+    ):
+        marked = all_rosters[
+            reserve_kind.eq(label) & all_rosters["week"].le(cutoff_week)
+        ][PLAYER_KEYS].drop_duplicates()
+        out = out.merge(marked.assign(**{name: 1}), on=PLAYER_KEYS, how="left")
+        out[name] = out[name].fillna(0).astype(int)
+    # A suspension is not the same availability event as an injury, and the
+    # reserve flag cannot tell them apart -- both arrive as ``RES``. The ban's
+    # length is known when it is announced, so it belongs in the exposure as
+    # arithmetic rather than in the hazard as risk; see ``features.suspensions``.
+    suspension_kind = classify_suspension(
+        all_rosters.rename(columns={"roster_status": "status"})
+    )
+    definite = suspension_kind.eq("definite")
+    banned_weeks = (
+        all_rosters[definite]
+        .groupby(PLAYER_KEYS, dropna=False)["week"]
+        .nunique()
+        .rename("suspended_games")
+        .reset_index()
+    )
+    # A ban in force at the cutoff is knowable, and so is one already handed
+    # down that the player cannot start serving because he is hurt: a
+    # suspension is only served from the active roster, so PUP or
+    # non-football-injury weeks defer it. A player who has not played a game
+    # before his ban begins cannot have earned it in season, so its
+    # announcement predates the season and it belongs in a preseason
+    # projection. See ``features.suspensions.preseason_suspension_games``.
+    first_active = (
+        all_rosters[all_rosters["roster_status"].eq("ACT")]
+        .groupby(PLAYER_KEYS, dropna=False)["week"]
+        .min()
+        .rename("first_active_week")
+    )
+    banned = all_rosters[definite].merge(
+        first_active, on=PLAYER_KEYS, how="left"
+    )
+    banned["first_active_week"] = banned["first_active_week"].fillna(np.inf)
+    deferred = banned.groupby(PLAYER_KEYS, dropna=False).agg(
+        first_ban_week=("week", "min"), first_active_week=("first_active_week", "min")
+    ).reset_index()
+    in_force = deferred[
+        deferred["first_ban_week"].le(cutoff_week)
+        | deferred["first_ban_week"].le(deferred["first_active_week"])
+    ][PLAYER_KEYS].drop_duplicates()
+    out = out.merge(in_force.assign(roster_suspended=1), on=PLAYER_KEYS, how="left")
+    out["roster_suspended"] = out["roster_suspended"].fillna(0).astype(int)
+    out = out.merge(banned_weeks, on=PLAYER_KEYS, how="left")
+    out["suspended_games"] = (
+        out["suspended_games"].where(out["roster_suspended"].eq(1)).fillna(0.0)
+    )
+    # A player whose week-1 reserve status *is* the ban was being counted twice:
+    # the reserve coefficient already predicts a heavy absence and the ban was
+    # then subtracted on top. He is not hurt, he is banned, and
+    # ``suspended_games`` carries the ban exactly.
+    #
+    # This must key on the week-1 status rather than on ``roster_suspended``,
+    # which now also marks bans deferred by an injury list. Mike Woods in 2023
+    # is on non-football-injury at week 1 with a ban waiting: he is genuinely
+    # hurt, the reserve flag is telling the truth about him, and clearing it
+    # would throw away the injury to avoid a double charge that is not there.
+    banned_at_cutoff = all_rosters[definite & all_rosters["week"].le(cutoff_week)][
+        PLAYER_KEYS
+    ].drop_duplicates()
+    out = out.merge(
+        banned_at_cutoff.assign(_ban_is_the_status=1), on=PLAYER_KEYS, how="left"
+    )
+    out.loc[out["_ban_is_the_status"].eq(1), "roster_reserve"] = 0
+    out = out.drop(columns="_ban_is_the_status")
+    # PUP and NFI are the opposite case: a floor, not a length. The player is
+    # genuinely unavailable and stays flagged reserve, and the mandatory games
+    # are enforced by truncating the outcome rather than by subtraction, so
+    # nothing here is counted twice.
+    out["mandatory_missed_games"] = np.where(
+        out["roster_pup"].eq(1) | out["roster_nfi"].eq(1),
+        mandatory_missed_games(out["season"]),
+        0.0,
+    )
     birth = pd.to_datetime(
         out.get("birth_date", pd.Series(pd.NaT, index=out.index)), errors="coerce"
     )
@@ -205,6 +308,12 @@ def preseason_roster_snapshot(
         "roster_status",
         "roster_active",
         "roster_reserve",
+        "roster_suspended",
+        "suspended_games",
+        "roster_injured_reserve",
+        "roster_pup",
+        "roster_nfi",
+        "mandatory_missed_games",
         "depth_rank",
         "qb_depth_rank",
         "qb_listed_starter",
@@ -659,7 +768,9 @@ def player_preseason_rows(
         postseason = load_postseason_usage(observed, source=source)
     if team_volume is None:
         team_volume = team_season_volume(player_weeks)
-    efficiency = player_season_efficiency(player_weeks)
+    efficiency = add_career_efficiency_priors(
+        player_season_efficiency(player_weeks)
+    )
     team_games = team_volume[TEAM_KEYS + ["games"]].rename(columns={"games": "team_games"})
     team_games = _projected_team_games(team_games, projection)
     history = history.merge(team_games, on=TEAM_KEYS, how="left")
@@ -811,12 +922,20 @@ def player_preseason_rows(
         "snap_share",
         "qb_snap_share",
     ]
+    history = add_career_role_priors(history)
+    prior_columns = prior_columns + [
+        name for *_, name in CAREER_ROLE_STREAMS if name in history
+    ]
     prior = history[prior_columns].copy()
     prior["season"] += 1
     prior = prior.rename(
         columns={
             "team": "prior_team",
             "pass_attempt_share": "prior_pass_attempt_share",
+            **{
+                name: f"prior_{name.removeprefix('career_')}_career"
+                for *_, name in CAREER_ROLE_STREAMS
+            },
             "target_share": "prior_target_share",
             "carry_share": "prior_carry_share",
             "late_pass_attempt_share": "prior_late_pass_attempt_share",
@@ -940,7 +1059,10 @@ def player_preseason_rows(
             axis=1,
         ).to_numpy(dtype=float)
     out = add_teammate_quality_features(out)
+    out = add_coaching_scheme_features(out)
     out = add_market_adp_features(out)
+    # After the ADP merge, because the interaction needs the drafted indicator.
+    out = add_adp_tier_interactions(out, PRIOR_EFFICIENCY_FEATURES)
     out = add_conditional_volume_efficiency_features(out)
     out["is_projection"] = out["season"].isin(projection).astype(int)
     if projection:
@@ -957,6 +1079,128 @@ def player_preseason_rows(
         )
     out["transition"] = (out["season"] - 1).astype(str) + "->" + out["season"].astype(str)
     return out.sort_values(PLAYER_KEYS).reset_index(drop=True)
+
+
+# Decayed exposure-weighted role history, the volume-layer counterpart to the
+# efficiency layer's career priors.
+#
+# ``prior_target_role`` and its siblings are built from one prior season, and a
+# season's observed share is a noisy measurement of the role a player holds. The
+# same construction that beat both the one-season prior and the rate-EWMA on the
+# efficiency responses applies here: accumulate the player's counts and his
+# team's counts separately with a decay, then divide, so a twelve-target season
+# and a hundred-and-twenty-target season count for what they are worth rather
+# than equally.
+#
+# Team totals are recomputed here rather than read from the frame, which drops
+# them before this point, and rather than recovered as count/share, which is
+# undefined for the zero-share rows that still belong in the denominator.
+CAREER_ROLE_DECAY = 0.7
+
+# (player count, team total column or None, emitted name).
+#
+# A target and a carry belong to exactly one player, so summing the roster
+# recovers the team total. A *snap* does not: eleven players are on the field for
+# each one and four positions of them are in this frame, so summing player snaps
+# overshoots team plays about fivefold and the resulting share is the real one
+# divided by five. It has to read team_offense_snaps instead. Caught by the
+# emitted column topping out at 0.178 against an observed snap share that
+# reaches 1.0.
+CAREER_ROLE_STREAMS = (
+    ("targets", None, "career_target_share"),
+    ("rush_att", None, "career_carry_share"),
+    ("pass_att", None, "career_pass_attempt_share"),
+    ("offense_snaps", "team_offense_snaps", "career_snap_share"),
+)
+
+
+def add_career_role_priors(
+    history: pd.DataFrame, *, decay: float = CAREER_ROLE_DECAY
+) -> pd.DataFrame:
+    """Attach decayed exposure-weighted role shares over a player's own history.
+
+    Emitted on the season whose history they summarise, so the existing +1 lag
+    carries them forward exactly as the one-season shares are carried.
+    """
+    from ffmodel.features.season_efficiency import _decayed_history
+
+    out = history.copy()
+    out["_career_order"] = np.arange(len(out))
+    out = out.sort_values(["player_key", "season"])
+    for count_column, team_column, name in CAREER_ROLE_STREAMS:
+        if count_column not in out:
+            continue
+        counts = pd.to_numeric(out[count_column], errors="coerce")
+        if team_column is None:
+            team_total = counts.groupby(
+                [out[key] for key in TEAM_KEYS], dropna=False
+            ).transform("sum")
+        elif team_column in out:
+            team_total = pd.to_numeric(out[team_column], errors="coerce")
+        else:
+            continue
+        player_history, team_history = [], []
+        for _, index in out.groupby("player_key", dropna=False).indices.items():
+            seasons = out["season"].iloc[index]
+            player_history.append(_decayed_history(counts.iloc[index], seasons, decay))
+            team_history.append(_decayed_history(team_total.iloc[index], seasons, decay))
+        order = np.concatenate(
+            list(out.groupby("player_key", dropna=False).indices.values())
+        )
+        numerator = pd.Series(np.nan, index=out.index)
+        denominator = pd.Series(np.nan, index=out.index)
+        numerator.iloc[order] = np.concatenate(player_history)
+        denominator.iloc[order] = np.concatenate(team_history)
+        out[name] = (numerator / denominator).where(denominator.gt(0))
+    return out.sort_values("_career_order").drop(columns="_career_order")
+
+
+
+# Tier-specific persistence: one prior slope for the players a draft is about
+# and another for everyone else.
+#
+# The layer fits a single coefficient on the lagged response for every player.
+# Measured separately by tier, the coefficients differ -- yards per target
+# persists at a slope of +0.669 among drafted players and +0.454 among the rest,
+# catch rate at +0.854 against +0.776 -- so one shared slope is a compromise
+# between two populations rather than a description of either.
+#
+# The alternative considered and rejected was training on the drafted players
+# alone. That breaks the volume softmax, whose shares only sum to one over a
+# whole roster, and selects the training set on ADP, which is a forecast of the
+# response: it discards the 131 player-seasons that finished top-100 undrafted
+# while keeping the 402 drafted ones that finished outside the top 300. An
+# interaction buys the same tier-specific flexibility and keeps every row.
+# See scripts/screen_adp_truncated_training.py.
+ADP_TIER_INTERACTION_SUFFIX = "_x_drafted"
+
+
+def add_adp_tier_interactions(
+    rows: pd.DataFrame, priors: Iterable[str]
+) -> pd.DataFrame:
+    """Interact each lagged response with the drafted indicator.
+
+    The prior is centred on its season-and-position mean before multiplying, so
+    the interaction carries the *difference* in slope and leaves the level to the
+    indicator itself. Without centring the two terms are collinear and the
+    design's rank reduction absorbs the interaction rather than fitting it.
+    """
+    out = rows.copy()
+    drafted = pd.to_numeric(
+        out.get("adp_drafted", pd.Series(np.nan, index=out.index)), errors="coerce"
+    )
+    if not drafted.notna().any():
+        return out
+    drafted = drafted.fillna(0.0)
+    groupers = [out["season"], out["position"]]
+    for name in priors:
+        if name not in out:
+            continue
+        values = pd.to_numeric(out[name], errors="coerce")
+        centred = values - values.groupby(groupers, dropna=False).transform("mean")
+        out[f"{name}{ADP_TIER_INTERACTION_SUFFIX}"] = centred * drafted
+    return out
+
 
 
 def build_season_average_data(
@@ -997,6 +1241,16 @@ def build_season_average_data(
             "with rows for each projection season"
         )
     player_weeks = load_player_weeks(observed, source=source)
+    if source != "legacy":
+        # Down and distance live only in play-by-play; the weekly stat feed the
+        # panel is built from does not carry them. Missing coverage stays
+        # missing -- see ffmodel.features.carry_context.
+        try:
+            player_weeks = merge_carry_context(
+                player_weeks, weekly_carry_context(observed, cache_dir=roster_cache_dir)
+            )
+        except (ingest.DataUnavailableError, OSError):
+            pass
     teams = team_season_volume(player_weeks)
     # No upper bound: the loader drops seasons the feed will not serve, so
     # coverage follows the data rather than a constant that goes stale.

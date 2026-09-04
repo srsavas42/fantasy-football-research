@@ -185,7 +185,7 @@ def main(argv=None) -> int:
         print(f"  {lam:>8.0f} {row}")
 
     best = {e: min(v.values()) for e, v in results.items()}
-    print(f"\n  best over lambda: " + ", ".join(f"{e} {v:.4f}" for e, v in best.items()))
+    print("\n  best over lambda: " + ", ".join(f"{e} {v:.4f}" for e, v in best.items()))
     dev, absolute, none = best["deviations"], best["absolute"], best["none"]
     print(
         f"  absolute vs deviations at their own optima: "

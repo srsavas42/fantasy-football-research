@@ -53,6 +53,17 @@ EFFICIENCY_SPECS = (
         MODEL_POSITIONS,
         250,
     ),
+    # The modeled response. Fumbling is the player's; losing the ball is not.
+    # See the note in ``ffmodel.data.ingest`` for the measurements. The lost
+    # rate above is retained because it is still what scoring ultimately needs
+    # and what a season is graded on -- it is simply no longer what is fitted.
+    SeasonEfficiencySpec(
+        "fumble_rate",
+        "fumbles",
+        "fumble_opportunities",
+        MODEL_POSITIONS,
+        250,
+    ),
     SeasonEfficiencySpec(
         "pass_air_yards_per_attempt", "pass_air_yds", "pass_att", ("QB",), 100, True
     ),
@@ -82,6 +93,19 @@ EFFICIENCY_SPECS = (
     ),
     SeasonEfficiencySpec(
         "rush_first_down_rate", "rush_first_downs", "rush_att", MODEL_POSITIONS, 60, True
+    ),
+    # Usage context rather than efficiency, but it rides the same machinery:
+    # aggregated as a ratio of season totals, pooled toward the position mean so
+    # a twenty-carry sample is not taken at face value, and exposed only as a
+    # lagged feature. See ``ffmodel.features.carry_context`` for what it is and
+    # what it was measured to be worth.
+    SeasonEfficiencySpec(
+        "rush_short_yardage_share",
+        "rush_short_yardage_att",
+        "rush_att",
+        MODEL_POSITIONS,
+        60,
+        True,
     ),
 )
 
@@ -330,17 +354,138 @@ def efficiency_label_columns() -> list[str]:
     )
 
 
+# Decay on a player's own history, per season, for the career priors below.
+#
+# The layer predicts every response from a single prior season. That season is a
+# noisy measurement of the thing being predicted -- split-half reliability puts
+# yards per target at 42.7% signal and receiving touchdown rate at 26.7% -- while
+# the underlying talent barely moves, correlating about 0.93 from one year to the
+# next once the noise is divided out. Nearly all of the prior's error is
+# therefore measurement error in the prior itself, which no covariate placed
+# beside it can repair.
+#
+# Two constructions were compared against the one-season prior, on the population
+# where the response is observed at 30+ opportunities:
+#
+#   response              1 season   rate EWMA   exposure-weighted, decayed
+#   rush_yards_per_carry      8.8%       12.7%       15.5%
+#   rec_catch_rate           20.9%       24.1%       26.8%
+#   rec_yards_per_target      9.3%       12.6%       14.7%
+#   rush_td_rate              4.8%        5.1%        5.7%
+#   rec_td_rate               2.6%        3.4%        3.7%
+#
+# The middle column is what ``season_pathways`` already builds: an EWMA of each
+# season's *rate*, in which a 20-target season and a 150-target season carry the
+# same weight. Accumulating numerators and denominators instead lets a season
+# count for the information it holds, and beats it on every response.
+#
+# 0.7 per season -- a half-life near two seasons, effective memory near three --
+# is one constant for every response rather than the per-response optimum. The
+# optima differ (0.5 on rushing touchdown rate, 1.0 on receiving) but they were
+# read off seasons that include the holdouts, and the loss from using 0.7
+# everywhere is at most 0.2 points of r-squared. A tuned constant that cannot be
+# tuned honestly is worth less than that.
+CAREER_DECAY = 0.7
+
+CAREER_EFFICIENCY_FEATURES = tuple(
+    f"prior_{spec.name}_career" for spec in EFFICIENCY_SPECS
+)
+
+
+def _decayed_history(
+    values: pd.Series, seasons: pd.Series, decay: float
+) -> np.ndarray:
+    """Decayed sum of a player's strictly earlier seasons.
+
+    Season gaps decay by the years elapsed, not by one step, so a player who
+    misses a year does not carry a two-year-old season as though it were last
+    season's.
+    """
+    out = np.full(len(values), np.nan)
+    total = 0.0
+    previous: float | None = None
+    for i, (value, season) in enumerate(zip(values.to_numpy(), seasons.to_numpy())):
+        if previous is not None:
+            total *= decay ** max(1, int(season) - int(previous))
+        out[i] = total if previous is not None else np.nan
+        if np.isfinite(value):
+            total += float(value)
+            previous = float(season)
+        elif previous is not None:
+            previous = float(season)
+    return out
+
+
+def add_career_efficiency_priors(
+    efficiency: pd.DataFrame, *, decay: float = CAREER_DECAY
+) -> pd.DataFrame:
+    """Attach an exposure-weighted, decayed prior over a player's own history.
+
+    Emitted on the season whose history it summarises, so the existing lag in
+    ``lagged_efficiency_rows`` carries it forward the same way the one-season
+    prior is carried. The value on season Y uses seasons strictly before Y.
+    """
+    out = efficiency.sort_values(["player_key", "season"]).reset_index(drop=True)
+    grouped = out.groupby("player_key", dropna=False)
+    for spec in EFFICIENCY_SPECS:
+        # Membership is checked on the columns, not on the converted result:
+        # ``out.get`` returns None for an absent column and ``pd.to_numeric``
+        # turns that into a scalar nan, so a None check downstream never fires.
+        if spec.numerator not in out or spec.denominator not in out:
+            continue
+        numerator = pd.to_numeric(out[spec.numerator], errors="coerce")
+        denominator = pd.to_numeric(out[spec.denominator], errors="coerce")
+        observed = denominator.gt(0)
+        history_num = np.concatenate([
+            _decayed_history(numerator.where(observed).iloc[idx],
+                             out["season"].iloc[idx], decay)
+            for idx in grouped.indices.values()
+        ])
+        history_den = np.concatenate([
+            _decayed_history(denominator.where(observed).iloc[idx],
+                             out["season"].iloc[idx], decay)
+            for idx in grouped.indices.values()
+        ])
+        order = np.concatenate(list(grouped.indices.values()))
+        num = pd.Series(np.nan, index=out.index)
+        den = pd.Series(np.nan, index=out.index)
+        num.iloc[order] = history_num
+        den.iloc[order] = history_den
+
+        # Shrink toward the same season-and-position mean the one-year prior
+        # uses, so the two are on one scale and a model can weigh them.
+        valid = den.gt(0)
+        pooled = pd.to_numeric(out.get(f"shrunk_{spec.name}"), errors="coerce")
+        groupers = [out["season"], out["position"]]
+        pooled_mean = pooled.groupby(groupers, dropna=False).transform("mean")
+        pooled_mean = pooled_mean.fillna(pooled.groupby(out["season"]).transform("mean"))
+        out[f"career_{spec.name}"] = (
+            (num + spec.prior_opportunities * pooled_mean)
+            / (den + spec.prior_opportunities)
+        ).where(valid)
+        out[f"career_{spec.name}_exposure"] = den.where(valid)
+    return out
+
+
 def lagged_efficiency_rows(efficiency: pd.DataFrame) -> pd.DataFrame:
     """Shift pooled efficiency from season ``Y`` onto preseason ``Y+1`` rows."""
     columns = ["season", "player_key", "advanced_efficiency_available"] + list(
         SHRUNK_EFFICIENCY_COLUMNS
     )
-    out = efficiency[columns].copy()
+    career = [
+        f"career_{name}" for name in EFFICIENCY_LABEL_COLUMNS
+        if f"career_{name}" in efficiency
+    ]
+    out = efficiency[columns + career].copy()
     out["season"] = pd.to_numeric(out["season"], errors="raise").astype(int) + 1
     out = out.rename(
         columns={
             **{
                 f"shrunk_{name}": f"prior_{name}"
+                for name in EFFICIENCY_LABEL_COLUMNS
+            },
+            **{
+                f"career_{name}": f"prior_{name}_career"
                 for name in EFFICIENCY_LABEL_COLUMNS
             },
             "advanced_efficiency_available": "prior_advanced_efficiency_available",

@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.features.volume import MODEL_POSITIONS
+from ffmodel.models.design import standardize
 from ffmodel.models.volume_season_average import (
     BASE_ADJUSTMENT_FEATURES,
     GROUP_KEYS,
@@ -39,6 +40,8 @@ def persistence_volume(rows: pd.DataFrame, team_rows: pd.DataFrame) -> pd.DataFr
     pass_pg = teams["prior_pass_attempts_per_game"].reindex(keys).to_numpy(dtype=float)
     target_pg = teams["prior_targets_per_game"].reindex(keys).to_numpy(dtype=float)
     carry_pg = teams["prior_rush_attempts_per_game"].reindex(keys).to_numpy(dtype=float)
+    out["pred_pass_attempt_share"] = pass_share
+    out["pred_pass_attempts_per_game"] = pass_share * pass_pg
     out["pred_target_share"] = target_share
     out["pred_carry_share"] = carry_share
     out["pred_targets_per_game"] = target_share * target_pg
@@ -92,24 +95,14 @@ class RidgeRosterBaseline:
         return _softmax_by_group(d, score)
 
     def _matrix(self, rows: pd.DataFrame, *, fit: bool = False) -> np.ndarray:
-        columns = [np.ones(len(rows), dtype=float)]
-        for name in self.feature_names:
-            values = pd.to_numeric(rows[name], errors="coerce")
-            if fit:
-                fill = float(values.median()) if values.notna().any() else 0.0
-                filled = values.fillna(fill)
-                mean = float(filled.mean())
-                scale = float(filled.std(ddof=0))
-                self.fill[name] = fill
-                self.mean[name] = mean
-                self.scale[name] = scale if scale > 1e-8 else 1.0
-            filled = values.fillna(self.fill[name])
-            columns.append(
-                (filled.to_numpy(dtype=float) - self.mean[name]) / self.scale[name]
-            )
-        for position in MODEL_POSITIONS[:-1]:
-            columns.append((rows["position"].astype(str) == position).to_numpy(dtype=float))
-        return np.column_stack(columns)
+        features = standardize(
+            rows, self.feature_names, self.fill, self.mean, self.scale, fit=fit
+        )
+        dummies = [
+            (rows["position"].astype(str) == position).to_numpy(dtype=float)
+            for position in MODEL_POSITIONS[:-1]
+        ]
+        return np.column_stack([np.ones(len(rows), dtype=float), features, *dummies])
 
 
 @dataclass
@@ -243,5 +236,3 @@ def _softmax_by_group(rows: pd.DataFrame, score: np.ndarray) -> np.ndarray:
         weights = np.exp(centered)
         out[indices] = weights / weights.sum()
     return out
-    out["pred_pass_attempt_share"] = pass_share
-    out["pred_pass_attempts_per_game"] = pass_share * pass_pg

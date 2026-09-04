@@ -18,6 +18,7 @@ import pandas as pd
 from ffmodel.config import SCORING_FORMATS, ScoringRules
 from ffmodel.models.efficiency_season_average import (
     EFFICIENCY_MODEL_BY_TARGET,
+    LEAGUE_FUMBLE_LOST_SHARE,
     SeasonAverageEfficiencyPrediction,
     SeasonAveragePosteriorEfficiencyPipeline,
 )
@@ -35,7 +36,7 @@ REQUIRED_EFFICIENCY_TARGETS = (
     "rec_td_rate",
     "rush_yards_per_carry",
     "rush_td_rate",
-    "fumble_lost_rate",
+    "fumble_rate",
 )
 
 EFFICIENCY_COPULA_STREAMS = {
@@ -137,7 +138,7 @@ def volume_efficiency_exposures(
         "rec_td_rate": targets,
         "rush_yards_per_carry": carries,
         "rush_td_rate": carries,
-        "fumble_lost_rate": fumble_opportunities,
+        "fumble_rate": fumble_opportunities,
     }
 
 
@@ -410,6 +411,7 @@ def simulate_season_scoring(
     efficiency: SeasonAverageEfficiencyPrediction,
     *,
     scoring_formats: Mapping[str, ScoringRules] | None = None,
+    fumble_lost_share: float = LEAGUE_FUMBLE_LOST_SHARE,
     seed: int = 0,
 ) -> SeasonScoringPrediction:
     """Combine aligned volume and efficiency draws into total season scoring."""
@@ -497,9 +499,16 @@ def simulate_season_scoring(
     rush_yds = _event_yards(carries, rate("rush_yards_per_carry"), carries)
 
     fumble_opportunities = pass_attempts + targets + carries
+    # The response is fumbles *committed*; scoring charges for fumbles *lost*.
+    # Thinning a Binomial(n, p) by an independent q is exactly Binomial(n, pq),
+    # so drawing once at the thinned rate is distributionally identical to
+    # drawing fumbles and then their recoveries, and carries the right variance
+    # without a second draw. What changes is only where p comes from: a rate
+    # fitted on the part of the event the player owns, rather than on the part a
+    # loose ball decides.
     fumbles_lost = rng.binomial(
         fumble_opportunities,
-        np.clip(rate("fumble_lost_rate"), 0.0, 1.0),
+        np.clip(rate("fumble_rate") * fumble_lost_share, 0.0, 1.0),
     )
 
     statistics = {
@@ -572,5 +581,8 @@ def score_volume_prediction(
         volume,
         efficiency,
         scoring_formats=scoring_formats,
+        fumble_lost_share=getattr(
+            efficiency_model, "fumble_lost_share", LEAGUE_FUMBLE_LOST_SHARE
+        ),
         seed=seed + 1_000,
     )

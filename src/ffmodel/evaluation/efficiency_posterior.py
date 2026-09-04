@@ -13,9 +13,6 @@ from ffmodel.evaluation.metrics import (
     pit_calibration,
 )
 
-# Twelve is one starter per team in a standard league, so the projected top
-# twelve at a position is exactly the set a drafter is trying to identify.
-TOP_K = 12
 from ffmodel.models.efficiency_season_average import (
     EfficiencyModelSpec,
     ExposureWeightedEfficiencyModel,
@@ -23,6 +20,10 @@ from ffmodel.models.efficiency_season_average import (
 )
 from ffmodel.simulation.scoring import fantasy_points
 from ffmodel.simulation.season_scoring import SeasonScoringPrediction
+
+# Twelve is one starter per team in a standard league, so the projected top
+# twelve at a position is exactly the set a drafter is trying to identify.
+TOP_K = 12
 
 
 # Efficiency-v1 promotion decisions. The posterior candidate must first beat
@@ -38,7 +39,7 @@ ACCEPTED_POINT_BASELINE = {
     "rec_td_rate": "prior",
     "rush_yards_per_carry": "ridge",
     "rush_td_rate": "prior",
-    "fumble_lost_rate": "prior",
+    "fumble_rate": "prior",
 }
 
 
@@ -191,6 +192,7 @@ def observed_scoring_rows(rows: pd.DataFrame) -> pd.DataFrame:
         "rec_td": "eff_rec_td",
         "receptions": "eff_receptions",
         "fumbles_lost": "eff_fumbles_lost",
+        "fumbles": "eff_fumbles",
     }
     out = pd.DataFrame(index=rows.index)
     for target, source in mapping.items():

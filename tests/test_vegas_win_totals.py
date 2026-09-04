@@ -114,7 +114,7 @@ def test_a_relocated_franchise_resolves_by_era_not_by_label(tmp_path):
     one franchise into two, or attach Las Vegas numbers to an Oakland row.
     """
     rows = _thirty_two(2005)
-    rows = [(s, "OAK" if t == "LV" else t, l, o, u) for s, t, l, o, u in rows]
+    rows = [(s, "OAK" if t == "LV" else t, line, o, u) for s, t, line, o, u in rows]
     _long(tmp_path, rows)
 
     out = load_win_totals(tmp_path)

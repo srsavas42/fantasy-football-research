@@ -127,8 +127,12 @@ def test_prior_only_rate_preserves_the_accepted_pooled_mean():
         prior_rush_td_rate=[0.035, 0.045, 0.018, 0.009],
         eff_rush_td=[2, 10, 0, 0],
     )
+    # The subject here is ``prior`` mode's identity map, not rush_td_rate's
+    # configuration. The mode is named explicitly because that response has
+    # since been promoted to ``posterior``, and leaving it implicit made this
+    # test silently change what it was testing.
     model = PosteriorSeasonEfficiencyModel(
-        EFFICIENCY_MODEL_BY_TARGET["rush_td_rate"]
+        EFFICIENCY_MODEL_BY_TARGET["rush_td_rate"], mean_mode="prior"
     )
     eligible = model._eligible(rows)
     model._matrix(eligible, fit=True)

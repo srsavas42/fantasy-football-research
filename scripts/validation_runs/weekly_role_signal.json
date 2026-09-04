@@ -1,0 +1,127 @@
+{
+  "coverage": {
+    "injury report present": 0.08094680580300331,
+    "depth rank present": 0.8098956477475184
+  },
+  "signals": [
+    {
+      "signal": "ahead-out AND he is healthy",
+      "n_flagged": 780,
+      "pct_of_rows": 5.66086600794239,
+      "p_role_grew": 0.16153846153846155,
+      "base_rate": 0.08353799250953758,
+      "lift": 1.8944595787861669,
+      "recall": 0.09519793619695144,
+      "model_bias": -2.0987243577532784,
+      "model_mae": 4.710045441036571,
+      "observed": 6.225769230769231
+    },
+    {
+      "signal": "someone ahead of him is out",
+      "n_flagged": 862,
+      "pct_of_rows": 6.289056065318826,
+      "p_role_grew": 0.14965197215777262,
+      "base_rate": 0.08349554722075947,
+      "lift": 1.75268783828718,
+      "recall": 0.09657266302121628,
+      "model_bias": -1.7879696244346257,
+      "model_mae": 4.775978952375039,
+      "observed": 5.9887470997679815
+    },
+    {
+      "signal": "promoted on the depth chart",
+      "n_flagged": 475,
+      "pct_of_rows": 3.4831696077354164,
+      "p_role_grew": 0.14526315789473684,
+      "base_rate": 0.0834791625843109,
+      "lift": 1.7359348681953093,
+      "recall": 0.059205283909083826,
+      "model_bias": -1.6578703556711556,
+      "model_mae": 4.704136042139927,
+      "observed": 6.543831578947368
+    },
+    {
+      "signal": "promoted last week (lagged)",
+      "n_flagged": 434,
+      "pct_of_rows": 3.170409044563775,
+      "p_role_grew": 0.12903225806451613,
+      "base_rate": 0.08353122982145948,
+      "lift": 1.5505895943921706,
+      "recall": 0.05037295857078379,
+      "model_bias": -1.369312743990195,
+      "model_mae": 4.784237797753028,
+      "observed": 6.612626728110599
+    },
+    {
+      "signal": "two or more out at his position",
+      "n_flagged": 429,
+      "pct_of_rows": 2.859790921516949,
+      "p_role_grew": 0.11421911421911422,
+      "base_rate": 0.08434803465282484,
+      "lift": 1.3635547180461025,
+      "recall": 0.04040564005791202,
+      "model_bias": 1.288583889726853,
+      "model_mae": 5.315420581836766,
+      "observed": 4.595058275058275
+    },
+    {
+      "signal": "someone ahead of him was out last week",
+      "n_flagged": 811,
+      "pct_of_rows": 5.972687103882096,
+      "p_role_grew": 0.11220715166461159,
+      "base_rate": 0.08343508533315648,
+      "lift": 1.3112760170787083,
+      "recall": 0.0673559944579629,
+      "model_bias": -0.531803181031959,
+      "model_mae": 4.192930446059159,
+      "observed": 5.039704069050555
+    },
+    {
+      "signal": "listed first at his position",
+      "n_flagged": 8132,
+      "pct_of_rows": 48.58722682013742,
+      "p_role_grew": 0.10710772257747171,
+      "base_rate": 0.0874643263176174,
+      "lift": 1.2292751859585944,
+      "recall": 0.5923332015884413,
+      "model_bias": -0.7313534110756438,
+      "model_mae": 6.109851864665154,
+      "observed": 10.90463354648303
+    },
+    {
+      "signal": "he is questionable or worse",
+      "n_flagged": 1688,
+      "pct_of_rows": 9.910532998893176,
+      "p_role_grew": 0.03495260663507109,
+      "base_rate": 0.08690288319353304,
+      "lift": 0.3961975543830435,
+      "recall": 0.04016988527383028,
+      "model_bias": 3.996251606634697,
+      "model_mae": 6.2382700574941214,
+      "observed": 3.2185663507109004
+    }
+  ],
+  "folds": [
+    {
+      "holdout": 2023,
+      "role_grew_n": 499,
+      "role_grew_bias": -6.903024871703211,
+      "share_of_grew_flagged_by_ahead_out": 0.08016032064128256,
+      "share_of_grew_flagged_by_any": 0.11623246492985972
+    },
+    {
+      "holdout": 2024,
+      "role_grew_n": 523,
+      "role_grew_bias": -7.24673270251584,
+      "share_of_grew_flagged_by_ahead_out": 0.07265774378585087,
+      "share_of_grew_flagged_by_any": 0.0994263862332696
+    },
+    {
+      "holdout": 2025,
+      "role_grew_n": 459,
+      "role_grew_bias": -6.541275105938085,
+      "share_of_grew_flagged_by_ahead_out": 0.1111111111111111,
+      "share_of_grew_flagged_by_any": 0.17647058823529413
+    }
+  ]
+}

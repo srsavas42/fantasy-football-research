@@ -5,7 +5,6 @@ recorded one — precisely the role-collapse cases a preseason projection most
 needs to be graded on.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

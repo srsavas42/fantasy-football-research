@@ -382,3 +382,36 @@ def gate_override(args: argparse.Namespace) -> bool | None:
     if args.no_couple_gate:
         return False
     return None
+
+
+def apply_legacy_rookie_prior(*frames) -> None:
+    """Rebuild the three draft-prior columns from the pre-refit share curves.
+
+    In place, on frames that have already been built, so the two arms of the
+    rookie-prior comparison differ only in the curve. Rebuilding the cache
+    instead would give the baseline arm a different frames fingerprint and the
+    comparison would stop being paired.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from ffmodel.features.draft import LEGACY_SHARE_FIT_CURVES
+
+    def claim(pick, position: str, stream: str) -> float:
+        base, scale = LEGACY_SHARE_FIT_CURVES.get((position, stream), (0.0, 60.0))
+        if base <= 0:
+            return 0.0
+        slot = 220.0 if pick is None or pd.isna(pick) else float(pick)
+        return float(base * np.exp(-(slot - 1.0) / scale))
+
+    for frame in frames:
+        picks = frame["overall_pick"]
+        for stream, column in (
+            ("target", "draft_target_prior"),
+            ("carry", "draft_carry_prior"),
+            ("pass", "draft_pass_prior"),
+        ):
+            frame[column] = [
+                claim(pick, position, stream)
+                for pick, position in zip(picks, frame["position"])
+            ]

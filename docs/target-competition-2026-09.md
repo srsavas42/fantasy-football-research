@@ -769,3 +769,109 @@ with a non-null `overall_pick`, so undrafted players are excluded from the fit
 entirely and then served by extrapolating the exponential to a stand-in pick of
 220. That is **61% of cold rows** taking a value from beyond the end of the
 fitted data, validated against nothing.
+
+## The refit fails the pipeline gate
+
+`scripts/validate_volume_fix_walkforward.py`, paired arms on identical frames
+(fingerprint verified equal), holdouts 2022/2023/2024, 500 draws / 500 tune.
+The baseline arm rebuilds the pre-refit share curves in place from
+`LEGACY_SHARE_FIT_CURVES` via `--legacy-rookie-prior`, so the two arms differ in
+the curve and in nothing else.
+
+| stream | metric | pooled | 2022 | 2023 | 2024 | better |
+|---|---|---:|---:|---:|---:|---:|
+| target | MAE | **+5.55%** | +2.76 | +0.12 | **+14.98** | 0/3 |
+| target | CRPS | −2.24% | −4.40 | −5.60 | +4.15 | 2/3 |
+| carry | MAE | **+2.94%** | +0.50 | +6.00 | +2.63 | 0/3 |
+| carry | CRPS | +1.14% | −1.60 | +3.55 | +1.83 | 1/3 |
+| pass_qb | MAE | **+1.92%** | +0.82 | +0.26 | +4.97 | 0/3 |
+| pass_qb | CRPS | −0.36% | −1.17 | −1.36 | +1.71 | 2/3 |
+| snap | MAE, CRPS | +0.000% | — | — | — | — |
+| availability | MAE, CRPS | +0.000% | — | — | — | — |
+
+Positive is worse. **The gate rejects it**: the promotion rule requires winning
+every fold, and MAE loses every fold on all three volume streams. `snap` and
+`availability` being identical to the last decimal confirms the arms are cleanly
+isolated — the curve only touches the volume priors. `pass_qb` moves because the
+refit also changed `draft_pass_prior` (QB pass 0.78 → 0.6198), which was not the
+defect under investigation.
+
+Coverage moves the wrong way too, and my first reading of it was wrong. Nominal
+is 0.80, and the baseline already over-covers at 0.847; the refit widens to
+0.869, further from nominal, not closer.
+
+| | base | refit |
+|---|---:|---:|
+| target cov80 | 0.847 | 0.869 |
+| target cov95 | 0.954 | 0.968 |
+| carry cov80 | 0.880 | 0.884 |
+| pass_qb cov80 | 0.810 | 0.787 |
+
+So there is no metric on which this is a clean win. CRPS improves on 2022 and
+2023 and gives it back on 2024, in the same fold where MAE blows out by 15%.
+
+## Why it fails: the rate fit conditions on survival
+
+The units diagnosis is arithmetic and it still stands. What the refit got wrong
+is the population it fitted on. Rate mode keeps only rookies with 50+ snaps —
+necessary, because a rookie with four snaps has a per-snap rate that is pure
+noise — but that is conditioning on *having earned a role*. The curve it
+produces answers "given a rookie plays, how does draft slot move his per-snap
+usage?", and the answer is genuinely "barely, 1.8× end to end". The pipeline
+then applies that curve to every rookie, including the ones who never play.
+
+The effect on where prior mass sits, WR targets:
+
+| slot | legacy | refit | ratio |
+|---|---:|---:|---:|
+| pick 1 | 0.2200 | 0.1412 | 0.64× |
+| pick 32 | 0.1312 | 0.1306 | 1.00× |
+| pick 64 | 0.0770 | 0.1205 | 1.57× |
+| pick 100 | 0.0423 | 0.1101 | 2.61× |
+| pick 150 | 0.0184 | 0.0971 | 5.29× |
+| undrafted | 0.0057 | 0.0814 | **14.24×** |
+
+Over the 1,731 cold skill rows in the cache — 61.6% of them undrafted — the mean
+prior triples, 0.0243 → 0.0803, and the undrafted share of all cold prior mass
+goes 22.1% → **54.8%**. The softmax normalises within team-season, so that is
+not a harmless rescale: it is camp bodies taking share from real players, in
+every room, on every fold. A 15% MAE blowout on 2024 is what that looks like.
+
+So the steep curve was doing two jobs, and the diagnosis only named one. It
+prices per-snap usage — where it is indeed 17× too steep — *and* it prices the
+probability that draft capital converts into a role at all, over and above what
+the snap model projects. The snap model cannot fully separate a seventh-rounder
+who will start from one who will be cut, because in the offseason very little
+distinguishes them except draft slot. Flattening the curve on rate removed both
+jobs, and the second one was load-bearing.
+
+That is also the honest verdict on the earlier held-out allocation numbers
+(cold bias 28.9% → 7.2%). Bias is a statement about the *mean* of the cold
+population, and lifting several hundred players who will never take a snap
+raises that mean toward the truth while making almost every individual
+projection worse. Bias improved and accuracy did not. The two are not the same
+question and this measurement conflated them.
+
+## What the identity actually requires
+
+Measured over every rookie in the cache — zero-snap players included, which is
+the population the prior is applied to — round 1 against undrafted:
+
+| bucket | n | snap share | target share | implied per-snap rate |
+|---|---:|---:|---:|---:|
+| rd1 | 74 | 0.5528 | 0.1379 | 0.2494 |
+| rd2–3 | 195 | 0.3699 | 0.0724 | 0.1956 |
+| rd4–7 | 394 | 0.1776 | 0.0321 | 0.1810 |
+| undrafted | 348 | 0.0638 | 0.0101 | 0.1589 |
+| **rd1/undrafted** | | **8.66×** | **13.59×** | **1.57×** |
+
+So the refit's 1.67× is the right number *for a per-snap rate*, and the units
+diagnosis is vindicated on observed quantities. But the identity
+`share = exposure × rate` only closes inside the model if the model's
+**projected** exposure carries the 8.66× itself, and that cannot be assumed.
+The snap model is projecting players with no NFL history; shrinking an unknown
+row toward its position mean is exactly what a hierarchical model does. Whatever
+spread projected exposure fails to carry has to live somewhere, and under the
+legacy curve it lived in the steepness the diagnosis called a double count.
+
+`scripts/diagnose_rookie_exposure_spread.py` measures that directly.

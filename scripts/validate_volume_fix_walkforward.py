@@ -28,6 +28,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _walkforward_data import (
     add_common_arguments,
+    apply_legacy_rookie_prior,
     frames_fingerprint,
     gate_override,
     load_frames,
@@ -125,29 +126,7 @@ def main(argv=None) -> None:
         if args.market_adp_interactions is not None:
             pipeline.market_adp_interactions = args.market_adp_interactions
         if args.legacy_rookie_prior:
-            # Rebuild the three draft-prior columns from the pre-refit
-            # share-fit curves, in place on these same frames, so the arms
-            # differ only in the curve and nothing else -- rather than needing
-            # a second cache build whose fingerprint would not match.
-            from ffmodel.features.draft import LEGACY_SHARE_FIT_CURVES
-            import numpy as _np
-
-            def _legacy(pick, position, stream):
-                base, scale = LEGACY_SHARE_FIT_CURVES.get((position, stream), (0.0, 60.0))
-                if base <= 0:
-                    return 0.0
-                slot = 220.0 if pick is None or pd.isna(pick) else float(pick)
-                return float(base * _np.exp(-(slot - 1.0) / scale))
-
-            for frame in (train.player_rows, test.player_rows):
-                picks = frame.get("overall_pick")
-                for stream, column in (("target", "draft_target_prior"),
-                                       ("carry", "draft_carry_prior"),
-                                       ("pass", "draft_pass_prior")):
-                    frame[column] = [
-                        _legacy(p, q, stream)
-                        for p, q in zip(picks, frame["position"])
-                    ]
+            apply_legacy_rookie_prior(train.player_rows, test.player_rows)
         if args.coaching_scheme is not None:
             pipeline.coaching_scheme_features = args.coaching_scheme
         if args.room_structure is not None:

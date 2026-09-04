@@ -55,7 +55,12 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _walkforward_data import add_common_arguments, frames_fingerprint, load_frames
+from _walkforward_data import (
+    add_common_arguments,
+    apply_legacy_rookie_prior,
+    frames_fingerprint,
+    load_frames,
+)
 
 from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
 from ffmodel.features.season_average import SeasonAverageData
@@ -109,6 +114,8 @@ def main(argv=None) -> None:
             team_rows[team_rows.season == holdout].copy(),
             player_rows[player_rows.season == holdout].copy(),
         )
+        if args.legacy_rookie_prior:
+            apply_legacy_rookie_prior(train.player_rows, test.player_rows)
         pipeline = SeasonAverageVolumePipeline()
         pipeline.fit(train, **sample_kwargs)
 

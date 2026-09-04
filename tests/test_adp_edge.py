@@ -11,7 +11,6 @@ naively, which would make a model that says nothing look perfect.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 from ffmodel.models.adp_edge import (
     MIN_ROWS,

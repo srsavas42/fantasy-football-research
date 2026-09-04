@@ -24,7 +24,6 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-import pandas as pd
 
 from ffmodel.data import ingest
 from ffmodel.features.suspensions import (

@@ -7,11 +7,9 @@ least one of three folds has probability 0.04. Judging that by eye off a rate is
 how a noise draw gets written up as a defect, which is what happened once.
 """
 
-import json
 import sys
 from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from coverage_calibration import _binomial_interval, report

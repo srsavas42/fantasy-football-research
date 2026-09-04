@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.evaluation.metrics import empirical_crps
-from ffmodel.models.season_opportunity import SNAP_FEATURES, SeasonSnapShareModel
+from ffmodel.models.season_opportunity import SeasonSnapShareModel
 
 WATCH = ("depth_rank", "is_replacement_player", "qb_listed_starter")
 

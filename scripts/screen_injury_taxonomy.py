@@ -50,7 +50,7 @@ coarser than the question deserves. It is worth measuring anyway because muscle
 against joint against head is the split with a mechanism behind it.
 """
 import warnings; warnings.filterwarnings("ignore")
-import numpy as np, pandas as pd
+import pandas as pd
 import nflreadpy as nfl
 pd.set_option("display.width", 250)
 

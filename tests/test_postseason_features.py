@@ -9,7 +9,6 @@ into those would push availability past one for the 40% of teams that qualify
 and would feed player numerators and team denominators at different rates.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

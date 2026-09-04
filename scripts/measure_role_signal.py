@@ -35,7 +35,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
+from ffmodel.weekly import FEATURES_CACHE
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.frame import load_panel
 from ffmodel.weekly.market import attach_adp

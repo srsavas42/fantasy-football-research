@@ -51,10 +51,6 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.data import load_player_weeks
-from ffmodel.features import crossseason
-from ffmodel.features.season_efficiency import player_season_efficiency
-from ffmodel.features.volume import MODEL_POSITIONS, normalize_model_positions
 from ffmodel.models.season_availability import (
     AVAILABILITY_FEATURES,
     AVAILABILITY_HISTORY_FEATURES,

@@ -18,7 +18,6 @@ import pytest
 
 from scripts.decompose_role_change import (
     lag_comparison,
-    share_columns,
     variance_components,
 )
 

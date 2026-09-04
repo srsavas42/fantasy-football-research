@@ -41,7 +41,6 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.config import SCORING_FORMATS
 from ffmodel.evaluation.efficiency_posterior import observed_scoring_rows
 from ffmodel.evaluation.metrics import empirical_crps, interval_coverage
 from ffmodel.features.season_average import SeasonAverageData

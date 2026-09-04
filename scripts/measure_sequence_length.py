@@ -24,7 +24,6 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-import numpy as np
 import pandas as pd
 
 # What each candidate needs before it can be fitted per player.

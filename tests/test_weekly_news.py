@@ -15,7 +15,6 @@ injured player himself, must respect club and position boundaries, and must
 compare against the best-ranked absentee rather than any absentee.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

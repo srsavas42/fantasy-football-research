@@ -1,6 +1,5 @@
 """Credentialed/live provider contracts with network responses mocked."""
 
-import pandas as pd
 import pytest
 from datetime import datetime, timezone
 

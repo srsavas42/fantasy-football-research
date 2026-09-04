@@ -154,7 +154,7 @@ def main(argv=None) -> int:
             for row in table[table["verdict"] == "LOSS"].itertuples():
                 losses.append(f"{task}/{population}/{row.metric} ({row.margin})")
 
-        print(f"\n-- per fold, drafted, CRPS --")
+        print("\n-- per fold, drafted, CRPS --")
         folds = per_fold(results, model, "drafted", "crps")
         if not folds.empty:
             print(folds.to_string(index=False))

@@ -13,9 +13,6 @@ from ffmodel.evaluation.metrics import (
     pit_calibration,
 )
 
-# Twelve is one starter per team in a standard league, so the projected top
-# twelve at a position is exactly the set a drafter is trying to identify.
-TOP_K = 12
 from ffmodel.models.efficiency_season_average import (
     EfficiencyModelSpec,
     ExposureWeightedEfficiencyModel,
@@ -23,6 +20,10 @@ from ffmodel.models.efficiency_season_average import (
 )
 from ffmodel.simulation.scoring import fantasy_points
 from ffmodel.simulation.season_scoring import SeasonScoringPrediction
+
+# Twelve is one starter per team in a standard league, so the projected top
+# twelve at a position is exactly the set a drafter is trying to identify.
+TOP_K = 12
 
 
 # Efficiency-v1 promotion decisions. The posterior candidate must first beat

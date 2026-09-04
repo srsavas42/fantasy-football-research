@@ -36,7 +36,6 @@ few whose volume could actually move.
 """
 import warnings; warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd
-from scipy import stats
 pd.set_option("display.width", 240)
 
 pr = pd.read_pickle("/home/user/fantasy-football-research/.cache/ffmodel-2026/player_rows.pkl")

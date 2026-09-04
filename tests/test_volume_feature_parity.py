@@ -12,7 +12,6 @@ These tests pin the contract that lets the two be made to agree, rather than the
 numbers themselves, which need a sampler.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

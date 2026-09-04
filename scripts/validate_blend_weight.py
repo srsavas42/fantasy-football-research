@@ -152,7 +152,7 @@ def _report(report: dict, args) -> int:
             for arm in arms:
                 cells.append(f"{np.mean([b[arm][metric] for b in blocks]):13.2f}")
             print(f"  {name:12} " + "".join(cells))
-    print(f"\n  fold wins against the shipped w=0.316, on drafted CRPS")
+    print("\n  fold wins against the shipped w=0.316, on drafted CRPS")
     base = [folds[str(h)]["tiers"]["drafted"][f"w{SHIPPED:.3f}"]["crps"] for h in holdouts]
     for arm in arms:
         got = [folds[str(h)]["tiers"]["drafted"][arm]["crps"] for h in holdouts]

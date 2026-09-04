@@ -22,7 +22,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 from ffmodel.models.adp_edge import (
     AdpEdgeModel,

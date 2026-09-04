@@ -134,7 +134,6 @@ def season_ngs(stat_type: str) -> pd.DataFrame:
     merged = out[spec["metrics"][0]]
     for metric in spec["metrics"][1:]:
         merged = merged.merge(out[metric], on=["season", "player_id"], how="outer")
-    totals = d.groupby(["season", "player_id"], as_index=False).size() if False else None
     expo_total = (
         pd.DataFrame({"season": d.season, "player_id": d.player_gsis_id, "e": d[expo]})
         .groupby(["season", "player_id"], as_index=False)["e"].sum()

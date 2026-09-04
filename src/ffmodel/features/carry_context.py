@@ -125,7 +125,6 @@ def merge_carry_context(
         for column in CARRY_CONTEXT_COLUMNS:
             out[column] = np.nan
         return out
-    keys = ["season", "week", "player_id"]
     joined = context.copy()
     joined["player_id"] = joined["player_id"].astype(str)
     out["_join_player_id"] = out["player_id"].astype(str)

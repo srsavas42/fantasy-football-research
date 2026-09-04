@@ -46,7 +46,6 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.evaluation.efficiency_posterior import observed_scoring_rows
-from ffmodel.features.season_average import SeasonAverageData
 from ffmodel.simulation.scoring import fantasy_points
 
 MODEL_POSITIONS = ("QB", "RB", "WR", "TE")

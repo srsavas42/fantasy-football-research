@@ -36,7 +36,7 @@ from scipy import stats
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from screen_target_room_quality import entry_prior, residualise  # noqa: E402
+from screen_target_room_quality import residualise  # noqa: E402
 
 from ffmodel.models.volume_season_average import STREAMS  # noqa: E402
 

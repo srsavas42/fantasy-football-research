@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from pathlib import Path
 
 import pandas as pd
 

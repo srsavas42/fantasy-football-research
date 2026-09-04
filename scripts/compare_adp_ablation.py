@@ -89,7 +89,7 @@ def main(argv=None) -> int:
             for names in features.values():
                 seen.update(n for n in names if n.startswith(ADP_PREFIX))
         saw[label] = sorted(seen) if recorded else ["<not recorded>"]
-    print(f"ADP columns in the fitted design:")
+    print("ADP columns in the fitted design:")
     for label, names in saw.items():
         print(f"  {label:10s} {names or 'none'}")
     if saw[args.candidate] == []:

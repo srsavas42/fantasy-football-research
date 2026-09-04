@@ -40,7 +40,6 @@ in closed form, and reports it with a bootstrap interval. Two guards matter:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -125,7 +124,7 @@ def main(argv=None) -> int:
     print(f"stream={args.stream}  {len(d)} player-seasons  "
           f"(prior exposure >= {args.min_prior_exposure}"
           f"{', absence zeros dropped' if args.drop_absent else ''})")
-    print(f"shipped weight on the late block: 0.35, applied to everyone\n")
+    print("shipped weight on the late block: 0.35, applied to everyone\n")
     print(f"{'bucket':<18} {'n':>5} {'optimal w':>10} {'90% interval':>18} "
           f"{'sd(late-full)':>14}")
     for label, low, high in BUCKETS:

@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 
 import pandas as pd
 
-from ffmodel.weekly import FEATURES_CACHE, PANEL_CACHE
+from ffmodel.weekly import FEATURES_CACHE
 from ffmodel.weekly.evaluate import report, walk_forward
 from ffmodel.weekly.features import add_features
 from ffmodel.weekly.frame import load_panel
@@ -30,7 +30,6 @@ from ffmodel.weekly.charting import attach_charting
 from ffmodel.weekly.pedigree import add_pedigree_features
 from ffmodel.weekly.nextweek import next_week_ladder
 from ffmodel.weekly.restofseason import (
-    OFFSET,
     TARGET,
     add_rest_of_season_target,
     rest_of_season_ladder,

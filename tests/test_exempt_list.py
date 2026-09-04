@@ -8,7 +8,6 @@ season projects a player as missing more football than exists.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 

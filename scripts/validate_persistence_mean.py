@@ -193,7 +193,7 @@ def main(argv=None) -> int:
                     f"-- shipped policy asserts 1.000",
                     flush=True,
                 )
-            if f"persistence_mae" in record:
+            if "persistence_mae" in record:
                 records.append(record)
 
         if not records:

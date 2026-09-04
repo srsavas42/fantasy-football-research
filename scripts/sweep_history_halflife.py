@@ -30,6 +30,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
+from ffmodel.weekly import PANEL_CACHE
 from ffmodel.weekly.evaluate import score
 from ffmodel.weekly.features import add_features, relevant_population
 from ffmodel.weekly.market import attach_adp

@@ -35,7 +35,7 @@ might transfer where realized depth does not; this repo has no such column.
 import sys; sys.path.insert(0,'src'); sys.path.insert(0,'scripts')
 import numpy as np, pandas as pd
 from scipy import stats
-from screen_coaching_tree_transfer import team_shapes, SCHEME_ROLES
+from screen_coaching_tree_transfer import team_shapes
 from ffmodel.data.coaching import load_scheme_lineage, load_scheme_sources
 
 rows = pd.read_pickle(".cache/ffmodel-walkforward/player_rows.pkl")

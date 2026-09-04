@@ -11,12 +11,11 @@ These use a constructed feed rather than the cache so they run anywhere, and
 they exercise :func:`build_panel`'s real join.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from ffmodel.weekly import frame as frame_module
-from ffmodel.weekly.frame import PANEL_POSITIONS, FIRST_PANEL_SEASON, build_panel
+from ffmodel.weekly.frame import PANEL_POSITIONS, build_panel
 
 
 def _stub(monkeypatch, stats: pd.DataFrame, rosters: pd.DataFrame) -> None:

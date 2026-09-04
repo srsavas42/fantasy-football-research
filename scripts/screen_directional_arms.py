@@ -25,7 +25,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 ARMS = ("pipeline", "flat_no_adp", "gbm_no_adp", "blend", "flat_ridge", "flat_gbm")

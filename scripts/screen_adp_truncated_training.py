@@ -75,7 +75,7 @@ def main() -> int:
     p["team_carries"] = p.groupby(["season", "team"]).rush_att.transform("sum")
     p["carry_share"] = p.rush_att / p["team_carries"].replace(0, np.nan)
     kept = p[drafted].groupby(["season", "team"]).carry_share.sum()
-    print(f"  full roster sums to 1.000 by construction")
+    print("  full roster sums to 1.000 by construction")
     print(f"  drafted subset sums to {kept.mean():.3f} "
           f"(sd {kept.std():.3f}, min {kept.min():.3f})")
 

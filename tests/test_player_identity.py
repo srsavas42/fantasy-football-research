@@ -6,7 +6,6 @@ feeds. Draft capital is the one signal a rookie has, so resolving these rows to
 a real identifier is what lets a rookie join the rest of the pipeline at all.
 """
 
-import numpy as np
 import pandas as pd
 
 from ffmodel.data.identity import (

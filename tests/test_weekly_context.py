@@ -14,7 +14,7 @@ import pytest
 
 from ffmodel.weekly import frame as frame_module
 from ffmodel.weekly.features import add_features
-from ffmodel.weekly.market import WeeklyRankCurve, attach_adp
+from ffmodel.weekly.market import WeeklyRankCurve
 from ffmodel.weekly.nextweek import Hurdle
 
 
@@ -250,7 +250,6 @@ def test_adp_join_drops_a_position_disagreement() -> None:
     )
     import ffmodel.features.market as market
 
-    out = attach_adp(panel, directory=None) if False else None
     # Exercise the disagreement rule directly rather than through the file
     # loader, which needs the committed CSVs.
     merged = panel.assign(key=market._name_key(panel["player_name"])).merge(

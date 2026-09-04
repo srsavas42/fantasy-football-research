@@ -19,7 +19,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from ffmodel.config import NFLVERSE_INJURY_FIRST_SEASON, NFLVERSE_INJURY_LAST_SEASON
+from ffmodel.config import NFLVERSE_INJURY_FIRST_SEASON
 from ffmodel.data import load_player_weeks
 from ffmodel.data import ingest, legacy
 from ffmodel.data.wikipedia_coaching import team_identity

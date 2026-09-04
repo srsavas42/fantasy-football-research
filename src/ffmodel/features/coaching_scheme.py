@@ -38,7 +38,6 @@ a constant offset that the position effect would have to absorb.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from ffmodel.data.coaching import load_scheme_lineage

@@ -29,7 +29,7 @@ import pandas as pd
 
 from ffmodel.evaluation.efficiency_posterior import observed_scoring_rows
 from ffmodel.features.season_average import SeasonAverageData
-from ffmodel.models.market_blend import MarketBlend, RankCurve, slope_weight
+from ffmodel.models.market_blend import MarketBlend, RankCurve
 from ffmodel.models.season_scoring import SeasonAverageScoringPipeline
 from ffmodel.simulation.scoring import fantasy_points
 

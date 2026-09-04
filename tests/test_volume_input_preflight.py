@@ -7,7 +7,6 @@ committed CSVs that surfaced as a PyTensor ``MemoryError`` on an empty softmax,
 which names neither the column nor the source that caused it.
 """
 
-import numpy as np
 import pandas as pd
 import pytest
 

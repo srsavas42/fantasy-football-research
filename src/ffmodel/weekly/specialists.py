@@ -301,6 +301,82 @@ def build_defense_panel(seasons: Iterable[int]) -> pd.DataFrame:
     )
 
 
+# Half-life on the *league* baseline, in team-weeks. Long, because this column
+# is meant to track an era rather than a hot streak: roughly a season and a
+# half, so a rule change is fully absorbed within one season of it and a single
+# windy Sunday is not mistaken for one.
+LEAGUE_HALFLIFE = 24.0
+LEAGUE_ALPHA = 1.0 - 0.5 ** (1.0 / LEAGUE_HALFLIFE)
+
+
+def add_league_baseline(panel: pd.DataFrame, column: str = "points") -> pd.DataFrame:
+    """Attach the lagged league-wide mean, so the fit can see the era it is in.
+
+    Every other feature in this module is about one specialist. This one is
+    about the league, and it exists because kicker scoring is not stationary.
+
+    The 2024 dynamic kickoff and the 2025 touchback spot moved average starting
+    field position forward, and the measured consequence is that drives reach
+    field-goal range more often: attempts per played game rose 1.93 to 2.03
+    between 2016-2023 and 2024-2025 while accuracy (0.845 to 0.848) and extra
+    points (2.32 to 2.30) did not move. More chances, not better kicking. Points
+    per played game went 7.53 to 8.12.
+
+    A model whose level features are a within-player history cannot see that.
+    Its career mean stays anchored in the old era, and the walk-forward showed
+    exactly the resulting signature: the kicker projection under-shot by 0.12
+    points in the last third of 2023 and by 0.91 and 1.08 in 2024 and 2025.
+
+    The column is a weighted mean over **prior** team-weeks, pooled across every
+    specialist and carried across the season boundary, so week 1 of a season
+    inherits the level the previous season ended at. It is lagged like
+    everything else here: the week being predicted is never in its own baseline.
+
+    **It was measured and it does not work.** As a rung it costs CRPS (2.7266 to
+    2.7308) and nearly doubles the under-projection it was built to remove
+    (-0.235 to -0.420), buying only a little MAE. The reason is visible in the
+    column itself and is not a tuning problem:
+
+    - It **lags the shift it exists to track**. Against the realised level it is
+      off by +0.36 and +0.31 in 2024 and 2025, against a +-0.13 error in every
+      season before them. A trailing average cannot lead a discontinuity.
+    - The coefficient is **extrapolated, not estimated**. Across 2016-2022 this
+      column has a standard deviation of 0.103; the 2024-2025 shift is 0.271,
+      2.6 times the variation any coefficient on it was ever fitted from.
+
+    The general statement is that **the size of a rule change cannot be learned
+    from data that predates it**, and no lagged feature evades that. Nor does
+    waiting a season: 2025 is fitted with a full new-era season in training and
+    its weeks 1-4 are *worse* than 2024's (-1.76 against -1.56), because 2025
+    moved the touchback spot again and is its own new era.
+
+    What would work is an external prior on the size of the effect, which is the
+    kind of thing ``data/manual/`` exists for in this package. The function is
+    kept because the rung is the evidence for that conclusion, and because the
+    baseline itself is the right diagnostic to look at when scoring drifts.
+    """
+    frame = panel.sort_values(["season", "week"], kind="mergesort").reset_index(drop=True)
+    played = pd.to_numeric(frame.get("played", 1), errors="coerce").fillna(1.0)
+    values = pd.to_numeric(frame[column], errors="coerce").where(played == 1.0)
+
+    weekly = (
+        pd.DataFrame({"season": frame["season"], "week": frame["week"], "value": values})
+        .groupby(["season", "week"], as_index=False)["value"]
+        .mean()
+        .sort_values(["season", "week"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+    weekly["_key"] = 0
+    weekly["league_points_recent"] = _prior(
+        weekly, ["_key"], weekly["value"].astype(float), how="ewm", alpha=LEAGUE_ALPHA
+    )
+    return frame.merge(
+        weekly[["season", "week", "league_points_recent"]],
+        on=["season", "week"],
+        how="left",
+    )
+
+
 def _history(panel: pd.DataFrame, columns: Iterable[str], suffix: str = "_recent"):
     """Lagged, recency-weighted history of each column, per specialist."""
     out = {}
@@ -434,6 +510,9 @@ def attach_market(panel: pd.DataFrame) -> pd.DataFrame:
 # ``predict_samples(frame, draws, seed)`` -- so ``evaluate.walk_forward`` scores
 # these without knowing they are a different position.
 # --------------------------------------------------------------------------
+
+# The league's current level, so an era shift is a feature rather than a bias.
+LEAGUE_FEATURES = ("league_points_recent",)
 
 KICKER_HISTORY_FEATURES = (
     "prior_points_mean",
@@ -570,6 +649,7 @@ class SpecialistModel:
     use_weather: bool = False
     use_roof: bool = False
     use_opponent: bool = False
+    use_league: bool = False
     use_hurdle: bool = True
     availability: object = None
     magnitude: object = None
@@ -585,6 +665,7 @@ class SpecialistModel:
             + (SPECIALIST_WEATHER_FEATURES if self.use_weather else ())
             + (SPECIALIST_ROOF_FEATURES if self.use_roof else ())
             + (DEFENSE_OPPONENT_FEATURES if self.use_opponent else ())
+            + (LEAGUE_FEATURES if self.use_league else ())
         )
 
     def fit(self, frame: pd.DataFrame, target: np.ndarray) -> "SpecialistModel":
@@ -631,6 +712,12 @@ def kicker_ladder() -> list:
         SpecialistModel(name="kicker-history", history=KICKER_HISTORY_FEATURES),
         SpecialistModel(
             name="kicker+market", history=KICKER_HISTORY_FEATURES, use_market=True
+        ),
+        SpecialistModel(
+            name="kicker+market+league",
+            history=KICKER_HISTORY_FEATURES,
+            use_market=True,
+            use_league=True,
         ),
         SpecialistModel(
             name="kicker+market+roof",

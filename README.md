@@ -224,26 +224,50 @@ Scoring is ESPN-style and configurable in `config.KickerRules` /
 nflverse's per-bucket columns, and the points-allowed step function. Both
 reproduce the real 2024 leaderboards.
 
-Against a persistence baseline, walk-forward over 2023/2024/2025: kickers −2.6%
-CRPS, defenses −4.4%. The defense result is the interesting one -- **a defense's
-own box-score history adds nothing** over its own recent fantasy points, while
-the opponent plus the closing line is worth −4.4% and nearly triples
-within-position ordering. A DST projection is mostly a projection of the
-opponent, because the points-allowed half of the response is a step function of
-the other side's final score.
+Against a persistence baseline, walk-forward over 2023/2024/2025: kickers -2.7%
+CRPS, defenses -4.6%. The defense result is the interesting one -- **a defense's
+own box-score history adds nothing** over its own recent fantasy points (-0.10%,
+a tie), while the opponent plus the closing line is worth -4.6%, forty-six times
+as much, and takes within-position ordering from 0.085 to 0.315. A DST projection
+is mostly a projection of the opponent, because the points-allowed half of the
+response is a step function of the other side's final score.
 
 Rest of season for both promotes the direct regression over the latent-player
 simulator; see the document for the diagnosis of the simulator's bias.
 
+One standing caveat for anything consuming kicker numbers: **kicker scoring is
+not stationary.** The 2024 dynamic kickoff and the 2025 touchback spot moved
+average field position forward, and attempts per game rose 1.93 to 2.03 with
+accuracy flat -- more chances, not better kicking. Projections are biased low by
+roughly 0.9-1.1 points a game late in those seasons. A trailing league baseline
+was built to correct it and *fails*, because the size of a rule change cannot be
+learned from data that predates it; the document explains why and what would
+work instead.
+
 ### Weather
 
 `roof`, `temp` and `wind` are joined by `ffmodel.weekly.weather` and measured
-rather than assumed. On skill positions they are a **null** -- and the test was
-generous, using the conditions recorded at the game rather than a forecast, so it
-measures the ceiling a perfect forecast would reach. On kickers the readings are
-worth −0.45% CRPS (the roof alone is a tie), which clears the materiality floor
-on 2 folds of 3 and is not promoted pending a forecast join through
-`ffmodel.data.weather`. See
+rather than assumed. Pooled over the weekly panel they are a tie -- but that is a
+**pooling artefact, not an absence of signal**. Weather depresses scoring exactly
+as folklore says (46.5 points a game in the calmest wind bucket against 41.8 at
+15-20 mph, with the closing line pricing only a quarter of that), it works
+through the pass/run mix, and the shipped model's residual carries it: relative
+to calm rows it over-projects quarterbacks by +1.84 points in a 15 mph wind,
+receivers +0.93, tight ends +0.76, backs +0.44.
+
+It reads as a null because only 5.6% of rows are exposed. Scored *by exposure*
+the same rung is worth **-0.60% CRPS above 15 mph** while costing +0.13% on calm
+rows. A gated hinge (`roof`, a 15 mph threshold, and the excess above it, with
+temperature dropped as a genuine null) keeps the gain, removes the cost and wins
+3 folds of 3. Still under the pooled floor and so not promoted, but it is the
+right form of the feature -- and for a per-row start/sit decision the exposed
+rows are identifiable in advance. On kickers it is material in its own right
+(roof -0.32% CRPS on 3/3 folds, the readings -0.40% on 2/3).
+
+These are 0.1-0.4% effects on three folds and they move between runs at about
+that size, which is the resolution limit of the design rather than a precision it
+has. Every number is also a ceiling, measured on conditions recorded at the game;
+a live version reads the forecast archive in `ffmodel.data.weather`. See
 [specialists & weather](docs/specialists-and-weather-2026-09.md).
 
 ### Data acquisition

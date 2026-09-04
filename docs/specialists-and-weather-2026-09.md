@@ -2,10 +2,14 @@
 
 Three questions, answered in the order they could be answered cheaply.
 
-1. **Does the weather help a weekly projection?** No, for skill positions —
-   decisively, and the test was built to be generous. Yes, marginally, for
-   kickers, and the gain is in the temperature and the wind rather than the roof,
-   which means it needs a forecast behind it before it can ship.
+1. **Does the weather help a weekly projection?** Pooled, no. **Conditionally,
+   yes, and the pooled number is misleading**: on the 5.6% of rows where the wind
+   is above 15 mph it is worth −0.60% CRPS, while costing a little everywhere
+   else. Temperature is a genuine null. A gated wind hinge keeps the gain and
+   drops the cost. On kickers it is material in its own right (roof −0.32% on
+   3/3 folds).
+   All of it needs a forecast behind it before it can ship, because the test used
+   conditions recorded at the game.
 2. **Are opposing-defense metrics in the weekly model?** They already were. Eight
    columns of them, plus the own-defense block inside game script. Nothing was
    missing; the section below records what is there so the question does not get
@@ -13,6 +17,10 @@ Three questions, answered in the order they could be answered cheaply.
 3. **Can kickers and team defenses be projected on the same footing as the skill
    positions?** Yes. Both panels are built, both beat their baselines on the same
    walk-forward, and the finding on each is not the one folklore predicts.
+4. **A fourth question arrived from review and changed two answers.** Kicker
+   scoring is not stationary — the 2024–25 kickoff rules moved it +0.58 points a
+   game — and the weather null turned out to be a pooling artefact. Both are
+   below.
 
 Code in `src/ffmodel/weekly/weather.py` and `src/ffmodel/weekly/specialists.py`.
 Validated by `scripts/validate_weekly_weather.py` and
@@ -46,7 +54,7 @@ is not separately identified from the implied opponent total: a team that cannot
 get off the field throws to keep up, and the closing line already prices that
 prospectively.
 
-## Weather: a generous test, and a null
+## Weather: a generous test, and a conditional effect
 
 `roof`, `temp` and `wind` sit on every nflverse schedule row and nothing in this
 package had ever read them. They are not the same kind of column, and the whole
@@ -108,14 +116,112 @@ Nor across the season: `+weather` is +0.118% in weeks 1–4, +0.054% in 5–10 a
 −0.090% in 11–18. If weather mattered to skill-position scoring, the late-season
 window — the cold and windy one — is where it would show, and −0.09% is not it.
 
-**This is the strong form of the null.** The rung had the actual conditions, not a
-forecast of them, and still found nothing. There is no version of a weather join
-for QB/RB/WR/TE that does better than this one, so the question is closed rather
-than deferred.
+The rung had the actual conditions, not a forecast of them, so no version of this
+join does better on a pooled metric.
 
-The mechanism is presumably real and simply too small to reach a fantasy line
-through a projection that already reads the closing total — a game expected to be
-a slog is priced as a low total before anyone consults a forecast.
+**But "pooled" is carrying the whole claim, and the section below shows it should
+not be.** An earlier draft of this document explained the null by saying the
+closing total already prices the weather. That explanation is wrong, and the
+correction is worth more than the headline was.
+
+### The null is real and the explanation was wrong (2026-09-04, follow-up)
+
+Weather depresses scoring, exactly as the folklore says. Outdoor regular-season
+games 2016–2025, by wind at kickoff:
+
+| wind | n | actual total | closing line | actual − line |
+|---|---:|---:|---:|---:|
+| 0–5 mph | 391 | 46.48 | 45.24 | **+1.24** |
+| 5–10 | 746 | 45.33 | 44.87 | +0.46 |
+| 10–15 | 377 | 42.91 | 44.09 | −1.18 |
+| 15–20 | 152 | 41.77 | 44.10 | **−2.33** |
+
+Scoring falls 4.7 points from the calmest bucket to a 15–20 mph one. And the
+market does **not** fully price it: the closing total moves only 1.1 points
+across that range while the actual moves 4.7, leaving a 3.6-point swing in the
+residual. So the "the line already knows" explanation is false on its own terms.
+
+The mechanism is the one anyone would guess, and it is in the data:
+
+| wind | team pass att | team rush att | pass share | team fantasy pts |
+|---|---:|---:|---:|---:|
+| 0–5 | 34.39 | 26.12 | 0.568 | 86.22 |
+| 15+ | 32.72 | 27.15 | 0.547 | 78.76 |
+
+Fewer passes, more runs, less scoring. And the shipped model's **residual**
+carries it — over-projection relative to the calm baseline, by position:
+
+| position | bias, wind < 10 | bias, wind 15+ | gap |
+|---|---:|---:|---:|
+| QB | −1.60 | +0.24 | **+1.84** |
+| WR | −0.70 | +0.24 | +0.93 |
+| TE | −1.17 | −0.41 | +0.76 |
+| RB | −1.00 | −0.57 | +0.44 |
+
+The ordering is the passing mechanism: quarterbacks lose most, backs are
+insulated because the volume shifts toward them.
+
+So the information is there. **What killed it pooled was exposure.** Only 5.6%
+of scored rows sit above 15 mph. Scoring the same two arms by exposure instead
+of by week:
+
+| population | n | control CRPS | +weather | Δ |
+|---|---:|---:|---:|---:|
+| all relevant (pooled) | 13,859 | 3.1851 | 3.1837 | −0.04% |
+| outdoor, wind < 10 | 5,827 | 3.1905 | 3.1948 | **+0.13%** |
+| outdoor, wind 10–15 | 1,880 | 3.0932 | 3.0895 | −0.12% |
+| **outdoor, wind 15+** | 787 | 2.9772 | 2.9593 | **−0.60%** |
+| wind 15+, RBs only | 196 | 3.2697 | 3.2356 | **−1.04%** |
+| outdoor, freezing | 553 | 3.2555 | 3.2679 | **+0.38%** |
+
+The full block clears the materiality floor by a factor of two where the wind
+actually blows, and *costs* something everywhere else — including on freezing
+rows, where cold is not a signal at all. Pooling a −0.60% over 6% of rows with a
++0.13% over 42% of them produces the −0.04% that reads as a null.
+
+### The gated version
+
+That diagnosis names its own fix: drop temperature, drop the linear wind slope,
+and enter the roof, the threshold, and a **hinge** in the excess above it
+(`wx_wind_excess = max(wind − 15, 0)`), so the columns are zero wherever the
+effect is.
+
+From the shipped ladder (`reports/weekly_weather.json`, relevant pooled):
+
+| rung | CRPS | Δ | folds improved |
+|---|---:|---:|---:|
+| control | 3.1822 | — | — |
+| +weather (full) | 3.1823 | +0.002% | 1 of 3 |
+| +roof only | 3.1814 | −0.027% | 2 of 3 |
+| **+wind (gated)** | 3.1820 | −0.007% | 2 of 3 |
+
+And by exposure, from `diagnose` runs that pool rows across folds rather than
+scoring each fold separately (so these are not directly comparable to the table
+above, and are reported as the conditional effect they are):
+
+| population | n | control | +weather (full) | +wind (gated) |
+|---|---:|---:|---:|---:|
+| outdoor, wind < 10 | 5,827 | 3.1905 | +0.13% | **−0.02%** |
+| outdoor, wind 15+ | 787 | 2.9772 | **−0.60%** | −0.53% |
+
+The gate does what it was designed to do: it keeps most of the high-wind gain
+and stops charging for it on the calm majority. Pooled it remains a tie under
+the 0.25% rule and **is not promoted**.
+
+**A caution that applies to this whole section.** These effects are 0.1–0.4% on
+three folds, and they move between runs at roughly that size — rebuilding the
+panel shifted the kicker roof rung from −0.11% to −0.32%. That is the resolution
+limit of this design, not a precision it actually has. The claims worth standing
+behind are the ones that survive it: the conditional high-wind effect is several
+times larger than the pooled one and has a mechanism and a residual signature
+behind it; temperature is consistently a non-effect; and no weather rung clears
+the promotion bar pooled.
+
+**This matters more for the start/sit use than the pooled number suggests.** A
+start/sit decision is made one row at a time, and the rows where this feature
+pays are identifiable *before* kickoff from the schedule and a forecast. A
++1.8-point over-projection on a quarterback in a 15 mph wind is a lineup
+decision even when it is invisible in a pooled CRPS.
 
 ## Kickers
 
@@ -137,12 +243,13 @@ skill panel uses, one kicker per team-week in 87% of cases, 90% played.
 
 | rung | MAE | CRPS | within-position ρ | vs recency |
 |---|---:|---:|---:|---:|
-| climatology | 4.2317 | 2.9509 | −0.011 | +6.02% |
-| recency-mean | 3.9929 | 2.7834 | 0.225 | — |
-| `kicker-history` | 3.9189 | 2.7360 | 0.247 | −1.71% |
-| `kicker+market` | 3.8878 | 2.7242 | 0.272 | −2.13% |
-| `kicker+market+roof` | 3.8876 | 2.7213 | 0.278 | −2.23% |
-| `kicker+market+weather` | 3.8712 | 2.7118 | 0.292 | **−2.57%** |
+| climatology | 4.2242 | 2.9474 | 0.038 | +5.60% |
+| recency-mean | 4.0050 | 2.7912 | 0.211 | — |
+| `kicker-history` | 3.9242 | 2.7393 | 0.234 | −1.86% |
+| `kicker+market` | 3.8947 | 2.7266 | 0.266 | −2.31% |
+| `kicker+market+league` | 3.8795 | 2.7308 | 0.274 | −2.16% |
+| `kicker+market+roof` | 3.8911 | 2.7178 | 0.285 | −2.63% |
+| `kicker+market+weather` | 3.8762 | 2.7157 | 0.289 | **−2.71%** |
 
 Two things worth stating.
 
@@ -153,18 +260,84 @@ rate; the count belongs to his offence and the rate is close to unpredictable at
 one-week horizon. The model leans on volume and the implied team total and treats
 the leg as a small correction, and the numbers say that is the right weighting.
 
-**Weather is material here, and it is the readings rather than the roof.**
-Against the `kicker+market` control, `+roof` is −0.107% — a tie — and `+weather`
-is −0.454%, which clears the 0.25% floor. Splitting the two was the point of
-running both: the gain is in `wx_temp`/`wx_wind`, not in the fully-known roof
-column, so **the shippable version needs a forecast**, not a schedule lookup.
+**Weather is material here, and both halves of it clear the floor.** Against the
+`kicker+market` control, `+roof` is −0.320% on **3 of 3 folds** and `+weather` is
+−0.400% on 2 of 3. Splitting the two was the point of running both, and the
+answer is less clean than the skill-position case: on kickers the *roof* is
+carrying real signal on its own — which is the shippable half, since a roof is
+known when the schedule is published — while the readings add a little more,
+less consistently, and would need a forecast.
 
-It is also not consistent: `+weather` wins 2 folds of 3 (2024 −0.45%, 2025
-−0.95%, 2023 +0.11%). So the honest status is *promising and not promoted*. The
-next step is a real one rather than a retune — join `ffmodel.data.weather`'s
-Open-Meteo previous-run archive at a stated lead time and re-run this exact
-ladder. That measures the forecast rather than the outcome, and the gap between
-the two numbers is the cost of not being able to see the future.
+Neither is promoted. The roof rung is the better candidate of the two (material,
+consistent, and free of the forecast problem), and the honest next step is to
+re-run the ladder against `ffmodel.data.weather`'s Open-Meteo previous-run
+archive at a stated lead time. That measures the forecast rather than the
+outcome, and the gap between the two is the cost of not seeing the future.
+
+Note that this rung moved between runs — an earlier build put roof at −0.107%
+and weather at −0.454%. See the caution above: 0.1–0.4% on three folds is the
+resolution limit of this design.
+
+### The kickoff rules moved kicker scoring, and it cannot be learned
+
+Kicker scoring is **not stationary**, and the break is where the rulebook says it
+should be. The 2024 dynamic kickoff and the 2025 touchback spot both moved
+average starting field position forward, which means drives reach field-goal
+range more often.
+
+| era | points/game | FG att | PAT att | FG% | 50+ att |
+|---|---:|---:|---:|---:|---:|
+| 2016–2023 | 7.53 | 1.929 | 2.320 | 0.845 | 0.32 |
+| 2024–2025 | **8.12** | **2.028** | 2.303 | 0.848 | **0.49** |
+
+**More chances, not better kicking.** Attempts rise 5.1% while accuracy (0.845 →
+0.848) and extra points (2.32 → 2.30) do not move — so this is not more
+touchdowns and not a better generation of legs, it is more drives stalling in
+range. Long attempts nearly double, which is partly the same field-position
+story and partly a separate analytics trend that starts around 2022.
+
+The model's error has the matching signature. Bias by season and window,
+negative meaning under-projection:
+
+| holdout | weeks 1–4 | weeks 5–10 | weeks 11–18 |
+|---|---:|---:|---:|
+| 2023 | −1.18 | −0.76 | **−0.12** |
+| 2024 | −1.56 | −0.68 | **−0.91** |
+| 2025 | **−1.76** | −0.38 | **−1.08** |
+
+The last third of the season is where the recency features should have fully
+absorbed the new level, and instead it is where the two post-rule seasons
+separate from 2023 most cleanly: −0.12 becomes −0.91 and −1.08. The career-mean
+feature stays anchored in the old era and drags the level down all year.
+
+**The obvious fix was built, measured, and does not work.**
+`add_league_baseline` attaches the lagged league-wide mean so the fit can see the
+era it is in. As a rung it *costs* CRPS (2.7266 → 2.7308) and nearly doubles the
+bias it was meant to remove (−0.235 → −0.420). Two reasons, both structural:
+
+- **It lags the discontinuity it exists to track.** Against the realised level
+  the baseline is off by +0.36 and +0.31 in 2024 and 2025, against ±0.13 in
+  every season before them. A trailing average cannot lead a step change.
+- **Its coefficient is extrapolated rather than estimated.** Over 2016–2022 the
+  column has a standard deviation of 0.103. The shift it must then price is
+  0.271 — 2.6× the variation any coefficient on it was ever fitted from.
+
+The general form of this is worth stating plainly: **the size of a rule change
+cannot be learned from data that predates it**, and no lagged feature evades
+that. Nor does waiting a season out — 2025 is fitted with a full new-era season
+in training and its weeks 1–4 are *worse* than 2024's (−1.76 against −1.56),
+because 2025 moved the touchback spot again and is its own new era.
+
+What would actually work is an external prior on the size of the effect, which is
+what `data/manual/` exists for in this package (as `coach_team_period.csv`
+already does for a different unlearnable fact). The rung is kept as the evidence
+for that conclusion, not as a candidate.
+
+Two practical consequences for anything built on these projections. Kicker
+projections in 2024–2025 are biased **low** by roughly 0.9–1.1 points a game late
+in the season and 1.6–1.8 early, so a draft or waiver agent reading them will
+systematically under-rate the position. And any future rule change will do this
+again, silently, in whichever direction it pushes field position.
 
 ## Team defenses
 
@@ -175,28 +348,30 @@ safeties and blocks 2, plus the points-allowed step function. It reproduces
 
 | rung | MAE | CRPS | within-position ρ | vs recency |
 |---|---:|---:|---:|---:|
-| climatology | 4.3137 | 3.0452 | 0.007 | +0.27% |
-| recency-mean | 4.3114 | 3.0370 | 0.102 | — |
-| `defense-history` | 4.3213 | 3.0389 | 0.086 | **+0.06%** |
-| `defense+opponent` | 4.2644 | 2.9796 | 0.206 | −1.89% |
-| `defense+opponent+market` | 4.1407 | 2.9042 | 0.307 | **−4.37%** |
-| `+weather` | 4.1434 | 2.9034 | 0.307 | −4.40% |
+| climatology | 4.3193 | 3.0460 | 0.001 | +0.22% |
+| recency-mean | 4.3172 | 3.0394 | 0.085 | — |
+| `defense-history` | 4.3238 | 3.0365 | 0.089 | **−0.10%** |
+| `defense+opponent` | 4.2622 | 2.9826 | 0.208 | −1.87% |
+| `defense+opponent+market` | 4.1353 | 2.8984 | 0.315 | **−4.64%** |
+| `+weather` | 4.1489 | 2.9078 | 0.304 | −4.33% |
 
 **The headline is the third row.** A defense's own box-score history — its recent
 sacks, interceptions, fumble recoveries, points and yards allowed — is worth
-*nothing at all* over its own recent fantasy points. It is fractionally worse, and
-it lowers within-position ordering from 0.102 to 0.086. Six columns describing
-what this defense has been doing add no information about what it will do next
-week.
+−0.10% over its own recent fantasy points, which is a tie by a factor of
+twenty-five, and moves within-position ordering 0.085 → 0.089. Six columns
+describing what this defense has been doing add essentially no information about
+what it will do next week. (An earlier build had this rung fractionally *worse*
+than the baseline; the sign of a 0.1% effect is not resolvable here. The claim
+that survives is the size, not the direction.)
 
-What does work is the other team. Adding the opponent's recent scoring is −1.89%;
-adding the closing line on top is −4.37% and nearly triples the ordering
-correlation, 0.102 → 0.307. A DST projection is mostly a projection of the
+What does work is the other team. Adding the opponent's recent scoring is −1.87%;
+adding the closing line on top is −4.64% — **forty-six times** the own-history
+rung — and nearly quadruples the ordering correlation, 0.085 → 0.315. A DST projection is mostly a projection of the
 opponent, and the reason is structural rather than empirical: the points-allowed
 half of the response is a step function of the other side's final score, and it
 dominates the variance of the whole. The event half is a modest, noisy count.
 
-Weather is a null here (−0.03%, 1 fold of 3), which is what the kicker result
+Weather makes it *worse* here (+0.32%), which is what the kicker result
 predicts — nothing is being kicked.
 
 ## Rest of season, for both
@@ -267,9 +442,13 @@ defense bias 5.60 → 4.28 and improved coverage 0.647 → 0.663.
 
 | piece | state |
 |---|---|
-| weather on skill positions | **closed as a null**, at the ceiling, not deferred |
-| `roof` anywhere | tie; free to keep, earns nothing |
-| weather on kickers | material (−0.45% CRPS) but 2/3 folds and needs a forecast join — **not promoted** |
+| weather on skill positions, pooled | tie (−0.04% full block, −0.09% gated) |
+| weather on skill positions, **wind 15+** | **−0.60% CRPS on 5.6% of rows** — conditionally material, not promoted |
+| gated wind hinge | better than the full block: 2/3 folds against 1/3, and no cost on calm rows |
+| temperature / freezing | **null and slightly negative** (+0.38% on freezing rows); dropped from the gated form |
+| kicker scoring is non-stationary | confirmed: +0.58 pts/game after the 2024–25 kickoff rules, from attempts not accuracy |
+| era normalisation for it | **built and failed**; the shift cannot be learned from pre-change data |
+| weather on kickers | material: roof −0.32% on 3/3 folds, readings −0.40% on 2/3 — **not promoted**, roof is the better candidate |
 | kicker next-week | built and beats persistence by 2.6% CRPS |
 | defense next-week | built and beats persistence by 4.4% CRPS |
 | K/DST rest-of-season | `direct-total` promoted; simulator arms lose and are diagnosed |
@@ -277,14 +456,19 @@ defense bias 5.60 → 4.28 and improved coverage 0.647 → 0.663.
 
 ## What is worth doing next
 
-1. **Join the Open-Meteo forecast archive** and re-run the kicker ladder. This is
-   the only open weather question and it is now a narrow one.
-2. **An availability denominator of team-games** for the specialist
+1. **Join the Open-Meteo forecast archive** and re-run both the kicker ladder and
+   the gated wind hinge. Every weather number here is a ceiling measured on
+   conditions recorded at the game; the forecast version is what ships, and the
+   gap between the two is the cost of not seeing the future.
+2. **A manual kicker-era adjustment** in `data/manual/`, since the section above
+   shows the shift is not learnable. This is the single largest known bias in
+   any projection this package currently produces.
+3. **An availability denominator of team-games** for the specialist
    rest-of-season simulator, which is the identified cause of the kicker bias.
-3. **Strength of remaining schedule for defenses.** The one-week opponent column
+4. **Strength of remaining schedule for defenses.** The one-week opponent column
    is the largest single lever on the weekly response, and its rest-of-season
    analogue — the quality of the offences a defense still has to face — is not
    built. The repo has an `sos/` directory that predates this work.
-4. **Recursive simulation for the specialist panels**, if and only if the
+5. **Recursive simulation for the specialist panels**, if and only if the
    rest-of-season response turns out to matter more than `direct-total` already
    delivers.

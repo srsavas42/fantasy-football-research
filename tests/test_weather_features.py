@@ -119,3 +119,52 @@ def test_attach_leaves_every_column_present_when_the_feed_is_unavailable(monkeyp
     for column in WEATHER_COLUMNS:
         assert column in out.columns
         assert out[column].isna().all()
+
+
+def test_the_wind_hinge_is_zero_below_the_threshold_and_rises_above_it(monkeypatch):
+    """A slope through calm games dilutes the estimate where the effect lives.
+
+    The measured effect of wind is concentrated above about 15 mph and absent
+    below it, so the column the model reads has to be flat over the 89% of games
+    where there is nothing to say.
+    """
+    frame = pd.DataFrame(
+        {
+            "season": [2022] * 4,
+            "week": [1] * 4,
+            "game_type": ["REG"] * 4,
+            "home_team": ["A", "B", "C", "D"],
+            "away_team": ["a", "b", "c", "d"],
+            "roof": ["outdoors"] * 4,
+            "temp": [50.0] * 4,
+            "wind": [0.0, 14.0, 15.0, 25.0],
+        }
+    )
+    from ffmodel.weekly import weather
+
+    monkeypatch.setattr(weather.ingest, "load_schedules", lambda seasons: frame)
+    got = load_game_conditions([2022]).set_index("team")["wx_wind_excess"]
+    assert got.loc["A"] == 0.0
+    assert got.loc["B"] == 0.0, "14 mph is below the threshold and must stay flat"
+    assert got.loc["C"] == 0.0, "the threshold itself is the hinge point"
+    assert got.loc["D"] == 10.0, "25 mph is ten above the 15 mph hinge"
+
+
+def test_an_indoor_game_never_registers_wind_excess(monkeypatch):
+    frame = pd.DataFrame(
+        {
+            "season": [2022],
+            "week": [1],
+            "game_type": ["REG"],
+            "home_team": ["DOM"],
+            "away_team": ["dom"],
+            "roof": ["dome"],
+            "temp": [None],
+            "wind": [None],
+        }
+    )
+    from ffmodel.weekly import weather
+
+    monkeypatch.setattr(weather.ingest, "load_schedules", lambda seasons: frame)
+    conditions = load_game_conditions([2022]).set_index("team")
+    assert conditions.loc["DOM", "wx_wind_excess"] == 0.0

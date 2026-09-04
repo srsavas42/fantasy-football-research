@@ -135,3 +135,31 @@ def test_a_kickers_given_played_level_ignores_the_weeks_he_did_not_kick():
     level = block.set_index("week")["prior_points_recent_given_played"]
     played_points = block[block["played"] == 1].set_index("week")["points"]
     assert level.loc[6] >= played_points.loc[:5].min()
+
+
+def test_the_league_baseline_is_lagged_and_pooled():
+    """It must not contain the week it describes, or it reads the answer."""
+    from ffmodel.weekly.specialists import add_league_baseline
+
+    panel = _kicker_panel()
+    out = add_league_baseline(panel).sort_values(["season", "week"])
+    # The very first week has no prior league history at all.
+    assert pd.isna(out[out["week"] == 1]["league_points_recent"]).all()
+
+    # Blowing up one week cannot move the baseline at or before it.
+    changed = panel.copy()
+    hit = changed["week"] == 4
+    changed.loc[hit, "points"] = changed.loc[hit, "points"] + 500.0
+    before = add_league_baseline(panel).sort_values(["season", "week"]).reset_index(drop=True)
+    after = add_league_baseline(changed).sort_values(["season", "week"]).reset_index(drop=True)
+    upto = before["week"] <= 4
+    pd.testing.assert_series_equal(
+        before.loc[upto, "league_points_recent"],
+        after.loc[upto, "league_points_recent"],
+    )
+    # And must move it afterwards, or the column is not reading the league.
+    later = before["week"] > 4
+    assert (
+        before.loc[later, "league_points_recent"]
+        - after.loc[later, "league_points_recent"]
+    ).abs().max() > 1e-9

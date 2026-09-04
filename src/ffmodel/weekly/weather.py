@@ -78,6 +78,7 @@ WEATHER_COLUMNS = (
     "wx_wind_high",
     "wx_freezing",
     "wx_missing",
+    "wx_wind_excess",
 )
 
 
@@ -131,9 +132,15 @@ def load_game_conditions(seasons: Iterable[int]) -> pd.DataFrame:
 
     out["wx_wind_high"] = (out["wx_wind"] >= WIND_HIGH).astype(float)
     out["wx_freezing"] = (out["wx_temp"] <= FREEZING).astype(float)
+    # A hinge rather than a slope. The measured effect of wind is concentrated
+    # above roughly 15 mph and absent below it, so a linear term spends a
+    # coefficient on the 89% of games where there is nothing to say and dilutes
+    # the estimate where there is. This column is zero until the threshold and
+    # then rises with the excess, which is the shape the residuals actually have.
+    out["wx_wind_excess"] = (out["wx_wind"] - WIND_HIGH).clip(lower=0.0)
     # A threshold on an unknown reading is unknown, not false.
     unknown = out["wx_missing"] == 1.0
-    out.loc[unknown, ["wx_wind_high", "wx_freezing"]] = float("nan")
+    out.loc[unknown, ["wx_wind_high", "wx_freezing", "wx_wind_excess"]] = float("nan")
 
     for column in ("season", "week"):
         out[column] = pd.to_numeric(out[column], errors="coerce").astype("Int64")

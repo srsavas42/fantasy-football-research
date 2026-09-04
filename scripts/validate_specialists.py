@@ -29,6 +29,7 @@ from ffmodel.weekly.evaluate import report, walk_forward
 from ffmodel.weekly.restofseason import TARGET, add_rest_of_season_target
 from ffmodel.weekly.specialists import (
     add_defense_features,
+    add_league_baseline,
     add_kicker_features,
     attach_market,
     build_defense_panel,
@@ -56,12 +57,14 @@ COLUMNS = [
 
 
 def build_kickers(seasons: range) -> pd.DataFrame:
-    return add_kicker_features(attach_weather(attach_market(build_kicker_panel(seasons))))
+    return add_league_baseline(
+        add_kicker_features(attach_weather(attach_market(build_kicker_panel(seasons))))
+    )
 
 
 def build_defenses(seasons: range) -> pd.DataFrame:
-    return add_defense_features(
-        attach_weather(attach_market(build_defense_panel(seasons)))
+    return add_league_baseline(
+        add_defense_features(attach_weather(attach_market(build_defense_panel(seasons))))
     )
 
 

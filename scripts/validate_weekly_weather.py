@@ -75,6 +75,10 @@ def ladder() -> list:
         Hurdle(name=CONTROL, **BASE),
         Hurdle(name="hurdle+everything+ngs+roof/position", use_roof=True, **BASE),
         Hurdle(name="hurdle+everything+ngs+weather/position", use_weather=True, **BASE),
+        # The gated form: roof, a 15 mph threshold and a hinge in the excess,
+        # with temperature dropped as a measured null. Keeps the high-wind gain
+        # and stops paying for it on the calm majority.
+        Hurdle(name="hurdle+everything+ngs+wind/position", use_wind=True, **BASE),
     ]
 
 

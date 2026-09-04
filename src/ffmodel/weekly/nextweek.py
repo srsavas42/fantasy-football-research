@@ -228,6 +228,14 @@ WEATHER_FEATURES = (
 # columns that a live run would have to forecast.
 ROOF_FEATURES = ("roof_indoor",)
 
+# Wind, gated. The full weather block is a null pooled and worth -0.60% CRPS on
+# the 6% of rows where the wind is actually strong -- a conditional effect that
+# pooling averages away. Temperature is dropped (a freezing indicator scores
+# *worse*, +0.38%) and the linear wind slope with it; what is left is the roof,
+# the threshold, and a hinge in the excess above it, so the columns are zero
+# wherever the effect is.
+WIND_FEATURES = ("roof_indoor", "wx_wind_high", "wx_wind_excess")
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -358,6 +366,7 @@ class Hurdle:
     use_tracked_only: bool = False
     use_weather: bool = False
     use_roof: bool = False
+    use_wind: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -388,6 +397,7 @@ class Hurdle:
             + (TRACKED_FEATURES if self.use_tracked_only else ())
             + (WEATHER_FEATURES if self.use_weather else ())
             + (ROOF_FEATURES if self.use_roof else ())
+            + (WIND_FEATURES if self.use_wind else ())
         )
 
     @property
@@ -404,6 +414,7 @@ class Hurdle:
             + (TRACKED_FEATURES if self.use_tracked_only else ())
             + (WEATHER_FEATURES if self.use_weather else ())
             + (ROOF_FEATURES if self.use_roof else ())
+            + (WIND_FEATURES if self.use_wind else ())
         )
 
     def _fit_magnitude(
@@ -568,6 +579,12 @@ def next_week_ladder() -> list:
             use_team=True, use_matchup=True, use_phase=True, use_script=True,
             use_adp=True, use_news=True, use_snaps=True, use_recent=True,
             use_pedigree=True, use_charting=True, use_weather=True, by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+ngs+wind/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_charting=True, use_wind=True, by_position=True,
         ),
         Hurdle(
             name="hurdle+everything+ngsflags/position",

@@ -37,7 +37,6 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-import numpy as np
 import pandas as pd
 
 from ffmodel.league.config import LeagueConfig

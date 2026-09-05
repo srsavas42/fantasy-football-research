@@ -96,11 +96,16 @@ jobs:
             nflverse-weather-v1-
 
       - name: Fetch Open-Meteo conditions
-        # The first run of this workflow hung on a single request for 35 minutes
-        # and had to be cancelled. The script now bounds every call by wall clock,
-        # but a step-level ceiling is the backstop that does not depend on the
-        # script being right.
-        timeout-minutes: 90
+        # A validated 2024-2025 run (34 stadiums, 2 seasons, 3 sources, 204
+        # calls, zero failures) measured Open-Meteo taking roughly 24s on about
+        # 40% of calls and 2s on the rest -- a real, successful response time,
+        # not a stall. At that rate a full 2016-2025 backfill (~978 calls) is
+        # 2.5-3 hours, not 90 minutes. `collect()` checkpoints to disk after
+        # every stadium-season and the steps below run with `always()`, so a
+        # timeout here now costs only unfinished work, not finished work --
+        # but this ceiling should still comfortably exceed the honest estimate
+        # rather than being tuned to the last run that happened to fit.
+        timeout-minutes: 300
         run: |
           set -euo pipefail
           # Deliberately unquoted below: both --seasons and --leads take one

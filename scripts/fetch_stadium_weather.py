@@ -48,14 +48,13 @@ import json
 import sys
 import time
 import warnings
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
 import pandas as pd
 
-from ffmodel.config import MANUAL_DATA_DIR, HTTP_TIMEOUT
+from ffmodel.config import MANUAL_DATA_DIR
 from ffmodel.data import ingest
 from ffmodel.data.http import RemoteDataError, get_json
 
@@ -125,50 +124,47 @@ def load_games(seasons: range) -> pd.DataFrame:
     return schedule[keep].reset_index(drop=True)
 
 
-# Transient enough to be worth another attempt: the free tier's rate limiter
-# and the usual gateway failures. A 400 means the request itself is wrong and
-# retrying it only spends quota.
-RETRYABLE = ("429", "500", "502", "503", "504")
+# A blocklist, not an allowlist. The first full backfill lost 90 minutes of
+# progress to `_ssl.c:999: The handshake operation timed out` -- a plain
+# connection-level failure that carries no HTTP status code at all, and every
+# real run of this script hit it roughly once per stadium-season. An earlier
+# version of this constant listed retryable *status codes* and refused to
+# retry anything that did not carry one of them, which is backwards: a
+# connection that never completed its handshake has no status to check, so it
+# failed the allowlist test and was treated as fatal. The failures worth NOT
+# retrying are the ones retrying cannot fix -- the request itself was wrong --
+# and those are the only ones this excludes.
+NOT_RETRYABLE = ("HTTP 400", "HTTP 401", "HTTP 403", "HTTP 404")
 
-# A hard ceiling on any single call. `urlopen`'s own `timeout` is a *per socket
-# operation* deadline, not a total one, so a response that trickles a few bytes
-# at a time never trips it and the process hangs forever. The first run of this
-# script did exactly that: it sat on one request for 35 minutes and had to be
-# cancelled. Every call is therefore run in a worker thread and abandoned by the
-# clock, which is the only bound that actually holds.
-CALL_DEADLINE = 90.0
+# Real stalls in practice resolved in a handful of seconds once retried, so a
+# short flat gap beats runaway exponential backoff: the cost of a stall is the
+# per-call timeout below, paid up to `retries` times, and there is no evidence
+# a longer wait between attempts helps.
+RETRY_GAP = 2.0
+
+# `urlopen`'s own `timeout` is a *per socket operation* deadline, not a total
+# one, so a response that trickles a few bytes at a time can outlast it. This
+# is the wall-clock ceiling on the socket wait itself, kept short because the
+# observed failure mode (a handshake that never completes) does not become
+# more likely to succeed by waiting longer for it.
+SOCKET_TIMEOUT = 20.0
 
 
-def _request(
-    url: str, params: dict, *, retries: int = 3, delay: float, deadline: float = CALL_DEADLINE
-) -> dict:
-    """One call, with backoff and a wall-clock deadline that actually bounds it.
+def _request(url: str, params: dict, *, retries: int = 3, delay: float) -> dict:
+    """One call, with a short retry loop for connection-level failures.
 
     ``ffmodel.data.http`` is standard-library only by design, so this script
-    adds no dependency the rest of the package does not already have -- but its
-    ``urlopen`` timeout cannot bound a slow-trickling response, so the deadline
-    is imposed here instead.
+    adds no dependency the rest of the package does not already have.
     """
     last: Exception | None = None
     for attempt in range(retries):
-        # A fresh executor per attempt: a hung worker cannot be killed, so it is
-        # abandoned rather than reused, and `shutdown(wait=False)` lets the main
-        # loop move on while it finishes or dies with the process.
-        executor = ThreadPoolExecutor(max_workers=1)
         try:
-            future = executor.submit(
-                get_json, url, params=params, timeout=min(HTTP_TIMEOUT, 30.0)
-            )
-            return future.result(timeout=deadline)
-        except FutureTimeout:
-            last = TimeoutError(f"no response within {deadline:.0f}s")
+            return get_json(url, params=params, timeout=SOCKET_TIMEOUT)
         except RemoteDataError as error:
             last = error
-            if not any(code in str(error) for code in RETRYABLE):
+            if any(code in str(error) for code in NOT_RETRYABLE):
                 raise
-        finally:
-            executor.shutdown(wait=False)
-        time.sleep(delay * (2**attempt) + 1.0)
+        time.sleep(RETRY_GAP + delay)
     raise RuntimeError(f"{url} gave up after {retries} attempts: {last}")
 
 
@@ -290,11 +286,16 @@ def fetch_block(
     return _hourly(_request(url, params, delay=delay))
 
 
-# One call per stadium-season asked for five months of hourly rows at once. Even
-# when that succeeds it is a large response to hold open, and a single stall
-# takes the whole stadium-season with it. Monthly chunks are more requests but
-# each is small enough to fail fast and retry cheaply.
-CHUNK_DAYS = 31
+# A full regular season is under six months of hourly rows for eleven
+# variables -- a few hundred KB -- and the unchunked version of this script
+# fetched exactly that per stadium-season in a few seconds each, repeatedly,
+# with no problem. Monthly chunking was added on the theory that a large
+# response was the risk; it was not. The actual failure mode measured in the
+# first full backfill was a TLS handshake timeout roughly once per
+# stadium-season, unrelated to response size, and chunking to 31 days
+# quadrupled the request count and so quadrupled the exposure to it. Left wide
+# enough that no in-season range needs a second chunk.
+CHUNK_DAYS = 200
 
 
 def _chunks(start: str, end: str, days: int = CHUNK_DAYS):
@@ -313,6 +314,7 @@ def collect(
     *,
     leads: tuple[int, ...],
     delay: float,
+    checkpoint: Path | None = None,
 ) -> pd.DataFrame:
     known = set(coordinates["stadium_id"])
     missing = sorted(set(games["stadium_id"]) - known)
@@ -378,6 +380,16 @@ def collect(
                 flush=True,
             )
             time.sleep(delay)
+        # Checkpointed after every stadium-season rather than once at the end.
+        # The first full backfill ran 90 minutes, got 65% through, hit a step
+        # timeout, and kept nothing: the only output path was one write after
+        # every group had been collected, so a timeout anywhere discarded
+        # everything before it. A parquet write here is a few hundred KB and
+        # costs a fraction of a second next to the seconds-to-tens-of-seconds
+        # each request already takes.
+        if checkpoint is not None and rows:
+            checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            pd.concat(rows, ignore_index=True).to_parquet(checkpoint, index=False)
     if not rows:
         raise SystemExit("no weather rows were retrieved at all")
     return pd.concat(rows, ignore_index=True)
@@ -481,7 +493,9 @@ def main(argv=None) -> int:
         games = games[games["stadium_id"].isin(args.stadiums)]
     print(f"{len(games)} games, {games.stadium_id.nunique()} stadiums, seasons {seasons}")
 
-    frame = collect(games, coordinates, leads=tuple(args.leads), delay=args.delay)
+    frame = collect(
+        games, coordinates, leads=tuple(args.leads), delay=args.delay, checkpoint=args.output
+    )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(args.output, index=False)

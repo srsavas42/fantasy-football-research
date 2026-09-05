@@ -135,6 +135,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the result as an artifact
+        # `always()` is load-bearing, not decorative. Without a status-check
+        # function in an `if:`, GitHub implicitly ANDs in `success()` -- the
+        # first full backfill hit the fetch step's timeout 65% of the way
+        # through, and both this step and the commit below were silently
+        # skipped as a result, discarding everything the run had checkpointed
+        # to disk. `data/weather/` is written incrementally by the fetcher
+        # now specifically so a step timeout leaves something to pick up here.
+        if: always()
         # A probe prints to the log and writes no parquet, so `error` would fail
         # a run that did exactly what was asked of it.
         uses: actions/upload-artifact@v4
@@ -146,11 +154,16 @@ jobs:
           if-no-files-found: warn
 
       - name: Commit and push the weather table
-        # See the coaching workflow for why both spellings of "true" are
-        # excluded here: API dispatch and UI dispatch disagree on whether this
+        # `always()` here for the same reason as the upload step above: this
+        # condition previously checked only `dry_run`, which reads as "runs
+        # unless dry_run" but actually means "runs only if the fetch step
+        # succeeded AND dry_run is false", because an `if:` with no explicit
+        # status function gets `success()` ANDed in regardless of what it
+        # says. See the coaching workflow for why both spellings of "true" are
+        # excluded: API dispatch and UI dispatch disagree on whether this
         # input arrives as a boolean or a string, and the non-empty string
         # "false" is truthy in GitHub's expression language.
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ always() && inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

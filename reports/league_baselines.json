@@ -1,0 +1,2446 @@
+{
+  "summary": [
+    {
+      "policy": "adp",
+      "episodes": 60,
+      "wins": 6.3,
+      "points": 1288.1043333333334,
+      "points_per_week": 92.00745238095239,
+      "rank": 7.95,
+      "title_rate": 0.05,
+      "reward": 1603.1043333333334
+    },
+    {
+      "policy": "adp-then-ewma",
+      "episodes": 60,
+      "wins": 6.85,
+      "points": 1369.2386666666669,
+      "points_per_week": 97.80276190476192,
+      "rank": 6.683333333333334,
+      "title_rate": 0.06666666666666667,
+      "reward": 1711.7386666666669
+    },
+    {
+      "policy": "ewma",
+      "episodes": 60,
+      "wins": 6.883333333333334,
+      "points": 1373.3916666666667,
+      "points_per_week": 98.09940476190475,
+      "rank": 6.516666666666667,
+      "title_rate": 0.08333333333333333,
+      "reward": 1717.5583333333334
+    },
+    {
+      "policy": "oracle",
+      "episodes": 60,
+      "wins": 9.8,
+      "points": 1644.9653333333333,
+      "points_per_week": 117.49752380952381,
+      "rank": 2.1333333333333333,
+      "title_rate": 0.6166666666666667,
+      "reward": 2134.965333333333
+    }
+  ],
+  "episodes": [
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 0,
+      "wins": 8,
+      "points": 1335.2600000000002,
+      "reward": 1735.2600000000002,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 1,
+      "wins": 12,
+      "points": 1532.14,
+      "reward": 2132.1400000000003,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 2,
+      "wins": 7,
+      "points": 1242.22,
+      "reward": 1592.22,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 3,
+      "wins": 4,
+      "points": 1335.1000000000001,
+      "reward": 1535.1000000000001,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 4,
+      "wins": 7,
+      "points": 1242.22,
+      "reward": 1592.22,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 5,
+      "wins": 9,
+      "points": 1328.4,
+      "reward": 1778.4,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 6,
+      "wins": 9,
+      "points": 1328.4,
+      "reward": 1778.4,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 7,
+      "wins": 8,
+      "points": 1367.78,
+      "reward": 1767.7800000000002,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 8,
+      "wins": 8,
+      "points": 1367.78,
+      "reward": 1767.7800000000002,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 9,
+      "wins": 4,
+      "points": 1172.0199999999998,
+      "reward": 1372.0199999999998,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 10,
+      "wins": 4,
+      "points": 1172.0199999999998,
+      "reward": 1372.0199999999998,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 11,
+      "wins": 3,
+      "points": 1159.06,
+      "reward": 1309.06,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 12,
+      "wins": 6,
+      "points": 1331.8800000000003,
+      "reward": 1631.88,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 13,
+      "wins": 8,
+      "points": 1367.78,
+      "reward": 1767.7800000000002,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 14,
+      "wins": 4,
+      "points": 1335.1000000000001,
+      "reward": 1535.1000000000001,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 15,
+      "wins": 7,
+      "points": 1242.22,
+      "reward": 1592.22,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 16,
+      "wins": 7,
+      "points": 1192.3799999999999,
+      "reward": 1542.38,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 17,
+      "wins": 12,
+      "points": 1532.14,
+      "reward": 2132.1400000000003,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 18,
+      "wins": 3,
+      "points": 1192.2,
+      "reward": 1342.2,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp",
+      "seed": 19,
+      "wins": 4,
+      "points": 1335.1000000000001,
+      "reward": 1535.1000000000001,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 0,
+      "wins": 9,
+      "points": 1393.3400000000001,
+      "reward": 1843.34,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 1,
+      "wins": 9,
+      "points": 1517.8600000000004,
+      "reward": 1967.8600000000001,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 2,
+      "wins": 8,
+      "points": 1454.8999999999999,
+      "reward": 1854.8999999999999,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 3,
+      "wins": 2,
+      "points": 1258.3,
+      "reward": 1358.3,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 4,
+      "wins": 8,
+      "points": 1454.8999999999999,
+      "reward": 1854.8999999999999,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 5,
+      "wins": 9,
+      "points": 1300.1000000000001,
+      "reward": 1750.1000000000004,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 6,
+      "wins": 9,
+      "points": 1300.1000000000001,
+      "reward": 1750.1000000000004,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 7,
+      "wins": 8,
+      "points": 1404.32,
+      "reward": 1804.3200000000002,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 8,
+      "wins": 8,
+      "points": 1404.32,
+      "reward": 1804.3200000000002,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 9,
+      "wins": 6,
+      "points": 1240.6599999999996,
+      "reward": 1540.6599999999996,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 10,
+      "wins": 6,
+      "points": 1240.6599999999996,
+      "reward": 1540.6599999999996,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 11,
+      "wins": 4,
+      "points": 1316.98,
+      "reward": 1516.98,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 12,
+      "wins": 6,
+      "points": 1448.9199999999998,
+      "reward": 1748.9199999999998,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 13,
+      "wins": 8,
+      "points": 1404.32,
+      "reward": 1804.3200000000002,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 14,
+      "wins": 2,
+      "points": 1258.3,
+      "reward": 1358.3,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 15,
+      "wins": 8,
+      "points": 1454.8999999999999,
+      "reward": 1854.8999999999999,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 16,
+      "wins": 10,
+      "points": 1353.08,
+      "reward": 1853.08,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 17,
+      "wins": 9,
+      "points": 1517.8600000000004,
+      "reward": 1967.8600000000001,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 18,
+      "wins": 6,
+      "points": 1234.18,
+      "reward": 1534.1799999999998,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "ewma",
+      "seed": 19,
+      "wins": 2,
+      "points": 1258.3,
+      "reward": 1358.3,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 0,
+      "wins": 8,
+      "points": 1374.24,
+      "reward": 1774.2399999999998,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 1,
+      "wins": 11,
+      "points": 1545.8400000000001,
+      "reward": 2095.84,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 2,
+      "wins": 8,
+      "points": 1379.8,
+      "reward": 1779.8,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 3,
+      "wins": 2,
+      "points": 1289.2,
+      "reward": 1389.2,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 4,
+      "wins": 8,
+      "points": 1379.8,
+      "reward": 1779.8,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 5,
+      "wins": 8,
+      "points": 1288.3000000000002,
+      "reward": 1688.3000000000002,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 6,
+      "wins": 8,
+      "points": 1288.3000000000002,
+      "reward": 1688.3000000000002,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 7,
+      "wins": 8,
+      "points": 1425.98,
+      "reward": 1825.98,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 8,
+      "wins": 8,
+      "points": 1425.98,
+      "reward": 1825.98,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 9,
+      "wins": 5,
+      "points": 1237.5599999999997,
+      "reward": 1487.5599999999997,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 10,
+      "wins": 5,
+      "points": 1237.5599999999997,
+      "reward": 1487.5599999999997,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 11,
+      "wins": 4,
+      "points": 1270.16,
+      "reward": 1470.1599999999999,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 12,
+      "wins": 6,
+      "points": 1416.34,
+      "reward": 1716.34,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 13,
+      "wins": 8,
+      "points": 1425.98,
+      "reward": 1825.98,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 14,
+      "wins": 2,
+      "points": 1289.2,
+      "reward": 1389.2,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 15,
+      "wins": 8,
+      "points": 1379.8,
+      "reward": 1779.8,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 16,
+      "wins": 10,
+      "points": 1357.1800000000003,
+      "reward": 1857.1799999999998,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 17,
+      "wins": 11,
+      "points": 1545.8400000000001,
+      "reward": 2095.84,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 18,
+      "wins": 6,
+      "points": 1273.3799999999999,
+      "reward": 1573.3799999999999,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "adp-then-ewma",
+      "seed": 19,
+      "wins": 2,
+      "points": 1289.2,
+      "reward": 1389.2,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 0,
+      "wins": 11,
+      "points": 1739.8400000000001,
+      "reward": 2289.84,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 1,
+      "wins": 13,
+      "points": 1776.1400000000003,
+      "reward": 2426.1400000000003,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 2,
+      "wins": 10,
+      "points": 1685.6400000000003,
+      "reward": 2185.6400000000003,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 3,
+      "wins": 7,
+      "points": 1595.0,
+      "reward": 1945.0,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 4,
+      "wins": 10,
+      "points": 1685.6400000000003,
+      "reward": 2185.6400000000003,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 5,
+      "wins": 10,
+      "points": 1632.8999999999999,
+      "reward": 2132.8999999999996,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 6,
+      "wins": 10,
+      "points": 1632.8999999999999,
+      "reward": 2132.8999999999996,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 7,
+      "wins": 9,
+      "points": 1650.04,
+      "reward": 2100.04,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 8,
+      "wins": 9,
+      "points": 1650.04,
+      "reward": 2100.04,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 9,
+      "wins": 12,
+      "points": 1632.1399999999999,
+      "reward": 2232.1400000000003,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 10,
+      "wins": 12,
+      "points": 1632.1399999999999,
+      "reward": 2232.1400000000003,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 11,
+      "wins": 6,
+      "points": 1488.96,
+      "reward": 1788.96,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 12,
+      "wins": 8,
+      "points": 1632.3600000000001,
+      "reward": 2032.3600000000004,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 13,
+      "wins": 9,
+      "points": 1650.04,
+      "reward": 2100.04,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 14,
+      "wins": 7,
+      "points": 1595.0,
+      "reward": 1945.0,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 15,
+      "wins": 10,
+      "points": 1685.6400000000003,
+      "reward": 2185.6400000000003,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 16,
+      "wins": 11,
+      "points": 1539.98,
+      "reward": 2089.98,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 17,
+      "wins": 13,
+      "points": 1776.1400000000003,
+      "reward": 2426.1400000000003,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 18,
+      "wins": 9,
+      "points": 1564.7000000000003,
+      "reward": 2014.7000000000003,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2023,
+      "policy": "oracle",
+      "seed": 19,
+      "wins": 7,
+      "points": 1595.0,
+      "reward": 1945.0,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 0,
+      "wins": 10,
+      "points": 1473.28,
+      "reward": 1973.28,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 1,
+      "wins": 3,
+      "points": 1105.12,
+      "reward": 1255.1200000000001,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 2,
+      "wins": 7,
+      "points": 1381.18,
+      "reward": 1731.1799999999996,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 3,
+      "wins": 6,
+      "points": 1314.0200000000002,
+      "reward": 1614.0200000000002,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 4,
+      "wins": 7,
+      "points": 1381.18,
+      "reward": 1731.1799999999996,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 5,
+      "wins": 7,
+      "points": 1483.08,
+      "reward": 1833.08,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 6,
+      "wins": 7,
+      "points": 1483.08,
+      "reward": 1833.08,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 7,
+      "wins": 7,
+      "points": 1405.7200000000003,
+      "reward": 1755.7200000000003,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 8,
+      "wins": 7,
+      "points": 1405.7200000000003,
+      "reward": 1755.7200000000003,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 9,
+      "wins": 5,
+      "points": 1292.2,
+      "reward": 1542.2000000000003,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 10,
+      "wins": 5,
+      "points": 1292.2,
+      "reward": 1542.2000000000003,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 11,
+      "wins": 5,
+      "points": 1414.1599999999999,
+      "reward": 1664.1599999999999,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 12,
+      "wins": 7,
+      "points": 1246.3200000000002,
+      "reward": 1596.3200000000002,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 13,
+      "wins": 7,
+      "points": 1405.7200000000003,
+      "reward": 1755.7200000000003,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 14,
+      "wins": 6,
+      "points": 1314.0200000000002,
+      "reward": 1614.0200000000002,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 15,
+      "wins": 7,
+      "points": 1381.18,
+      "reward": 1731.1799999999996,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 16,
+      "wins": 7,
+      "points": 1263.16,
+      "reward": 1613.1599999999996,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 17,
+      "wins": 3,
+      "points": 1105.12,
+      "reward": 1255.1200000000001,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 18,
+      "wins": 2,
+      "points": 1013.32,
+      "reward": 1113.3199999999997,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp",
+      "seed": 19,
+      "wins": 6,
+      "points": 1314.0200000000002,
+      "reward": 1614.0200000000002,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 0,
+      "wins": 10,
+      "points": 1500.82,
+      "reward": 2000.82,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 1,
+      "wins": 4,
+      "points": 1174.0400000000004,
+      "reward": 1374.0400000000002,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 2,
+      "wins": 7,
+      "points": 1432.3999999999999,
+      "reward": 1782.3999999999999,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 3,
+      "wins": 8,
+      "points": 1531.2199999999998,
+      "reward": 1931.2199999999996,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 4,
+      "wins": 7,
+      "points": 1432.3999999999999,
+      "reward": 1782.3999999999999,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 5,
+      "wins": 8,
+      "points": 1441.68,
+      "reward": 1841.68,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 6,
+      "wins": 8,
+      "points": 1441.68,
+      "reward": 1841.68,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 7,
+      "wins": 6,
+      "points": 1458.8400000000001,
+      "reward": 1758.8400000000001,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 8,
+      "wins": 6,
+      "points": 1458.8400000000001,
+      "reward": 1758.8400000000001,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 9,
+      "wins": 5,
+      "points": 1432.92,
+      "reward": 1682.92,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 10,
+      "wins": 5,
+      "points": 1432.92,
+      "reward": 1682.92,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 11,
+      "wins": 7,
+      "points": 1443.34,
+      "reward": 1793.34,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 12,
+      "wins": 8,
+      "points": 1313.7400000000002,
+      "reward": 1713.7400000000002,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 13,
+      "wins": 6,
+      "points": 1458.8400000000001,
+      "reward": 1758.8400000000001,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 14,
+      "wins": 8,
+      "points": 1531.2199999999998,
+      "reward": 1931.2199999999996,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 15,
+      "wins": 7,
+      "points": 1432.3999999999999,
+      "reward": 1782.3999999999999,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 16,
+      "wins": 7,
+      "points": 1306.0800000000002,
+      "reward": 1656.08,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 17,
+      "wins": 4,
+      "points": 1174.0400000000004,
+      "reward": 1374.0400000000002,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 18,
+      "wins": 6,
+      "points": 1280.96,
+      "reward": 1580.96,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "ewma",
+      "seed": 19,
+      "wins": 8,
+      "points": 1531.2199999999998,
+      "reward": 1931.2199999999996,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 0,
+      "wins": 10,
+      "points": 1485.58,
+      "reward": 1985.58,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 1,
+      "wins": 4,
+      "points": 1182.2400000000002,
+      "reward": 1382.2400000000002,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 2,
+      "wins": 7,
+      "points": 1428.02,
+      "reward": 1778.0199999999998,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 3,
+      "wins": 8,
+      "points": 1540.28,
+      "reward": 1940.2799999999997,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 4,
+      "wins": 7,
+      "points": 1428.02,
+      "reward": 1778.0199999999998,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 5,
+      "wins": 8,
+      "points": 1431.98,
+      "reward": 1831.98,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 6,
+      "wins": 8,
+      "points": 1431.98,
+      "reward": 1831.98,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 7,
+      "wins": 6,
+      "points": 1462.94,
+      "reward": 1762.94,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 8,
+      "wins": 6,
+      "points": 1462.94,
+      "reward": 1762.94,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 9,
+      "wins": 5,
+      "points": 1424.1200000000001,
+      "reward": 1674.1200000000001,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 10,
+      "wins": 5,
+      "points": 1424.1200000000001,
+      "reward": 1674.1200000000001,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 11,
+      "wins": 7,
+      "points": 1453.14,
+      "reward": 1803.1399999999999,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 12,
+      "wins": 9,
+      "points": 1328.8400000000001,
+      "reward": 1778.8400000000001,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 13,
+      "wins": 6,
+      "points": 1462.94,
+      "reward": 1762.94,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 14,
+      "wins": 8,
+      "points": 1540.28,
+      "reward": 1940.2799999999997,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 15,
+      "wins": 7,
+      "points": 1428.02,
+      "reward": 1778.0199999999998,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 16,
+      "wins": 7,
+      "points": 1289.7800000000002,
+      "reward": 1639.7800000000002,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 17,
+      "wins": 4,
+      "points": 1182.2400000000002,
+      "reward": 1382.2400000000002,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 18,
+      "wins": 5,
+      "points": 1246.0400000000002,
+      "reward": 1496.04,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "adp-then-ewma",
+      "seed": 19,
+      "wins": 8,
+      "points": 1540.28,
+      "reward": 1940.2799999999997,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 0,
+      "wins": 11,
+      "points": 1710.0199999999998,
+      "reward": 2260.02,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 1,
+      "wins": 6,
+      "points": 1474.4,
+      "reward": 1774.4,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 2,
+      "wins": 11,
+      "points": 1680.6399999999999,
+      "reward": 2230.64,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 3,
+      "wins": 11,
+      "points": 1800.4600000000003,
+      "reward": 2350.46,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 4,
+      "wins": 11,
+      "points": 1680.6399999999999,
+      "reward": 2230.64,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 5,
+      "wins": 11,
+      "points": 1797.28,
+      "reward": 2347.2799999999997,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 6,
+      "wins": 11,
+      "points": 1797.28,
+      "reward": 2347.2799999999997,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 7,
+      "wins": 10,
+      "points": 1772.0000000000002,
+      "reward": 2272.0,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 8,
+      "wins": 10,
+      "points": 1772.0000000000002,
+      "reward": 2272.0,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 9,
+      "wins": 9,
+      "points": 1744.08,
+      "reward": 2194.0800000000004,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 10,
+      "wins": 9,
+      "points": 1744.08,
+      "reward": 2194.0800000000004,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 11,
+      "wins": 10,
+      "points": 1729.7800000000002,
+      "reward": 2229.7800000000007,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 12,
+      "wins": 9,
+      "points": 1578.12,
+      "reward": 2028.1200000000001,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 13,
+      "wins": 10,
+      "points": 1772.0000000000002,
+      "reward": 2272.0,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 14,
+      "wins": 11,
+      "points": 1800.4600000000003,
+      "reward": 2350.46,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 15,
+      "wins": 11,
+      "points": 1680.6399999999999,
+      "reward": 2230.64,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 16,
+      "wins": 9,
+      "points": 1540.4,
+      "reward": 1990.4,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 17,
+      "wins": 6,
+      "points": 1474.4,
+      "reward": 1774.4,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 18,
+      "wins": 8,
+      "points": 1567.96,
+      "reward": 1967.96,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2024,
+      "policy": "oracle",
+      "seed": 19,
+      "wins": 11,
+      "points": 1800.4600000000003,
+      "reward": 2350.46,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 0,
+      "wins": 6,
+      "points": 1466.04,
+      "reward": 1766.04,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 1,
+      "wins": 7,
+      "points": 1315.28,
+      "reward": 1665.28,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 2,
+      "wins": 4,
+      "points": 1116.5800000000002,
+      "reward": 1316.5800000000002,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 3,
+      "wins": 8,
+      "points": 1249.72,
+      "reward": 1649.72,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 4,
+      "wins": 4,
+      "points": 1116.5800000000002,
+      "reward": 1316.5800000000002,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 5,
+      "wins": 8,
+      "points": 1295.1800000000005,
+      "reward": 1695.1800000000003,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 6,
+      "wins": 8,
+      "points": 1295.1800000000005,
+      "reward": 1695.1800000000003,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 7,
+      "wins": 5,
+      "points": 1216.48,
+      "reward": 1466.48,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 8,
+      "wins": 5,
+      "points": 1216.48,
+      "reward": 1466.48,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 9,
+      "wins": 5,
+      "points": 1217.28,
+      "reward": 1467.28,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 10,
+      "wins": 5,
+      "points": 1217.28,
+      "reward": 1467.28,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 11,
+      "wins": 8,
+      "points": 1305.14,
+      "reward": 1705.14,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 12,
+      "wins": 2,
+      "points": 677.26,
+      "reward": 777.26,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 13,
+      "wins": 5,
+      "points": 1216.48,
+      "reward": 1466.48,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 14,
+      "wins": 8,
+      "points": 1249.72,
+      "reward": 1649.72,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 15,
+      "wins": 4,
+      "points": 1116.5800000000002,
+      "reward": 1316.5800000000002,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 16,
+      "wins": 8,
+      "points": 1494.3400000000001,
+      "reward": 1894.3400000000001,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 17,
+      "wins": 7,
+      "points": 1315.28,
+      "reward": 1665.28,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 18,
+      "wins": 8,
+      "points": 1354.66,
+      "reward": 1754.66,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp",
+      "seed": 19,
+      "wins": 8,
+      "points": 1249.72,
+      "reward": 1649.72,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 0,
+      "wins": 9,
+      "points": 1558.5400000000002,
+      "reward": 2008.54,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 1,
+      "wins": 7,
+      "points": 1331.18,
+      "reward": 1681.18,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 2,
+      "wins": 4,
+      "points": 1277.9799999999998,
+      "reward": 1477.9799999999998,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 3,
+      "wins": 10,
+      "points": 1411.22,
+      "reward": 1911.22,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 4,
+      "wins": 4,
+      "points": 1277.9799999999998,
+      "reward": 1477.9799999999998,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 5,
+      "wins": 7,
+      "points": 1346.08,
+      "reward": 1696.08,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 6,
+      "wins": 7,
+      "points": 1346.08,
+      "reward": 1696.08,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 7,
+      "wins": 7,
+      "points": 1454.2799999999997,
+      "reward": 1804.2799999999997,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 8,
+      "wins": 7,
+      "points": 1454.2799999999997,
+      "reward": 1804.2799999999997,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 9,
+      "wins": 7,
+      "points": 1279.18,
+      "reward": 1629.18,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 10,
+      "wins": 7,
+      "points": 1279.18,
+      "reward": 1629.18,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 11,
+      "wins": 8,
+      "points": 1367.62,
+      "reward": 1767.62,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 12,
+      "wins": 3,
+      "points": 906.02,
+      "reward": 1056.0200000000002,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 13,
+      "wins": 7,
+      "points": 1454.2799999999997,
+      "reward": 1804.2799999999997,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 14,
+      "wins": 10,
+      "points": 1411.22,
+      "reward": 1911.22,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 15,
+      "wins": 4,
+      "points": 1277.9799999999998,
+      "reward": 1477.9799999999998,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 16,
+      "wins": 8,
+      "points": 1408.54,
+      "reward": 1808.5400000000004,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 17,
+      "wins": 7,
+      "points": 1331.18,
+      "reward": 1681.18,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 18,
+      "wins": 8,
+      "points": 1393.5600000000002,
+      "reward": 1793.5600000000004,
+      "rank": 4,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "ewma",
+      "seed": 19,
+      "wins": 10,
+      "points": 1411.22,
+      "reward": 1911.22,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 0,
+      "wins": 9,
+      "points": 1580.5400000000002,
+      "reward": 2030.54,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 1,
+      "wins": 7,
+      "points": 1342.5800000000002,
+      "reward": 1692.5800000000002,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 2,
+      "wins": 4,
+      "points": 1256.78,
+      "reward": 1456.78,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 3,
+      "wins": 9,
+      "points": 1357.82,
+      "reward": 1807.82,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 4,
+      "wins": 4,
+      "points": 1256.78,
+      "reward": 1456.78,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 5,
+      "wins": 8,
+      "points": 1392.58,
+      "reward": 1792.5800000000004,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 6,
+      "wins": 8,
+      "points": 1392.58,
+      "reward": 1792.5800000000004,
+      "rank": 5,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 7,
+      "wins": 7,
+      "points": 1423.2,
+      "reward": 1773.1999999999998,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 8,
+      "wins": 7,
+      "points": 1423.2,
+      "reward": 1773.1999999999998,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 9,
+      "wins": 7,
+      "points": 1273.68,
+      "reward": 1623.68,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 10,
+      "wins": 7,
+      "points": 1273.68,
+      "reward": 1623.68,
+      "rank": 9,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 11,
+      "wins": 8,
+      "points": 1356.12,
+      "reward": 1756.12,
+      "rank": 6,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 12,
+      "wins": 3,
+      "points": 945.1800000000001,
+      "reward": 1095.18,
+      "rank": 12,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 13,
+      "wins": 7,
+      "points": 1423.2,
+      "reward": 1773.1999999999998,
+      "rank": 7,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 14,
+      "wins": 9,
+      "points": 1357.82,
+      "reward": 1807.82,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 15,
+      "wins": 4,
+      "points": 1256.78,
+      "reward": 1456.78,
+      "rank": 11,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 16,
+      "wins": 8,
+      "points": 1448.94,
+      "reward": 1848.94,
+      "rank": 3,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 17,
+      "wins": 7,
+      "points": 1342.5800000000002,
+      "reward": 1692.5800000000002,
+      "rank": 8,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 18,
+      "wins": 8,
+      "points": 1399.0400000000002,
+      "reward": 1799.0400000000004,
+      "rank": 4,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "adp-then-ewma",
+      "seed": 19,
+      "wins": 9,
+      "points": 1357.82,
+      "reward": 1807.82,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 0,
+      "wins": 11,
+      "points": 1772.44,
+      "reward": 2322.44,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 1,
+      "wins": 10,
+      "points": 1662.98,
+      "reward": 2162.98,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 2,
+      "wins": 9,
+      "points": 1468.2,
+      "reward": 1918.2,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 3,
+      "wins": 12,
+      "points": 1697.3799999999997,
+      "reward": 2297.38,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 4,
+      "wins": 9,
+      "points": 1468.2,
+      "reward": 1918.2,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 5,
+      "wins": 9,
+      "points": 1589.6799999999998,
+      "reward": 2039.6799999999998,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 6,
+      "wins": 9,
+      "points": 1589.6799999999998,
+      "reward": 2039.6799999999998,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 7,
+      "wins": 9,
+      "points": 1669.0799999999997,
+      "reward": 2119.08,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 8,
+      "wins": 9,
+      "points": 1669.0799999999997,
+      "reward": 2119.08,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 9,
+      "wins": 9,
+      "points": 1502.74,
+      "reward": 1952.74,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 10,
+      "wins": 9,
+      "points": 1502.74,
+      "reward": 1952.74,
+      "rank": 2,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 11,
+      "wins": 11,
+      "points": 1635.4199999999996,
+      "reward": 2185.42,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 12,
+      "wins": 6,
+      "points": 1142.0200000000002,
+      "reward": 1442.02,
+      "rank": 10,
+      "title": 0
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 13,
+      "wins": 9,
+      "points": 1669.0799999999997,
+      "reward": 2119.08,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 14,
+      "wins": 12,
+      "points": 1697.3799999999997,
+      "reward": 2297.38,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 15,
+      "wins": 9,
+      "points": 1468.2,
+      "reward": 1918.2,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 16,
+      "wins": 13,
+      "points": 1777.48,
+      "reward": 2427.48,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 17,
+      "wins": 10,
+      "points": 1662.98,
+      "reward": 2162.98,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 18,
+      "wins": 13,
+      "points": 1598.44,
+      "reward": 2248.44,
+      "rank": 1,
+      "title": 1
+    },
+    {
+      "season": 2025,
+      "policy": "oracle",
+      "seed": 19,
+      "wins": 12,
+      "points": 1697.3799999999997,
+      "reward": 2297.38,
+      "rank": 1,
+      "title": 1
+    }
+  ]
+}

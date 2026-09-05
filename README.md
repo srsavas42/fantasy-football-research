@@ -270,6 +270,37 @@ has. Every number is also a ceiling, measured on conditions recorded at the game
 a live version reads the forecast archive in `ffmodel.data.weather`. See
 [specialists & weather](docs/specialists-and-weather-2026-09.md).
 
+### What a better projection is worth, in wins
+
+Two questions the weekly work had never answered directly. **Does the model beat
+"average his last few weeks"?** Against a grid of fourteen naive baselines --
+last week, flat 3/5/8-week windows, the same windows over played weeks only,
+EWMAs at four half-lives, season-to-date, career mean -- each given the same
+honest predictive distribution the ladder uses, the shipped model wins by
+**-11.6% CRPS on 3 of 3 folds** (best naive: an EWMA at half-life 2, 3.6049 to
+3.1854), with within-position Spearman 0.680 against 0.575. Averaging only the
+weeks a player *played* -- the number everyone quotes -- is 3-5% worse at every
+window, because absence risk is part of next week's expectation.
+
+**And what is that worth?** The league environment (`ffmodel.league`) plays real
+seasons: 12 teams, ESPN-style roster, snake draft off the FantasyPros board,
+round-robin schedule, weeks 1-14, eleven opponents playing the board for three
+weeks and recent form after. Paired on seed over 3 seasons x 20 seeds:
+
+| vs. the field | wins | SE |
+|---|---|---|
+| perfect start/sit (oracle) | +2.95 | 0.19 |
+| recent form from week 1 | +0.03 | 0.08 |
+| never updating the lineup | -0.55 | 0.16 |
+
+So **every start/sit decision in a season is worth at most 2.95 wins**, and one
+season carries +/-3 wins of pure draft-slot and schedule luck -- four times the
+gap between setting your lineup weekly and never logging in again. A
+single-season comparison of two policies measures nothing; pairing on shared
+seeds is what makes the difference measurable at sixty episodes instead of
+several thousand. See
+[the league environment](docs/league-environment-2026-09.md).
+
 ### Data acquisition
 
 The provider-aware data CLI caches parquet plus provenance manifests and keeps
@@ -337,7 +368,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)) |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule and naive opponents now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.95 wins ([league environment](docs/league-environment-2026-09.md)) |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 

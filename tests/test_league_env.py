@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ffmodel.league.config import LeagueConfig, RosterSlots
+from ffmodel.league.config import FLEX_POSITIONS, LeagueConfig, RosterSlots
 from ffmodel.league.draft import run_draft
 from ffmodel.league.env import FantasyLeagueEnv
 from ffmodel.league.lineup import optimal_lineup, round_robin
@@ -73,18 +73,60 @@ def test_every_team_leaves_the_draft_able_to_field_a_lineup():
     result = run_draft(pool, 2024, config, seed=3)
 
     positions = pool.drop_duplicates("player_key").set_index("player_key")["position"]
+    slots = config.slots
     for team, roster in result.rosters.items():
-        assert len(roster) == config.slots.size, f"team {team} roster is short"
+        assert len(roster) == slots.size, f"team {team} roster is short"
         held = positions.reindex(roster).value_counts()
-        # A kicker and a defense on every team, or a lineup slot sits empty all
-        # season -- the failure the draft's deferral rule exists to prevent.
-        assert held.get("K", 0) >= 1, f"team {team} drafted no kicker"
-        assert held.get("DST", 0) >= 1, f"team {team} drafted no defense"
-        assert held.get("QB", 0) >= 1
+        # Every dedicated starting slot must be fillable, or it sits empty all
+        # season -- the failure the draft's forced-pick rule exists to prevent.
+        for position, count in slots.dedicated().items():
+            assert held.get(position, 0) >= count, (
+                f"team {team} cannot fill {count} {position} slot(s)"
+            )
+        # And the flex needs a body beyond the dedicated ones. This is the part
+        # a per-position minimum misses: every individual requirement can be
+        # satisfied while the roster is still one player short of a legal card.
+        flex_eligible = sum(held.get(position, 0) for position in FLEX_POSITIONS)
+        required = sum(slots.dedicated()[p] for p in FLEX_POSITIONS) + slots.flex
+        assert flex_eligible >= required, (
+            f"team {team} has {flex_eligible} flex-eligible, needs {required}"
+        )
 
     # Nobody is on two rosters.
     everyone = [key for roster in result.rosters.values() for key in roster]
     assert len(everyone) == len(set(everyone))
+
+
+def test_the_caps_bind_and_the_uncapped_positions_do_not():
+    """Two apiece at quarterback, kicker and defense; unlimited elsewhere.
+
+    A third of any of those three cannot be started in the same week as the
+    first two, so the cap is what stops the board handing a team dead weight.
+    Backs, receivers and tight ends are deliberately uncapped -- how much depth
+    to carry at the flex-eligible positions is a decision a policy should own.
+    """
+    pool = _pool()
+    config = LeagueConfig(teams=12, seasons=(2024,))
+    result = run_draft(pool, 2024, config, seed=5)
+    positions = pool.drop_duplicates("player_key").set_index("player_key")["position"]
+
+    for team, roster in result.rosters.items():
+        held = positions.reindex(roster).value_counts()
+        for position in ("QB", "K", "DST"):
+            assert held.get(position, 0) <= 2, (
+                f"team {team} holds {held.get(position)} at {position}"
+            )
+
+    # And at least one team should exceed what a cap of two would have allowed
+    # somewhere flex-eligible, or "uncapped" is not doing anything.
+    depth = max(
+        sum(
+            positions.reindex(roster).value_counts().get(position, 0)
+            for position in ("RB",)
+        )
+        for roster in result.rosters.values()
+    )
+    assert depth > 2, "no team stockpiled backs; the uncapped rule is inert"
 
 
 def test_the_environment_never_shows_a_policy_an_unplayed_week():

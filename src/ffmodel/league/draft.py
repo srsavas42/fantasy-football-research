@@ -7,12 +7,18 @@ the consensus board already prices. That makes the draft a *fixed, neutral*
 starting condition rather than a second thing being optimised, so a difference
 in final record is attributable to in-season decisions.
 
-Two rules keep it from producing rosters no human would field. A cap per
-position stops a team taking a sixth quarterback because the board happened to
-rank him next, and kickers and defenses are deferred until the roster would
-otherwise not have room for them -- which is what real drafters do, and what
-"best available" alone gets badly wrong, since a board that ranks the top kicker
-around the tenth round would otherwise have every team taking one there.
+Two rules keep it from producing rosters no human would field. A cap stops a
+team taking a third quarterback, kicker or defense, none of which can be started
+in the same week as the first two. And a roster that owes as many players as it
+has picks left is forced to take only what it still needs, which is what
+guarantees every team ends able to field a legal lineup -- including the flex,
+whose requirement is aggregate rather than per-position and is the one a
+naive "fill each slot" rule gets wrong.
+
+Note what the second rule does *not* do: it does not forbid taking a kicker
+early. The board is free to hand one over in the tenth round if that is genuinely
+the best player left under the caps. It only guarantees the roster cannot finish
+short.
 """
 
 from __future__ import annotations
@@ -22,16 +28,24 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from ffmodel.league.config import LeagueConfig
+from ffmodel.league.config import FLEX_POSITIONS, POSITIONS, LeagueConfig
 
-# How many of each position one team may hold. Starters plus a sane bench
-# allowance: enough depth to cover a bye or an injury, not enough to hoard.
-# Kickers and defenses are capped at their starting requirement because a
-# second of either is dead weight no naive manager carries.
-DEFAULT_CAPS = {"QB": 2, "RB": 6, "WR": 6, "TE": 2, "K": 1, "DST": 1}
+# How many of each position one team may hold. A position absent from this map
+# is uncapped: backs, receivers and tight ends can be stockpiled without limit,
+# because depth at the flex-eligible positions is the whole point of a bench and
+# capping it would be the environment making a roster-construction decision that
+# a policy should be free to make for itself.
+#
+# The three that are capped are the ones where hoarding is not a strategy but a
+# mistake: a third quarterback, kicker or defense cannot be started in any week,
+# so the cap of two allows a bye-week handcuff and nothing beyond it.
+DEFAULT_CAPS = {"QB": 2, "K": 2, "DST": 2}
 
 # Positions a roster must end the draft holding, or it cannot field a lineup.
 REQUIRED = ("QB", "RB", "WR", "TE", "K", "DST")
+
+# Unlimited, spelled out rather than left as a magic absence.
+UNCAPPED = float("inf")
 
 
 @dataclass
@@ -80,14 +94,49 @@ def _board(pool: pd.DataFrame, season: int) -> pd.DataFrame:
     return board.sort_values("adp_rank", kind="mergesort").reset_index(drop=True)
 
 
-def _still_needed(counts: dict[str, int], slots) -> dict[str, int]:
-    """Mandatory positions this roster has not yet filled."""
+def _still_needed(counts: dict[str, int], slots) -> tuple[int, set[str]]:
+    """How many more players this roster *must* take, and which positions help.
+
+    "Fill the starting roster" is not just the dedicated slots. The flex needs a
+    body too, and it can come from any of three positions, so the requirement is
+    partly aggregate: a roster owes two backs, two receivers and a tight end for
+    the dedicated slots *and* a sixth flex-eligible player on top, but that sixth
+    can be any of the three. Counting only per-position shortfalls would let a
+    team finish the draft one player short of a legal lineup, with every
+    individual minimum satisfied.
+
+    So the flex-eligible requirement binds on whichever is larger: the sum of the
+    individual shortfalls, or the aggregate headcount. Returns the total still
+    owed and the set of positions that would reduce it.
+    """
     dedicated = slots.dedicated()
-    return {
-        position: dedicated[position] - counts.get(position, 0)
-        for position in REQUIRED
-        if dedicated[position] - counts.get(position, 0) > 0
+
+    total = 0
+    wanted: set[str] = set()
+
+    # Positions that can only fill their own slot.
+    for position in ("QB", "K", "DST"):
+        short = dedicated[position] - counts.get(position, 0)
+        if short > 0:
+            total += short
+            wanted.add(position)
+
+    # The flex-eligible group, where the aggregate can bind beyond the parts.
+    individual = {
+        position: max(0, dedicated[position] - counts.get(position, 0))
+        for position in FLEX_POSITIONS
     }
+    held = sum(counts.get(position, 0) for position in FLEX_POSITIONS)
+    required = sum(dedicated[position] for position in FLEX_POSITIONS) + slots.flex
+    aggregate = max(0, required - held)
+
+    total += max(sum(individual.values()), aggregate)
+    wanted.update(position for position, short in individual.items() if short > 0)
+    if aggregate > sum(individual.values()):
+        # Every dedicated minimum is met and the flex is what is still owed, so
+        # any of the three closes it.
+        wanted.update(FLEX_POSITIONS)
+    return total, wanted
 
 
 def run_draft(
@@ -128,14 +177,18 @@ def run_draft(
     for pick_number, team in enumerate(order, start=1):
         held = counts[team]
         spots_left = slots.size - len(rosters[team])
-        needed = _still_needed(held, slots)
+        owed, needed = _still_needed(held, slots)
 
-        # Once the roster has exactly as many spots left as mandatory positions
-        # unfilled, every remaining pick is forced. This is what keeps a kicker
-        # and a defense on every team without letting either be taken early.
-        forced = sum(needed.values()) >= spots_left
-        wanted = set(needed) if forced else {
-            position for position in caps if held.get(position, 0) < caps[position]
+        # Once the roster owes as many players as it has spots left, every
+        # remaining pick is forced. This is the guarantee that no team finishes
+        # the draft unable to field a legal lineup -- and the only mechanism
+        # that puts a kicker and a defense on every roster, since the board
+        # ranks both low enough that "best available" would otherwise skip them.
+        forced = owed >= spots_left
+        wanted = needed if forced else {
+            position
+            for position in POSITIONS
+            if held.get(position, 0) < caps.get(position, UNCAPPED)
         }
 
         choice = None

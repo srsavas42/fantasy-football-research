@@ -848,7 +848,7 @@ is a transform of something that already happened on a field.
 ### What is available and not used
 
 Participation and personnel packages, FTN charting, contracts, combine
-athleticism, Vegas *season win totals*, weather, and coaching continuity.
+athleticism, Vegas *season win totals*, and coaching continuity.
 Red-zone usage was built from play-by-play and measured at season
 level: it does not help there (+0.11% to +0.49% across four targets) because the
 trait does not persist, which is a fact about the trait rather than the cadence.
@@ -856,6 +856,16 @@ Three sources previously on this list have since been joined and measured, and
 the results are below: `ff_opportunity` (expected points) is a null,
 play-by-play's `pass_oe` (pass rate over expected) is a null with a ceiling
 argument behind it, and Next Gen Stats **ships**.
+
+Weather has since left this list too, and left it as a null. The schedule's
+`roof`, `temp` and `wind` were joined and measured in 2026-09: on this panel
+they are worth −0.027% and +0.002% CRPS, ties by more than an order of
+magnitude, inconsistent across folds, and no better in the cold late-season
+window than anywhere else. The rung read the conditions **recorded at the game**
+rather than a forecast of them, so it measures the ceiling a perfect forecast
+would reach and the question is closed rather than deferred. It is not a null
+everywhere: on kickers the same columns are worth −0.45%. See
+[specialists & weather](specialists-and-weather-2026-09.md).
 
 ### Would the season pipeline's projections help as an input?
 

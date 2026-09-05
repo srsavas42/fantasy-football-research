@@ -100,3 +100,71 @@ HALF_PPR = ScoringRules(reception=0.5)
 PPR = ScoringRules(reception=1.0)
 
 SCORING_FORMATS = {"standard": STANDARD, "half_ppr": HALF_PPR, "ppr": PPR}
+
+
+@dataclass(frozen=True)
+class KickerRules:
+    """Point weights for a kicker's week.
+
+    Kicker scoring is distance-tiered in every mainstream league, and the tiers
+    are the whole reason kickers are not interchangeable: a leg that converts
+    from 50 is worth two points more per make than one that is only trusted
+    inside 40. nflverse publishes makes and misses already bucketed by distance
+    (``fg_made_0_19`` through ``fg_made_60_``), so the tiers are read directly
+    rather than inferred from a total and an average.
+
+    Defaults are the common ESPN configuration. A league that scores differently
+    changes these numbers and nothing else -- the model is fitted on whatever
+    ``kicker_points`` returns, so the tiers are a scoring convention rather than
+    a modelling assumption.
+    """
+
+    fg_0_39: float = 3.0
+    fg_40_49: float = 4.0
+    fg_50_plus: float = 5.0
+    fg_miss: float = -1.0
+    pat_made: float = 1.0
+    pat_miss: float = -1.0
+
+
+@dataclass(frozen=True)
+class DefenseRules:
+    """Point weights for a team defense/special-teams week.
+
+    Two halves that behave very differently. The event half -- sacks, takeaways,
+    touchdowns -- is close to a count of independent good things. The
+    points-allowed half is a **step function of the opponent's final score**,
+    which means most of a DST's fantasy week is decided by how good the other
+    offence is and how the game script ran, not by anything the defence's own
+    box score records. Any model of this response has to project the opponent's
+    scoring, which is why the schedule's implied totals matter more here than
+    anywhere else in the package.
+
+    ``points_allowed_tiers`` is read as ordered ``(upper_bound, points)`` pairs,
+    inclusive on the bound and evaluated in order, with
+    ``points_allowed_worst`` for anything above the last bound. Defaults are the
+    common ESPN configuration.
+    """
+
+    sack: float = 1.0
+    interception: float = 2.0
+    fumble_recovery: float = 2.0
+    touchdown: float = 6.0
+    safety: float = 2.0
+    block: float = 2.0
+    points_allowed_tiers: tuple[tuple[int, float], ...] = (
+        (0, 10.0),
+        (6, 7.0),
+        (13, 4.0),
+        (20, 1.0),
+        (27, 0.0),
+        (34, -1.0),
+    )
+    points_allowed_worst: float = -4.0
+
+
+KICKER_STANDARD = KickerRules()
+DEFENSE_STANDARD = DefenseRules()
+
+KICKER_FORMATS = {"standard": KICKER_STANDARD}
+DEFENSE_FORMATS = {"standard": DEFENSE_STANDARD}

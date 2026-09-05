@@ -210,6 +210,32 @@ TRACKED_FEATURES = (
 
 CHARTING_FEATURES = CHARTING_FEATURES + TRACKED_FEATURES
 
+# The game's physical conditions. `roof_indoor` is known when the schedule is
+# published; `wx_temp` and `wx_wind` are recorded at the game, so a rung reading
+# them measures the ceiling a perfect forecast would reach rather than something
+# a live projection could have had. See `ffmodel.weekly.weather`.
+WEATHER_FEATURES = (
+    "roof_indoor",
+    "wx_temp",
+    "wx_wind",
+    "wx_wind_high",
+    "wx_freezing",
+    "wx_missing",
+)
+
+# Roof alone: fully populated, known months ahead, and free of the ceiling
+# caveat. Separated so "indoors helps" can be ruled in without buying the two
+# columns that a live run would have to forecast.
+ROOF_FEATURES = ("roof_indoor",)
+
+# Wind, gated. The full weather block is a null pooled and worth -0.60% CRPS on
+# the 6% of rows where the wind is actually strong -- a conditional effect that
+# pooling averages away. Temperature is dropped (a freezing indicator scores
+# *worse*, +0.38%) and the linear wind slope with it; what is left is the roof,
+# the threshold, and a hinge in the excess above it, so the columns are zero
+# wherever the effect is.
+WIND_FEATURES = ("roof_indoor", "wx_wind_high", "wx_wind_excess")
+
 RIDGE_PENALTY = 10.0
 LOGISTIC_PENALTY = 5.0
 
@@ -338,6 +364,9 @@ class Hurdle:
     use_tendency: bool = False
     use_charting: bool = False
     use_tracked_only: bool = False
+    use_weather: bool = False
+    use_roof: bool = False
+    use_wind: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -366,6 +395,9 @@ class Hurdle:
             + (TENDENCY_FEATURES if self.use_tendency else ())
             + (CHARTING_FEATURES if self.use_charting else ())
             + (TRACKED_FEATURES if self.use_tracked_only else ())
+            + (WEATHER_FEATURES if self.use_weather else ())
+            + (ROOF_FEATURES if self.use_roof else ())
+            + (WIND_FEATURES if self.use_wind else ())
         )
 
     @property
@@ -380,6 +412,9 @@ class Hurdle:
             + (TENDENCY_FEATURES if self.use_tendency else ())
             + (CHARTING_FEATURES if self.use_charting else ())
             + (TRACKED_FEATURES if self.use_tracked_only else ())
+            + (WEATHER_FEATURES if self.use_weather else ())
+            + (ROOF_FEATURES if self.use_roof else ())
+            + (WIND_FEATURES if self.use_wind else ())
         )
 
     def _fit_magnitude(
@@ -528,6 +563,28 @@ def next_week_ladder() -> list:
             use_team=True, use_matchup=True, use_phase=True, use_script=True,
             use_adp=True, use_news=True, use_snaps=True, use_recent=True,
             use_pedigree=True, use_charting=True, by_position=True,
+        ),
+        # The weather ablation. Both rungs are the rung above plus their own
+        # columns and nothing else, so the difference is attributable. `+roof`
+        # is shippable as it stands; `+weather` reads conditions recorded at the
+        # game and therefore reports a ceiling, not a live capability.
+        Hurdle(
+            name="hurdle+everything+ngs+roof/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_charting=True, use_roof=True, by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+ngs+weather/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_charting=True, use_weather=True, by_position=True,
+        ),
+        Hurdle(
+            name="hurdle+everything+ngs+wind/position",
+            use_team=True, use_matchup=True, use_phase=True, use_script=True,
+            use_adp=True, use_news=True, use_snaps=True, use_recent=True,
+            use_pedigree=True, use_charting=True, use_wind=True, by_position=True,
         ),
         Hurdle(
             name="hurdle+everything+ngsflags/position",

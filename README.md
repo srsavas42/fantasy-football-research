@@ -201,6 +201,75 @@ The next architecture challenger is documented in
 leakage-safe player-season state is sampled jointly into role/volume and
 efficiency, with role-only and efficiency-only ablations first.
 
+### Kickers and team defenses
+
+The weekly layer covers all six startable slots. K and DST get their own panel
+rather than a position dummy on the skill panel, because opportunity share --
+targets, carries, snaps -- means nothing for either; they share the row schema,
+the walk-forward and the estimator protocol, so all six positions concatenate
+into one table of comparable points.
+
+```python
+from ffmodel.weekly.specialists import (
+    add_defense_features, add_kicker_features, attach_market,
+    build_defense_panel, build_kicker_panel, kicker_ladder,
+)
+from ffmodel.weekly.weather import attach_weather
+
+kickers = add_kicker_features(attach_weather(attach_market(build_kicker_panel(range(2016, 2026)))))
+```
+
+Scoring is ESPN-style and configurable in `config.KickerRules` /
+`config.DefenseRules` -- distance-tiered field goals read straight from
+nflverse's per-bucket columns, and the points-allowed step function. Both
+reproduce the real 2024 leaderboards.
+
+Against a persistence baseline, walk-forward over 2023/2024/2025: kickers -2.7%
+CRPS, defenses -4.6%. The defense result is the interesting one -- **a defense's
+own box-score history adds nothing** over its own recent fantasy points (-0.10%,
+a tie), while the opponent plus the closing line is worth -4.6%, forty-six times
+as much, and takes within-position ordering from 0.085 to 0.315. A DST projection
+is mostly a projection of the opponent, because the points-allowed half of the
+response is a step function of the other side's final score.
+
+Rest of season for both promotes the direct regression over the latent-player
+simulator; see the document for the diagnosis of the simulator's bias.
+
+One standing caveat for anything consuming kicker numbers: **kicker scoring is
+not stationary.** The 2024 dynamic kickoff and the 2025 touchback spot moved
+average field position forward, and attempts per game rose 1.93 to 2.03 with
+accuracy flat -- more chances, not better kicking. Projections are biased low by
+roughly 0.9-1.1 points a game late in those seasons. A trailing league baseline
+was built to correct it and *fails*, because the size of a rule change cannot be
+learned from data that predates it; the document explains why and what would
+work instead.
+
+### Weather
+
+`roof`, `temp` and `wind` are joined by `ffmodel.weekly.weather` and measured
+rather than assumed. Pooled over the weekly panel they are a tie -- but that is a
+**pooling artefact, not an absence of signal**. Weather depresses scoring exactly
+as folklore says (46.5 points a game in the calmest wind bucket against 41.8 at
+15-20 mph, with the closing line pricing only a quarter of that), it works
+through the pass/run mix, and the shipped model's residual carries it: relative
+to calm rows it over-projects quarterbacks by +1.84 points in a 15 mph wind,
+receivers +0.93, tight ends +0.76, backs +0.44.
+
+It reads as a null because only 5.6% of rows are exposed. Scored *by exposure*
+the same rung is worth **-0.60% CRPS above 15 mph** while costing +0.13% on calm
+rows. A gated hinge (`roof`, a 15 mph threshold, and the excess above it, with
+temperature dropped as a genuine null) keeps the gain, removes the cost and wins
+3 folds of 3. Still under the pooled floor and so not promoted, but it is the
+right form of the feature -- and for a per-row start/sit decision the exposed
+rows are identifiable in advance. On kickers it is material in its own right
+(roof -0.32% CRPS on 3/3 folds, the readings -0.40% on 2/3).
+
+These are 0.1-0.4% effects on three folds and they move between runs at about
+that size, which is the resolution limit of the design rather than a precision it
+has. Every number is also a ceiling, measured on conditions recorded at the game;
+a live version reads the forecast archive in `ffmodel.data.weather`. See
+[specialists & weather](docs/specialists-and-weather-2026-09.md).
+
 ### Data acquisition
 
 The provider-aware data CLI caches parquet plus provenance manifests and keeps
@@ -268,8 +337,8 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | |
-| 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)) |
+| 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 
 # Fantasy Football Data Sets

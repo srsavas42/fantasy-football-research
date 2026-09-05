@@ -1,0 +1,147 @@
+name: Pull stadium weather
+
+# The weekly layer measured weather using the conditions nflverse recorded *at*
+# the game, which is a ceiling rather than something a live projection could
+# have had. Closing the gap needs forecasts at the lead time a decision is
+# actually made at — roughly 4 days for a Wednesday waiver deadline, 1 day or
+# less for a Sunday-morning start/sit call.
+#
+# The research sandbox's egress policy denies Open-Meteo, so that pull happens
+# here and the result is committed back, exactly as the Wikipedia coaching
+# scrape already does. After a run, any environment that checks out the branch
+# has the weather without needing to reach the API.
+#
+# Manual trigger only. A full 2016-2025 pull is roughly one request per
+# stadium-season per source — about 1,300 calls with the default two lead
+# times — so this is not something to fire on every push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: 'Inclusive season range as "START END" (e.g. "2016 2025").'
+        required: false
+        default: "2016 2025"
+      leads:
+        description: >
+          Space-separated forecast lead times in days, 1-7. Default "1 4":
+          4 is the Wednesday waiver deadline for a Sunday game, 1 is roughly
+          the day before. Blank pulls observed conditions only.
+        required: false
+        default: "1 4"
+      stadiums:
+        description: 'Space-separated stadium_ids for a focused run (e.g. "BUF00 GNB00"). Blank pulls every stadium.'
+        required: false
+        default: ""
+      delay_seconds:
+        description: "Seconds between Open-Meteo calls (politeness throttle)."
+        required: false
+        default: "0.5"
+      dry_run:
+        description: "Upload the result as a workflow artifact but do not commit it."
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: stadium-weather-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    # A full backfill is ~1,300 requests at a 0.5s throttle, plus the response
+    # time for a season of hourly rows each. Bounded, but generously.
+    timeout-minutes: 180
+    env:
+      SEASONS_INPUT: ${{ inputs.seasons }}
+      LEADS_INPUT: ${{ inputs.leads }}
+      STADIUMS_INPUT: ${{ inputs.stadiums }}
+      DELAY_INPUT: ${{ inputs.delay_seconds }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # No extras: the fetcher uses the package's own standard-library HTTP
+      # client, so nothing beyond the core dependencies is needed.
+      - name: Install project
+        run: pip install -e "."
+
+      # nflverse is fetched for the schedule (kickoff times, stadium ids and
+      # the recorded temp/wind the coordinate check validates against).
+      - name: Cache nflverse parquet
+        uses: actions/cache@v4
+        with:
+          path: .cache/ffmodel
+          key: nflverse-weather-v1-${{ github.run_id }}
+          restore-keys: |
+            nflverse-weather-v1-
+
+      - name: Fetch Open-Meteo conditions
+        run: |
+          set -euo pipefail
+          # Deliberately unquoted below: both --seasons and --leads take one
+          # CLI token per value (argparse nargs), so "2016 2025" has to word-split.
+          args=(--seasons ${SEASONS_INPUT:-2016 2025} --delay "${DELAY_INPUT:-0.5}")
+          if [ -n "$LEADS_INPUT" ]; then
+            args+=(--leads $LEADS_INPUT)
+          else
+            args+=(--leads)
+          fi
+          if [ -n "$STADIUMS_INPUT" ]; then
+            args+=(--stadiums $STADIUMS_INPUT)
+          fi
+          echo "running: python scripts/fetch_stadium_weather.py ${args[*]}"
+          python scripts/fetch_stadium_weather.py "${args[@]}" | tee weather-run.log
+
+      - name: Summarize the run
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "### Stadium weather pull"
+            echo ""
+            echo '```'
+            # The tail carries the coverage table and the coordinate check,
+            # which are the two things worth reading without opening the log.
+            tail -n 80 weather-run.log || echo "no log produced"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the result as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stadium-weather
+          path: |
+            data/weather/
+            weather-run.log
+          if-no-files-found: error
+
+      - name: Commit and push the weather table
+        # See the coaching workflow for why both spellings of "true" are
+        # excluded here: API dispatch and UI dispatch disagree on whether this
+        # input arrives as a boolean or a string, and the non-empty string
+        # "false" is truthy in GitHub's expression language.
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/weather
+          if git diff --cached --quiet; then
+            echo "no change to the weather table; nothing to commit"
+            exit 0
+          fi
+          git commit \
+            -m "Update stadium weather table" \
+            -m "Automated pull from the Pull stadium weather workflow. Seasons: ${SEASONS_INPUT:-2016 2025}; leads: ${LEADS_INPUT:-none}."
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"

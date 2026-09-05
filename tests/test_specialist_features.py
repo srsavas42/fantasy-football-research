@@ -163,3 +163,51 @@ def test_the_league_baseline_is_lagged_and_pooled():
         before.loc[later, "league_points_recent"]
         - after.loc[later, "league_points_recent"]
     ).abs().max() > 1e-9
+
+
+def test_relocated_franchises_are_not_dropped_by_code_mismatch(monkeypatch):
+    """nflverse labels relocations inconsistently across its own feeds.
+
+    `team_stats` uses the modern code in every season (2016 Raiders are `LV`)
+    while `schedules` uses the code in use at the time (`OAK`). An inner merge
+    on the club code therefore drops the franchise from exactly the seasons
+    before it moved -- silently, and only for a handful of teams, which is the
+    hardest kind of gap to notice. This pins the translation that prevents it.
+    """
+    from ffmodel.weekly import specialists
+
+    fake_teams = pd.DataFrame(
+        {
+            "team_abbr": ["OAK", "LV", "SF"],
+            "team_id": ["2520", "2520", "4500"],
+            "team_name": ["Oakland Raiders", "Las Vegas Raiders", "SF 49ers"],
+        }
+    )
+
+    class _Frame:
+        def to_pandas(self):
+            return fake_teams
+
+    monkeypatch.setitem(
+        __import__("sys").modules, "nflreadpy", type("M", (), {"load_teams": staticmethod(lambda: _Frame())})
+    )
+    monkeypatch.setattr(
+        specialists.ingest,
+        "load_schedules",
+        lambda seasons: pd.DataFrame(
+            {
+                "season": [2016, 2016],
+                "week": [1, 1],
+                "game_type": ["REG", "REG"],
+                "home_team": ["OAK", "SF"],
+                "away_team": ["SF", "OAK"],
+            }
+        ),
+    )
+
+    codes = specialists._canonical_team_codes([2016])
+    # The modern code must translate to the one 2016 actually used...
+    assert codes[(2016, "LV")] == "OAK"
+    # ...and a code already correct for that season must survive unchanged.
+    assert codes[(2016, "OAK")] == "OAK"
+    assert codes[(2016, "SF")] == "SF"

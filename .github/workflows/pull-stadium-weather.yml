@@ -150,7 +150,7 @@ jobs:
         # excluded here: API dispatch and UI dispatch disagree on whether this
         # input arrives as a boolean or a string, and the non-empty string
         # "false" is truthy in GitHub's expression language.
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' && inputs.probe == '' }}
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -161,7 +161,7 @@ jobs:
             exit 0
           fi
           git commit \
-            -m "Update stadium weather table" \
-            -m "Automated pull from the Pull stadium weather workflow. Seasons: ${SEASONS_INPUT:-2016 2025}; leads: ${LEADS_INPUT:-none}."
+            -m "Update stadium weather data" \
+            -m "Automated pull from the Pull stadium weather workflow. Seasons: ${SEASONS_INPUT:-2016 2025}; leads: ${LEADS_INPUT:-none}; probe: ${PROBE_INPUT:-none}."
           git pull --rebase origin "${GITHUB_REF_NAME}" || true
           git push origin "HEAD:${GITHUB_REF_NAME}"

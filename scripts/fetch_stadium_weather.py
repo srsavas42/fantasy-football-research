@@ -172,7 +172,18 @@ def _request(
     raise RuntimeError(f"{url} gave up after {retries} attempts: {last}")
 
 
-def probe(latitude: float, longitude: float, day: str, leads: tuple[int, ...]) -> int:
+PROBE_OUTPUT = Path("data/weather/probe.md")
+
+
+def probe(
+    latitude: float,
+    longitude: float,
+    day: str,
+    leads: tuple[int, ...],
+    *,
+    label: str = "",
+    output: Path = PROBE_OUTPUT,
+) -> int:
     """One tiny request per source, printing exactly what came back.
 
     This is the step that should have run before any backfill. It answers the
@@ -183,8 +194,19 @@ def probe(latitude: float, longitude: float, day: str, leads: tuple[int, ...]) -
     sources: list[tuple[str, int | None]] = [("observed", None)]
     sources += [(f"lead_{lead}", lead) for lead in leads]
     failures = 0
-    for label, lead in sources:
-        print(f"\n--- {label} ({day}) ---", flush=True)
+    # Written to a file as well as stdout: a workflow log is not reachable from
+    # every environment that needs this answer, and the committed file is a
+    # durable record of what the API actually served on a given date.
+    lines = [
+        f"# Open-Meteo probe: {label or 'stadium'} on {day}",
+        "",
+        f"Coordinates {latitude}, {longitude}. Requested {len(VARIABLES)} variables.",
+        "",
+    ]
+    for name, lead in sources:
+        header = f"## {name} ({day})"
+        print(f"\n--- {name} ({day}) ---", flush=True)
+        lines += ["", header, ""]
         started = time.time()
         try:
             frame = fetch_block(
@@ -192,20 +214,38 @@ def probe(latitude: float, longitude: float, day: str, leads: tuple[int, ...]) -
             )
         except Exception as error:  # noqa: BLE001 - the point is to report it
             failures += 1
-            print(f"  FAILED after {time.time() - started:.1f}s: {error}", flush=True)
+            took = time.time() - started
+            print(f"  FAILED after {took:.1f}s: {error}", flush=True)
+            lines.append(f"**FAILED** after {took:.1f}s: `{error}`")
             continue
         took = time.time() - started
         if frame.empty:
             failures += 1
             print(f"  empty response after {took:.1f}s", flush=True)
+            lines.append(f"**Empty response** after {took:.1f}s.")
             continue
         served = [c for c in frame.columns if c != "time"]
         missing = [v for v in VARIABLES if v not in served]
+        row = frame.iloc[len(frame) // 2]
+        sample = {k: str(row[k]) for k in served}
         print(f"  {len(frame)} hourly rows in {took:.1f}s", flush=True)
         print(f"  served:  {served}", flush=True)
         print(f"  MISSING: {missing or 'none'}", flush=True)
-        row = frame.iloc[len(frame) // 2]
-        print(f"  midday sample: {json.dumps({k: str(row[k]) for k in served})}", flush=True)
+        print(f"  midday sample: {json.dumps(sample)}", flush=True)
+        lines += [
+            f"{len(frame)} hourly rows in {took:.1f}s.",
+            "",
+            f"- **served** ({len(served)}): {', '.join(f'`{c}`' for c in served)}",
+            f"- **missing**: {', '.join(f'`{c}`' for c in missing) if missing else 'none'}",
+            "",
+            "| variable | midday value |",
+            "|---|---|",
+        ]
+        lines += [f"| `{k}` | {v} |" for k, v in sample.items()]
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"\nwrote {output}", flush=True)
     return failures
 
 
@@ -426,7 +466,11 @@ def main(argv=None) -> int:
             f"{site['latitude']}, {site['longitude']} on {args.probe}"
         )
         failures = probe(
-            site["latitude"], site["longitude"], args.probe, tuple(args.leads)
+            site["latitude"],
+            site["longitude"],
+            args.probe,
+            tuple(args.leads),
+            label=f"{args.probe_stadium} ({site['stadium']})",
         )
         print(f"\n{failures} of {1 + len(args.leads)} sources failed")
         return 1 if failures == 1 + len(args.leads) else 0

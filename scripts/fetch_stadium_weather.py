@@ -44,9 +44,11 @@ comparison is direct rather than a conversion away from being direct.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
@@ -128,23 +130,83 @@ def load_games(seasons: range) -> pd.DataFrame:
 # retrying it only spends quota.
 RETRYABLE = ("429", "500", "502", "503", "504")
 
+# A hard ceiling on any single call. `urlopen`'s own `timeout` is a *per socket
+# operation* deadline, not a total one, so a response that trickles a few bytes
+# at a time never trips it and the process hangs forever. The first run of this
+# script did exactly that: it sat on one request for 35 minutes and had to be
+# cancelled. Every call is therefore run in a worker thread and abandoned by the
+# clock, which is the only bound that actually holds.
+CALL_DEADLINE = 90.0
 
-def _request(url: str, params: dict, *, retries: int = 4, delay: float) -> dict:
-    """One call, with backoff, through the package's own HTTP client.
+
+def _request(
+    url: str, params: dict, *, retries: int = 3, delay: float, deadline: float = CALL_DEADLINE
+) -> dict:
+    """One call, with backoff and a wall-clock deadline that actually bounds it.
 
     ``ffmodel.data.http`` is standard-library only by design, so this script
-    adds no dependency the rest of the package does not already have.
+    adds no dependency the rest of the package does not already have -- but its
+    ``urlopen`` timeout cannot bound a slow-trickling response, so the deadline
+    is imposed here instead.
     """
     last: Exception | None = None
     for attempt in range(retries):
+        # A fresh executor per attempt: a hung worker cannot be killed, so it is
+        # abandoned rather than reused, and `shutdown(wait=False)` lets the main
+        # loop move on while it finishes or dies with the process.
+        executor = ThreadPoolExecutor(max_workers=1)
         try:
-            return get_json(url, params=params, timeout=max(HTTP_TIMEOUT, 120.0))
+            future = executor.submit(
+                get_json, url, params=params, timeout=min(HTTP_TIMEOUT, 30.0)
+            )
+            return future.result(timeout=deadline)
+        except FutureTimeout:
+            last = TimeoutError(f"no response within {deadline:.0f}s")
         except RemoteDataError as error:
             last = error
             if not any(code in str(error) for code in RETRYABLE):
                 raise
-            time.sleep(delay * (2**attempt) + 1.0)
-    raise RuntimeError(f"{url} still failing after {retries} attempts: {last}")
+        finally:
+            executor.shutdown(wait=False)
+        time.sleep(delay * (2**attempt) + 1.0)
+    raise RuntimeError(f"{url} gave up after {retries} attempts: {last}")
+
+
+def probe(latitude: float, longitude: float, day: str, leads: tuple[int, ...]) -> int:
+    """One tiny request per source, printing exactly what came back.
+
+    This is the step that should have run before any backfill. It answers the
+    two things the docs cannot: which variables each endpoint actually serves,
+    and how far back the previous-runs archive reaches. One day of one stadium
+    is a few kilobytes, so a wrong guess costs seconds instead of half an hour.
+    """
+    sources: list[tuple[str, int | None]] = [("observed", None)]
+    sources += [(f"lead_{lead}", lead) for lead in leads]
+    failures = 0
+    for label, lead in sources:
+        print(f"\n--- {label} ({day}) ---", flush=True)
+        started = time.time()
+        try:
+            frame = fetch_block(
+                latitude, longitude, day, day, lead_days=lead, delay=0.5
+            )
+        except Exception as error:  # noqa: BLE001 - the point is to report it
+            failures += 1
+            print(f"  FAILED after {time.time() - started:.1f}s: {error}", flush=True)
+            continue
+        took = time.time() - started
+        if frame.empty:
+            failures += 1
+            print(f"  empty response after {took:.1f}s", flush=True)
+            continue
+        served = [c for c in frame.columns if c != "time"]
+        missing = [v for v in VARIABLES if v not in served]
+        print(f"  {len(frame)} hourly rows in {took:.1f}s", flush=True)
+        print(f"  served:  {served}", flush=True)
+        print(f"  MISSING: {missing or 'none'}", flush=True)
+        row = frame.iloc[len(frame) // 2]
+        print(f"  midday sample: {json.dumps({k: str(row[k]) for k in served})}", flush=True)
+    return failures
 
 
 def _hourly(payload: dict) -> pd.DataFrame:
@@ -188,6 +250,23 @@ def fetch_block(
     return _hourly(_request(url, params, delay=delay))
 
 
+# One call per stadium-season asked for five months of hourly rows at once. Even
+# when that succeeds it is a large response to hold open, and a single stall
+# takes the whole stadium-season with it. Monthly chunks are more requests but
+# each is small enough to fail fast and retry cheaply.
+CHUNK_DAYS = 31
+
+
+def _chunks(start: str, end: str, days: int = CHUNK_DAYS):
+    """Split an inclusive date range into spans of at most ``days``."""
+    first = pd.Timestamp(start)
+    last = pd.Timestamp(end)
+    while first <= last:
+        stop = min(first + pd.Timedelta(days=days - 1), last)
+        yield first.strftime("%Y-%m-%d"), stop.strftime("%Y-%m-%d")
+        first = stop + pd.Timedelta(days=1)
+
+
 def collect(
     games: pd.DataFrame,
     coordinates: pd.DataFrame,
@@ -221,20 +300,31 @@ def collect(
             flush=True,
         )
         for label, lead in sources:
+            # Printed *before* the call, not after: a heartbeat that only
+            # appears on success cannot tell a slow call from a hung one, which
+            # is precisely the confusion the first run of this script caused.
+            print(f"    {label}: requesting...", end=" ", flush=True)
+            began = time.time()
             try:
-                hourly = fetch_block(
-                    site["latitude"],
-                    site["longitude"],
-                    start,
-                    end,
-                    lead_days=lead,
-                    delay=delay,
+                hourly = pd.concat(
+                    [
+                        fetch_block(
+                            site["latitude"],
+                            site["longitude"],
+                            chunk_start,
+                            chunk_end,
+                            lead_days=lead,
+                            delay=delay,
+                        )
+                        for chunk_start, chunk_end in _chunks(start, end)
+                    ],
+                    ignore_index=True,
                 )
             except Exception as error:  # noqa: BLE001 - reported, not swallowed
-                print(f"    {label}: FAILED {error}", flush=True)
+                print(f"FAILED after {time.time() - began:.1f}s: {error}", flush=True)
                 continue
             if hourly.empty:
-                print(f"    {label}: no rows", flush=True)
+                print(f"no rows ({time.time() - began:.1f}s)", flush=True)
                 continue
             merged = block.merge(
                 hourly, left_on="kickoff_hour", right_on="time", how="left"
@@ -243,7 +333,10 @@ def collect(
             merged["lead_days"] = lead if lead is not None else 0
             rows.append(merged.drop(columns=["time"], errors="ignore"))
             got = merged["temperature_2m"].notna().mean() if len(merged) else 0.0
-            print(f"    {label}: {got:.0%} of kickoff hours matched", flush=True)
+            print(
+                f"{got:.0%} of kickoff hours matched ({time.time() - began:.1f}s)",
+                flush=True,
+            )
             time.sleep(delay)
     if not rows:
         raise SystemExit("no weather rows were retrieved at all")
@@ -304,14 +397,41 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--stadiums", nargs="*", default=None, help="Limit to these stadium_ids."
     )
+    parser.add_argument(
+        "--probe",
+        metavar="YYYY-MM-DD",
+        default=None,
+        help="Make one tiny request per source for this date and print what came "
+        "back, then exit. Run this before any backfill: it is what says which "
+        "variables each endpoint serves and how far back the previous-runs "
+        "archive reaches.",
+    )
+    parser.add_argument(
+        "--probe-stadium",
+        default="BUF00",
+        help="Stadium to probe with (default BUF00, an outdoor cold-weather site).",
+    )
     args = parser.parse_args(argv)
 
     for lead in args.leads:
         if lead not in range(1, 8):
             raise SystemExit(f"lead {lead} is outside Open-Meteo's archived 1-7 days")
 
-    seasons = range(args.seasons[0], args.seasons[1] + 1)
     coordinates = load_coordinates()
+
+    if args.probe:
+        site = coordinates.set_index("stadium_id").loc[args.probe_stadium]
+        print(
+            f"probing {args.probe_stadium} ({site['stadium']}) at "
+            f"{site['latitude']}, {site['longitude']} on {args.probe}"
+        )
+        failures = probe(
+            site["latitude"], site["longitude"], args.probe, tuple(args.leads)
+        )
+        print(f"\n{failures} of {1 + len(args.leads)} sources failed")
+        return 1 if failures == 1 + len(args.leads) else 0
+
+    seasons = range(args.seasons[0], args.seasons[1] + 1)
     games = load_games(seasons)
     if args.stadiums:
         games = games[games["stadium_id"].isin(args.stadiums)]

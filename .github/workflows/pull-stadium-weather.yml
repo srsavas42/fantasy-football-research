@@ -37,6 +37,15 @@ on:
         description: "Seconds between Open-Meteo calls (politeness throttle)."
         required: false
         default: "0.5"
+      probe:
+        description: >
+          Probe mode. Give a date (YYYY-MM-DD) to make one tiny request per
+          source and print exactly what came back — which variables each
+          endpoint serves, and whether the previous-runs archive reaches that
+          far. Run this before any backfill; it costs seconds. Blank does a
+          normal pull.
+        required: false
+        default: ""
       dry_run:
         description: "Upload the result as a workflow artifact but do not commit it."
         type: boolean
@@ -61,6 +70,7 @@ jobs:
       LEADS_INPUT: ${{ inputs.leads }}
       STADIUMS_INPUT: ${{ inputs.stadiums }}
       DELAY_INPUT: ${{ inputs.delay_seconds }}
+      PROBE_INPUT: ${{ inputs.probe }}
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +96,11 @@ jobs:
             nflverse-weather-v1-
 
       - name: Fetch Open-Meteo conditions
+        # The first run of this workflow hung on a single request for 35 minutes
+        # and had to be cancelled. The script now bounds every call by wall clock,
+        # but a step-level ceiling is the backstop that does not depend on the
+        # script being right.
+        timeout-minutes: 90
         run: |
           set -euo pipefail
           # Deliberately unquoted below: both --seasons and --leads take one
@@ -98,6 +113,9 @@ jobs:
           fi
           if [ -n "$STADIUMS_INPUT" ]; then
             args+=(--stadiums $STADIUMS_INPUT)
+          fi
+          if [ -n "$PROBE_INPUT" ]; then
+            args+=(--probe "$PROBE_INPUT")
           fi
           echo "running: python scripts/fetch_stadium_weather.py ${args[*]}"
           python scripts/fetch_stadium_weather.py "${args[@]}" | tee weather-run.log
@@ -117,20 +135,22 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the result as an artifact
+        # A probe prints to the log and writes no parquet, so `error` would fail
+        # a run that did exactly what was asked of it.
         uses: actions/upload-artifact@v4
         with:
           name: stadium-weather
           path: |
             data/weather/
             weather-run.log
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Commit and push the weather table
         # See the coaching workflow for why both spellings of "true" are
         # excluded here: API dispatch and UI dispatch disagree on whether this
         # input arrives as a boolean or a string, and the non-empty string
         # "false" is truthy in GitHub's expression language.
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' && inputs.probe == '' }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

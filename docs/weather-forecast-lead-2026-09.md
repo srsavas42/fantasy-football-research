@@ -31,27 +31,56 @@ comparable to the nflverse columns rather than a conversion away from it.
 
 **A variable being "served" is not the same as it having values.** The
 previous-runs archive returns the full column set for any date it accepts, and
-fills only some of it. Probing Buffalo on two dates:
+fills only some of it. Two spot probes on Buffalo first suggested the boundary
+sat somewhere between 2022 and 2025; the full backfill below pins it exactly.
 
-| date | source | temperature | wind, precipitation, snowfall, … |
-|---|---|---|---|
-| 2022-12-24 | observed | populated | populated |
-| 2022-12-24 | lead 1, 2, 4, 7 | populated | **all null** |
-| 2025-11-16 | observed | populated | populated |
-| 2025-11-16 | lead 1, 4 | populated | populated |
+### The exact boundary (2016-2025 backfill, 7,917 rows, all 42 stadiums)
 
-So the forecast archive's non-temperature variables begin somewhere between
-2022 and 2025, while temperature reaches further back. The practical
-consequence is that **the forecast backtest cannot span as many seasons as the
-ceiling measurement did**, and the number of usable seasons is a fact to be
-measured by the coverage table, not assumed.
+| source | variable | 2016-2020 | 2021 | 2022 | 2023 | 2024-2025 |
+|---|---|---:|---:|---:|---:|---:|
+| `observed` | temperature | 0%\* | 100% | 100% | 100% | 100% |
+| `observed` | wind, precip, snowfall | 0%\* | 100% | 100% | 100% | 100% |
+| `lead_1` / `lead_4` | temperature | 0% | 99.3% | 98.9% | 87.5% | 100% |
+| **`lead_1` / `lead_4`** | **wind, precip, snowfall, gusts** | **0%** | **0%** | **0%** | **0%** | **100%** |
 
-This nearly went unnoticed. The script's per-source progress line reports the
-share of kickoff hours matched, and it computes that from `temperature_2m` —
-the one variable that is populated everywhere. An early run printed
-"lead_1: 100% of kickoff hours matched" for a season whose wind column was
-entirely null. Printing a sample row in probe mode is what caught it, and the
-coverage check should be widened to the variable a model will actually read.
+\*`observed` is effectively unusable before 2018 too -- 2016 is 0%, and 2017 is
+2% (five international-site games only; every domestic 2017 game is null). That
+does not affect anything already published, since the ceiling numbers in
+[specialists & weather](specialists-and-weather-2026-09.md) read temperature and
+wind from **nflverse's own schedule columns**, not from Open-Meteo -- this
+backfill is a separate pull built to test the forecast, and the two have never
+been joined.
+
+**The forecast archive's non-temperature variables exist only for 2024 and
+2025.** Temperature reaches back to 2021 on its own, but wind, precipitation,
+snowfall and gusts -- everything the gated wind hinge and the precipitation
+question actually need -- are entirely null before 2024 at every lead time
+tested. This is not a partial-coverage inconvenience; it is a hard floor. Any
+forecast-lead measurement of the wind feature has **two usable seasons**, not
+ten.
+
+That collapses the backtest this package can run on it. Everywhere else in this
+package, a claim is walked forward across three holdout seasons specifically
+because one is not enough to trust -- the fold-by-fold tables throughout
+[specialists & weather](specialists-and-weather-2026-09.md) exist for that
+reason. A forecast-lead version of the gated wind rung has exactly one possible
+split (train on 2024, test on 2025), and the population it would be scored on --
+rows above 15 mph, already only 5.6% of the panel, now confined to a single
+season -- is small enough that a null and a real effect would look similar. A
+single-fold number here would not carry the weight a reader familiar with the
+rest of this package would reasonably assign it, so it is not run rather than
+run and mislabeled. The honest state of this question is **not "measured
+null," but "not enough forecast history exists yet to measure."** It becomes
+answerable, on the same one-fold basis, once 2026 is in hand, and on the
+package's usual three-fold basis in 2028.
+
+This nearly went unnoticed even at the single-stadium probe scale. The script's
+per-source progress line reports the share of kickoff hours matched, and it
+computes that from `temperature_2m` -- the one variable that is populated
+everywhere. An early run printed "lead_1: 100% of kickoff hours matched" for a
+season whose wind column was entirely null. Printing a sample row in probe mode
+is what caught it there; the full backfill's per-variable coverage table above
+is what turned it into an exact date rather than a suspicion.
 
 ## Which forecast, and what it costs
 
@@ -107,7 +136,18 @@ choice, and the honest expectation is that a lead-4 wind feature retains
 noticeably less than the −0.60% ceiling — possibly little enough to leave the
 whole thing below the promotion floor.
 
-The measurement that settles it is the one the backfill enables: re-run the
-gated wind ladder against lead-1 and lead-4 forecasts and compare both to the
-recorded-conditions ceiling. The gap between those three numbers is the price of
-not being able to see the future, and it is the last open question here.
+That was the plan, and the backfill overturned it before it could run. The
+coverage boundary above means `lead_1`/`lead_4` wind is null before 2024, so the
+"re-run the gated wind ladder against forecasts" measurement has exactly one
+usable holdout (train 2024, test 2025) instead of the three every other claim in
+this document was walked forward across. A single-fold number on a feature
+that's already only 5.6% of rows, confined to one season, would not carry the
+weight a table like the ones above implies -- so it is not run and reported as a
+number here. It becomes a real measurement, on the package's usual basis, once
+2028 supplies a third holdout; a provisional one-fold read is possible in 2027
+with 2026 added. What this section settles instead is the two questions that
+motivated the backfill: precipitation is available and separable from snow
+(confirmed), and Sunday-morning beats Wednesday for start/sit specifically
+*because* forecast skill is worst on the extremes the feature depends on
+(argued from the two probes above, not yet from a walk-forward -- the coverage
+floor is exactly why that argument can't yet be upgraded to one).

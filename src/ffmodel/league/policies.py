@@ -94,17 +94,34 @@ class EwmaPolicy(Policy):
     name: str = "ewma"
     fallback_to_board: bool = True
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
-        alpha = 1.0 - 0.5 ** (1.0 / self.halflife)
-        out: dict[str, float] = {}
-        if len(history):
+    # The average depends on the week, not on whose roster is being scored, but
+    # the environment calls this once per team -- twelve times a week for the
+    # same numbers. Caching on the week turns the dominant cost of a season
+    # into one computation instead of twelve.
+    _cache: dict = field(default_factory=dict, repr=False, compare=False)
+
+    def _averages(self, history: pd.DataFrame, week: int) -> pd.Series:
+        cached = self._cache.get(week)
+        if cached is not None:
+            return cached
+        if not len(history):
+            averages = pd.Series(dtype=float)
+        else:
+            alpha = 1.0 - 0.5 ** (1.0 / self.halflife)
             played = history.sort_values("week")
-            grouped = played.groupby("player_key")["points"]
-            averages = grouped.apply(
+            averages = played.groupby("player_key")["points"].apply(
                 lambda s: s.ewm(alpha=alpha, adjust=True).mean().iloc[-1]
             )
-        else:
-            averages = pd.Series(dtype=float)
+        # Keyed on the week alone, so a fresh episode must not inherit the last
+        # one's numbers: the environment builds a new policy per episode, and
+        # this guards the case where it does not.
+        self._cache.clear()
+        self._cache[week] = averages
+        return averages
+
+    def score(self, player_keys, history, week, board) -> dict[str, float]:
+        out: dict[str, float] = {}
+        averages = self._averages(history, week)
 
         board_scores = (
             AdpPolicy().score(player_keys, history, week, board)

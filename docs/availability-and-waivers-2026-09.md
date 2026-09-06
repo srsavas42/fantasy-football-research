@@ -207,3 +207,52 @@ opponents do that for themselves now. What is left is genuine.
 So a lineup-and-waiver agent is playing for **at most ~3.3 wins of 14**, against
 a seed noise of ±3 wins a season. Every comparison has to be paired on shared
 seeds; nothing else is measurable at this scale.
+
+---
+
+## 5. The waiver wire (added 2026-09)
+
+The first version of this kept one list of free agents, let anybody take anybody,
+and capped adds at one a week. Both halves were wrong.
+
+**Leagues cap nothing.** A manager may churn the back of a roster as often as he
+is willing to cut somebody; the roster size is the only budget. The cap is gone.
+
+**A cut player does not land in a pool available to the fastest click.** He sits
+on waivers for 48 hours. Time is now tracked in hours rather than weeks, because
+two days is not a number of weeks and the mechanic is invisible at weekly
+granularity. A week has two transaction phases -- Wednesday and Friday -- and the
+48-hour period is exactly what separates them:
+
+| cut on | clears | available before that week's games? |
+|---|---|---|
+| Wednesday | Friday | yes |
+| Friday | Sunday, after kickoff | no, not until the following Wednesday |
+
+**A player dropped within 24 hours of being added skips waivers.** Without it a
+manager could quarantine anybody by adding and immediately cutting him -- and
+this is not a corner case, because the automatic housekeeping did exactly that
+every time it claimed a replacement and then needed the spot back in the same
+breath.
+
+### What it fixed
+
+The period does the job it exists for. Housekeeping cutting a player and
+re-claiming him inside the same week falls from **5.0 times a season to zero**,
+while the total number of roster moves is unchanged at about ten. That churn was
+visible in the transaction logs before and had no defence; it is now impossible
+rather than merely discouraged.
+
+One bug worth recording: seeding the wire with the draft at hour zero made every
+cut in week one look like a 24-hour undo, so a manager could have run his whole
+bench through free agency in the opening week without anybody ever hitting
+waivers. The draft happens days before the first transaction, and saying so is
+what makes week one behave like every other week.
+
+### What was not built
+
+Claims on a player who is *currently* on waivers are not queued and awarded by
+priority. The specification asked for a period during which a dropped player is
+unavailable, and that is what this is: a lockout. A priority auction over
+waivered players is the natural next step and would change who wins contested
+pickups, but nothing here needed it, so it is not pretending to exist.

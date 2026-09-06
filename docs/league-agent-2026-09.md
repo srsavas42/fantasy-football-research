@@ -196,3 +196,73 @@ accepts a walk-forward projection frame and drops into the same seat.
   with seed 0. The holdout evaluation is independent of the search, so the +0.59
   is not a selected-best number, but run-to-run spread in the *learned parameters*
   is unmeasured.
+
+---
+
+# The weekly model as an input (2026-09, second pass)
+
+Everything above was measured with an agent that had never seen the weekly model.
+Its features were exponentially weighted scoring and the draft board -- roughly
+the naive baseline the weekly model beats by 11.6% CRPS -- and the ablation said
+exactly where that would show: 47% of the available waiver band captured, but
+only 10% of the start/sit band, and start/sit is where projection quality binds.
+
+So the projections went in. Two horizons, because the agent makes two different
+decisions:
+
+- **Next week**, from the shipped hurdle, for the lineup.
+- **Rest of season**, from the direct total with phase and ADP, for the waiver
+  wire. "Should I add this player" is not a question about Sunday; it is about
+  what he is worth over the remaining weeks, and the agent previously had no way
+  to ask it.
+
+Both are walk-forward: each holdout season is predicted by a model fitted on
+strictly earlier seasons. That costs the first two seasons, so projections start
+in 2018 and the training window is 2018-2022 with 2023-2025 held out.
+
+## It roughly doubles the agent
+
+Both arms trained identically -- same seasons, same seeds, same generations --
+with the projection weights held at zero inside the search for the control, so
+the two differ by the feature alone.
+
+| holdout, 75 paired seats | wins vs. field | % of the 2.31-win band |
+|---|---|---|
+| without projections | +0.60 (t = 3.33) | 26% |
+| **with projections** | **+1.13 (t = 6.11)** | **49%** |
+
+Paired directly, the projections are worth **+0.53 wins and +53 points a season**
+(t = 3.26 and 8.27). The train-season gap is +0.50, so unlike most of what has
+been measured here this one does not shrink out of sample.
+
+The learned weights say the agent uses both horizons — `projection` +0.50 and
+`ros_projection` +0.38, third and sixth largest of eighteen. And `adp_value`
+collapses from +0.40 in the old agent to +0.11, which is the right thing to
+happen: the draft board's information is already inside the projection, so the
+agent stops reading it twice.
+
+## What changed underneath, and why the old numbers are not comparable
+
+The environment is not the one the first agent was measured in. Since then
+transactions have no weekly cap, a dropped player sits on waivers for 48 hours,
+a week has two transaction phases rather than one, and lineups lock per kickoff
+rather than all at once. The field moved with it: the standard opponent now takes
+7.01 wins on the holdout rather than 6.96, and the oracle band is 2.31 rather
+than 2.33.
+
+So the honest comparison is the one above -- both arms retrained and re-measured
+in the current environment on the same seats -- not +1.13 against the old +0.59.
+
+## What is still open
+
+- **Blending the rest-of-season projection with the rank curve.** The shipped
+  configuration blends the direct total with the ADP rank curve at a per-horizon
+  weight; this uses the unblended total. The blend is documented as the better
+  model, so this is leaving something on the table.
+- **The draft.** Still fixed at the ADP snake. The oracle loses about 4.2 games a
+  season with a perfect card, and most of that is the roster it was handed.
+- **The agent still does not control its own housekeeping.** IR placement and
+  forced replacements use the shared EWMA valuation, not the agent's weights,
+  because the action space carries a score per *rostered* player and nothing
+  about players it does not hold. Now that the agent has a rest-of-season
+  projection for everybody, that limitation is worth removing.

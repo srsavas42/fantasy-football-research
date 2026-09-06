@@ -89,18 +89,19 @@ class ClaimCredit:
 def grade_claims(env, mode: str = MARGINAL) -> list[ClaimCredit]:
     """Grade every explicit waiver claim the agent made this episode.
 
-    Only explicit claims -- the agent's own add/drop decisions. The automatic
-    housekeeping in :mod:`ffmodel.league.roster` is forced by the rules rather
-    than chosen, so crediting it would pay the agent for the environment's work.
+    Only explicit claims the agent made *and that landed*. A claim can lose its
+    player to a team ahead of it in the waiver queue, and grading a swap that
+    never happened would credit the agent for a roster it does not have. The
+    automatic housekeeping in :mod:`ffmodel.league.roster` is excluded for a
+    different reason: it is forced by the rules rather than chosen, so crediting
+    it would pay the agent for the environment's work.
     """
     if not env.done:
         raise RuntimeError("grade the claims after the season, not during it")
     credits = []
     for entry in env.ledger:
-        claim = entry.get("claim")
-        if claim is None:
-            continue
-        credits.append(_grade_one(env, claim, int(entry["week"])))
+        for claim in entry.get("claims", []):
+            credits.append(_grade_one(env, claim, int(entry["week"])))
     return credits
 
 

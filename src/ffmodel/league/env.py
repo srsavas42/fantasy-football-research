@@ -77,7 +77,10 @@ class WeekResult:
     tied: bool
     reward: float
     lineup: Lineup
+    # The first claim that landed, kept for callers that expect one; `claims`
+    # is the full list, because there is no cap on adds any more.
     claim: WaiverClaim | None = None
+    claims: list[WaiverClaim] = field(default_factory=list)
     moves: list[Transaction] = field(default_factory=list)
 
 
@@ -218,12 +221,20 @@ class FantasyLeagueEnv:
         # cut, so he is available from week one.
         self.wire = WaiverWire()
         self.wire.drafted(drafted)
+        # Waiver priority starts as the inverse of the draft order -- the team
+        # that picked last off the board picks first off the wire -- and rolls
+        # from there rather than resetting.
+        self.waiver_priority = list(reversed(self.draft.order)) or list(
+            range(self.config.teams)
+        )
+        self._claim_queue: list[WaiverClaim] = []
         self.phase = 0
         # Moves made this week, accumulated across its transaction phases. Kept
         # by the environment rather than returned to the caller, because a phase
         # can be run either by `transact` or by `step` and the week's record
         # must read the same either way.
         self._week_moves: dict[int, list] = {}
+        self._applied_claims: list[WaiverClaim] = []
         self.week_index = 0
         self.done = False
         self.result = SeasonResult()
@@ -422,7 +433,7 @@ class FantasyLeagueEnv:
                 "roster": list(self.rosters[self.agent_team]),
                 "scores": dict(agent_scores),
                 "lineup": lineups[self.agent_team],
-                "claim": claim,
+                "claims": list(self._applied_claims),
             }
         )
 
@@ -435,7 +446,8 @@ class FantasyLeagueEnv:
             tied=tied,
             reward=reward,
             lineup=lineups[self.agent_team],
-            claim=claim,
+            claim=self._applied_claims[0] if self._applied_claims else None,
+            claims=list(self._applied_claims),
             moves=moves[self.agent_team],
         )
         self.result.weeks.append(outcome)
@@ -444,6 +456,7 @@ class FantasyLeagueEnv:
         self._claims_this_phase = 0
         self.phase = 0
         self._week_moves = {}
+        self._applied_claims = []
         self.week_index += 1
         self.done = self.week_index >= len(self.config.weeks)
         if self.done:
@@ -643,35 +656,41 @@ class FantasyLeagueEnv:
         return scores
 
     def submit_claim(self, claim: WaiverClaim) -> dict:
-        """Make a waiver claim, then look at the roster it produced.
+        """Queue a waiver claim for this transaction phase.
 
-        Separate from :meth:`step` on purpose. A claim changes who is on the
-        roster, and a policy has to score the roster it will actually field --
-        so the claim resolves first and the observation that follows already
-        includes the new player. Passing a claim to ``step`` instead still works
-        and is the older path, but there the policy has already spoken and the
-        arrival is valued by :meth:`_fill_unscored` rather than by the policy
-        itself.
+        Queued rather than applied, because the agent transacts at its place in
+        the waiver queue like everybody else. It resolves during
+        :meth:`transact`, and it can fail there -- a higher-priority team may
+        have taken the player first, which is precisely what the priority system
+        is for. The observation returned is the roster as it stands *now*, so a
+        policy that needs the post-transaction roster should look again after
+        the phase.
         """
         self._apply_claim(self.agent_team, claim)
         self._pending_claim = claim
         return self.observe()
 
     def _waiver_order(self) -> list[int]:
-        """Who claims first this week: worst record, then fewest points.
+        """Who transacts first, front of the rolling queue to the back."""
+        return list(self.waiver_priority)
 
-        Ties break on team id, which is stable and therefore reproducible; in
-        week 1 every record is identical and the order is simply team order,
-        which is the one week it cannot matter because nobody has a hole yet.
+    def _rotate_priority(self, claimed) -> None:
+        """Anyone who added a player this phase goes to the back of the queue.
+
+        A rolling queue rather than reverse standings, which is what the
+        environment used before. The difference matters: reverse standings
+        recomputes every week, so a bad team keeps first pick indefinitely and
+        never pays for using it. A rolling queue makes priority a *resource* --
+        spending it on a marginal pickup means the next player worth having goes
+        to somebody else, which is the decision the mechanic exists to create.
+
+        Relative order is preserved among those who moved and among those who
+        did not, so a phase where everybody claims leaves the queue as it was
+        rather than reshuffling it.
         """
-        return sorted(
-            range(self.config.teams),
-            key=lambda team: (
-                self._records[team]["wins"],
-                self._records[team]["points"],
-                team,
-            ),
-        )
+        moved = [team for team in self.waiver_priority if team in claimed]
+        stayed = [team for team in self.waiver_priority if team not in claimed]
+        self.waiver_priority = stayed + moved
 
     def transact(self) -> dict:
         """Run one transaction phase for every team, then move to the next.
@@ -686,15 +705,60 @@ class FantasyLeagueEnv:
             raise RuntimeError("season is over; call reset()")
         week = self.week
         history = self._history_before(week)
-        made = {
-            team: self._manage(team, history, week)
-            for team in self._waiver_order()
-        }
+        made: dict[int, list] = {}
+        for team in self._waiver_order():
+            moves = []
+            if team == self.agent_team:
+                # The agent's own claims are applied at its turn in the queue,
+                # not before everybody else's. Applying them on submission gave
+                # the agent first pick of the wire every phase of every season,
+                # which is the same systematic edge the housekeeping order had.
+                moves.extend(self._drain_claims())
+            moves.extend(self._manage(team, history, week))
+            made[team] = moves
         for team, moves in made.items():
             self._week_moves.setdefault(team, []).extend(moves)
+        self._rotate_priority(
+            {
+                team
+                for team, moves in made.items()
+                if any(m.kind == "waiver-add" for m in moves)
+            }
+        )
         self.phase += 1
         self._claims_this_phase = 0
         return made
+
+    def _drain_claims(self) -> list:
+        """Apply the agent's queued claims, in the order it made them.
+
+        A claim that is no longer possible is dropped rather than raised on: by
+        the time the queue reaches the agent a higher-priority team may have
+        taken the player, and losing him is the outcome the priority system
+        exists to produce.
+        """
+        moves = []
+        queued, self._claim_queue = self._claim_queue, []
+        for claim in queued:
+            roster = self.rosters[self.agent_team]
+            if claim.drop_key not in roster:
+                continue
+            if claim.add_key not in self.free_agents:
+                continue
+            if not self.wire.is_free(claim.add_key, self.hour):
+                continue
+            self._swap(self.agent_team, claim)
+            # Recorded only once it has actually landed. A claim that lost the
+            # player to a higher-priority team did not happen, and grading it as
+            # though it had would credit the agent for a swap it never made.
+            self._applied_claims.append(claim)
+            moves.append(
+                Transaction(self.week, "waiver-add", claim.add_key, hour=self.hour)
+            )
+            moves.append(
+                Transaction(self.week, "drop", claim.drop_key, hour=self.hour)
+            )
+        return moves
 
     def _manage(self, team: int, history: pd.DataFrame, week: int) -> list:
         """Run one team's roster housekeeping for the week.
@@ -750,24 +814,53 @@ class FantasyLeagueEnv:
         return hour_of(self.week_index, PHASES[min(self.phase, len(PHASES) - 1)])
 
     def _apply_claim(self, team: int, claim: WaiverClaim) -> None:
-        roster = self.rosters[team]
+        """Queue the agent's claim; other teams transact directly."""
         limit = self.config.waiver_adds_per_phase
-        if team == self.agent_team and limit is not None:
-            if self._claims_this_phase >= limit:
+        if team == self.agent_team:
+            if limit is not None and self._claims_this_phase >= limit:
                 raise ValueError(
                     f"already made {self._claims_this_phase} claim(s) at this "
                     f"transaction phase; the limit is {limit}"
                 )
+            # Checked now so an impossible claim is a bug the caller hears
+            # about, and checked again when the queue reaches the agent, where
+            # failing is a legitimate outcome rather than an error.
+            #
+            # Against the roster the queue *will* produce, not the one standing
+            # now: with no cap on adds a policy can make several claims in one
+            # phase, and the second is naturally about the roster the first
+            # leaves behind.
+            roster, pool = self._projected(team)
+            if claim.add_key not in pool:
+                raise ValueError(f"{claim.add_key} is not a free agent")
+            if not self.wire.is_free(claim.add_key, self.hour):
+                raise ValueError(
+                    f"{claim.add_key} is on waivers until hour "
+                    f"{self.wire.clears_at(claim.add_key)}; it is {self.hour}"
+                )
+            if claim.drop_key not in roster:
+                raise ValueError(f"{claim.drop_key} is not on team {team}")
             self._claims_this_phase += 1
-        if claim.add_key not in self.free_agents:
-            raise ValueError(f"{claim.add_key} is not a free agent")
-        if not self.wire.is_free(claim.add_key, self.hour):
-            raise ValueError(
-                f"{claim.add_key} is on waivers until hour "
-                f"{self.wire.clears_at(claim.add_key)}; it is {self.hour}"
-            )
-        if claim.drop_key not in roster:
-            raise ValueError(f"{claim.drop_key} is not on team {team}")
+            self._claim_queue.append(claim)
+            return
+        self._swap(team, claim)
+
+    def _projected(self, team: int) -> tuple[set[str], set[str]]:
+        """The roster and free-agent pool once the queued claims have landed."""
+        roster = set(self.rosters[team])
+        pool = set(self.free_agents)
+        for queued in self._claim_queue:
+            if queued.drop_key in roster:
+                roster.discard(queued.drop_key)
+                pool.add(queued.drop_key)
+            if queued.add_key in pool:
+                pool.discard(queued.add_key)
+                roster.add(queued.add_key)
+        return roster, pool
+
+    def _swap(self, team: int, claim: WaiverClaim) -> None:
+        """Move one player onto a roster and one off it, updating the wire."""
+        roster = self.rosters[team]
         roster.remove(claim.drop_key)
         roster.append(claim.add_key)
         self.free_agents.remove(claim.add_key)
@@ -831,14 +924,12 @@ def run_episode(
                     if isinstance(claims, WaiverClaim):
                         claims = [claims]
                     for claim in claims:
-                        # Resolved before the lineup, so the policy scores the
-                        # roster it is actually going to field.
                         observation = env.submit_claim(claim)
-            if env.phase < len(PHASES) - 1:
-                env.transact()
-                observation = env.observe()
-            else:
-                break
+            # Every phase transacts here, so the lineup is set on the roster the
+            # transactions actually produced rather than on the one the agent
+            # asked for and may not have got.
+            env.transact()
+            observation = env.observe()
         scores = policy.score(
             observation["roster"],
             observation["history"],

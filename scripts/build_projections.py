@@ -17,8 +17,27 @@ no way to ask before. "Should I add this player" is not about Sunday; it is abou
 what he is worth for the remaining weeks, which is exactly the response
 :func:`ffmodel.weekly.restofseason.add_rest_of_season_target` defines -- points
 from week ``w`` to the end, with the player's club's remaining games as the
-offset so a mid-season exit is handled honestly. The direct total with phase and
-ADP, which is the documented shipped configuration.
+offset so a mid-season exit is handled honestly.
+
+The rest-of-season projection is the **blend** the weekly document ships: the
+direct total with phase and ADP, combined with the draft-board rank curve at a
+weight estimated per horizon. The weight is the variance-optimal one -- the slope
+of ``observed - curve`` on ``model - curve`` -- and it has to be estimated on
+predictions the model has not seen, so the most recent training season is held
+out to measure it and both forecasts are then refitted on everything. Measured
+weights run about 0.5 early and 1.0 late, which is the board earning its keep in
+September and giving it back as the season supplies usage the board never saw.
+
+The blend covers **drafted** players at the four skill positions, and only those.
+The rank curve is fitted per position on the skill panel, and its weight is
+estimated on drafted rows, because the board is the only thing it knows. An
+undrafted player is placed at the deepest rank the curve ever saw -- a fallback,
+not a forecast -- so blending it in would replace most of his projection with a
+replacement-level constant. That is not hypothetical: applied to everybody it
+costs 12.9% MAE overall and 24.4% early, while gaining 1.9% on the population it
+was fitted for. Undrafted players are the waiver wire, which is the decision this
+projection exists to serve. Kickers and defenses keep the unblended specialist
+total.
 
 Kickers and defenses get the same two horizons from the specialist ladders, so
 all six startable positions project on one scale.
@@ -47,6 +66,12 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.weekly import FEATURES_CACHE
+from ffmodel.weekly.market import (
+    HORIZON_BUCKETS,
+    WeeklyRankCurve,
+    bucket_labels,
+    fit_blend_weights,
+)
 from ffmodel.weekly.nextweek import Hurdle
 from ffmodel.weekly.restofseason import OFFSET, TARGET, DirectTotal, add_rest_of_season_target
 from ffmodel.weekly.specialists import (
@@ -88,8 +113,55 @@ def _fit_predict(make, train, test, target, draws, seed, label):
         return None
 
 
+def _blended_rest(build_model, train, test, draws, seed):
+    """The rest-of-season total, blended with the draft-board rank curve.
+
+    Returns ``(values, weights)``. Falls back to the unblended model when the
+    curve cannot be fitted -- too few drafted player-seasons, or a panel with no
+    board at all -- because a blend with a curve that does not exist is just the
+    model, and saying so is better than failing.
+    """
+    try:
+        weights = fit_blend_weights(
+            train, build_model, TARGET, draws=draws, seed=seed
+        )
+        curve = WeeklyRankCurve(per_game=False, offset=OFFSET).fit(
+            train, train["points"].to_numpy(float)
+        )
+    except (ValueError, KeyError) as error:
+        print(f"    .. no rank curve ({type(error).__name__}); leaving it unblended")
+        return None, {}
+
+    model = build_model().fit(train, train[TARGET].to_numpy(float))
+    model_mean = _mean(model, test, draws, seed)
+    curve_mean = _mean(curve, test, draws, seed)
+
+    labels = bucket_labels(test["week"].to_numpy(float))
+    weight = np.ones(len(test), float)
+    for name, _, _ in HORIZON_BUCKETS:
+        weight[labels == name] = weights.get(name, 1.0)
+
+    # **Only where the board has something to say.** The curve is a statement
+    # about a draft board, and the blend weight is estimated on drafted players
+    # alone; an unranked player is placed at the deepest rank the curve ever
+    # saw, which is a fallback rather than a forecast. Blending that in at a
+    # weight of 0.68 -- what the early-season weight implies -- replaces two
+    # thirds of an undrafted player's projection with a replacement-level
+    # constant.
+    #
+    # Measured across 2018-2025, doing it everywhere costs 12.9% MAE overall and
+    # 24.4% early, while gaining 1.9% on the drafted population it was fitted
+    # for. And undrafted players are precisely the waiver wire, which is the
+    # decision this projection exists to serve.
+    drafted = pd.to_numeric(test.get("adp_drafted"), errors="coerce").eq(1).to_numpy()
+    weight = np.where(drafted, weight, 1.0)
+    # curve + w * (model - curve): w = 1 is the model, w = 0 is the board.
+    return np.maximum(curve_mean + weight * (model_mean - curve_mean), 0.0), weights
+
+
 def project_panel(
-    panel: pd.DataFrame, seasons, *, weekly, rest, draws: int, label: str
+    panel: pd.DataFrame, seasons, *, weekly, rest, draws: int, label: str,
+    blend: bool = True,
 ) -> pd.DataFrame:
     """Walk-forward projections for one panel, both horizons."""
     frame = add_rest_of_season_target(panel)
@@ -106,9 +178,19 @@ def project_panel(
         block["projection"] = _fit_predict(
             weekly, train, test, "points", draws, season, f"{label} next-week {season}"
         )
-        block["ros_projection"] = _fit_predict(
-            rest, train, test, TARGET, draws, season, f"{label} ROS {season}"
-        )
+        blended, weights = (None, {})
+        if blend:
+            usable = np.isfinite(pd.to_numeric(train[TARGET], errors="coerce"))
+            blended, weights = _blended_rest(
+                rest, train[usable], test, draws, season
+            )
+        if blended is not None:
+            block["ros_projection"] = blended
+            print(f"    blend weights {', '.join(f'{k} {v:.2f}' for k, v in weights.items())}")
+        else:
+            block["ros_projection"] = _fit_predict(
+                rest, train, test, TARGET, draws, season, f"{label} ROS {season}"
+            )
         block["games_remaining"] = pd.to_numeric(
             test[OFFSET], errors="coerce"
         ).to_numpy(float)
@@ -129,6 +211,11 @@ def main(argv=None) -> int:
     parser.add_argument("--draws", type=int, default=400)
     parser.add_argument("--output", type=Path, default=CACHE)
     parser.add_argument("--skip-specialists", action="store_true")
+    parser.add_argument(
+        "--no-blend", action="store_true",
+        help="use the bare direct total for rest of season instead of blending "
+             "it with the draft-board rank curve",
+    )
     args = parser.parse_args(argv)
 
     frames = []
@@ -143,7 +230,7 @@ def main(argv=None) -> int:
                 name="direct-total+phase+adp",
                 use_team=True, use_phase=True, use_adp=True,
             ),
-            draws=args.draws, label="skill",
+            draws=args.draws, label="skill", blend=not args.no_blend,
         )
     )
 
@@ -164,7 +251,7 @@ def main(argv=None) -> int:
                     rest=lambda h=history: SpecialistDirectTotal(
                         name="direct-total", history=h
                     ),
-                    draws=args.draws, label=label,
+                    draws=args.draws, label=label, blend=False,
                 )
             )
 

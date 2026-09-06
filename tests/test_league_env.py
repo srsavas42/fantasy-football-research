@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 from ffmodel.league.availability import ACTIVE, BYE, build_availability
+from ffmodel.league.waivers import WAIVER_HOURS
 from ffmodel.league.config import FLEX_POSITIONS, LeagueConfig, RosterSlots
 from ffmodel.league.draft import run_draft
 from ffmodel.league.credit import grade_claims
@@ -525,7 +526,7 @@ def _rest_of_season(env, week):
     return block.groupby("player_key")["points"].sum()
 
 
-def test_a_good_claim_scores_positive_and_a_bad_one_scores_negative():
+def test_a_good_claim_scores_positive():
     """The sign is the whole signal. Get it wrong and the agent learns backwards."""
     pool = _pool(weeks=8, stars=3)
 
@@ -535,25 +536,40 @@ def test_a_good_claim_scores_positive_and_a_bad_one_scores_negative():
         drop = min(observation["roster"], key=lambda key: (future.get(key, 0.0), key))
         return WaiverClaim(add_key=add, drop_key=drop)
 
-    def worst_swap(env, observation):
-        """Cut the lead back for somebody who will never start.
+    _, credits = _play_with_claim(pool, 3, best_swap)
+    assert len(credits) == 1
+    assert credits[0].marginal > 0, credits[0]
 
-        Deliberately a back rather than simply the roster's highest scorer: see
-        the test below for why those are not the same thing.
-        """
+
+def test_a_swap_the_league_undoes_stops_accruing_credit():
+    """Waivers lock a dropped player for 48 hours, not for the season.
+
+    So a player cut in week 3 can be back on the roster in week 5 -- the
+    housekeeping will re-claim him if a hole opens and he is the best answer.
+    From that point the swap has been undone and is no longer causing anything,
+    and the credit has to stop rather than keep charging the original claim for a
+    roster it no longer produced. Whichever later move brought him back owns the
+    weeks after it.
+    """
+    pool = _pool(weeks=8, stars=3)
+
+    def cut_the_lead_back(env, observation):
         future = _rest_of_season(env, observation["week"])
-        backs = [
-            key for key in observation["roster"] if env.positions.get(key) == "RB"
-        ]
-        add = min(env.free_agents, key=lambda key: (future.get(key, 0.0), key))
-        drop = max(backs, key=lambda key: future.get(key, 0.0))
-        return WaiverClaim(add_key=add, drop_key=drop)
+        backs = [key for key in observation["roster"] if env.positions.get(key) == "RB"]
+        return WaiverClaim(
+            add_key=min(env.free_agents, key=lambda key: (future.get(key, 0.0), key)),
+            drop_key=max(backs, key=lambda key: future.get(key, 0.0)),
+        )
 
-    _, good = _play_with_claim(pool, 3, best_swap)
-    _, bad = _play_with_claim(pool, 3, worst_swap)
-    assert len(good) == len(bad) == 1
-    assert good[0].marginal > 0, good[0]
-    assert bad[0].marginal < 0, bad[0]
+    env, credits = _play_with_claim(pool, 3, cut_the_lead_back)
+    credit = credits[0]
+    if credit.drop_key in env.rosters[env.agent_team]:
+        # He came back, so the claim stopped mattering the week he did.
+        assert credit.weeks_dropped_would_start == 0, (
+            "a player who is back on the roster cannot also be counted as lost"
+        )
+    else:
+        assert credit.marginal < 0, credit
 
 
 def test_dropping_the_highest_scorer_is_not_a_bad_move_if_the_backup_covers():
@@ -642,13 +658,18 @@ def test_by_default_there_is_no_cap_on_adds():
     assert config.waiver_adds_per_phase is None
     env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0)
 
-    for _ in range(4):
-        roster = list(env.rosters[env.agent_team])
-        add = env.observe()["free_agents"][0]
-        # Cut somebody added long enough ago that this is not an undo.
-        drop = roster[0]
-        env.submit_claim(WaiverClaim(add_key=add, drop_key=drop))
-    assert len([k for k in env.rosters[env.agent_team]]) == config.slots.size
+    shortlist = env.observe()["free_agents"]
+    roster = list(env.rosters[env.agent_team])
+    for index in range(4):
+        env.submit_claim(
+            WaiverClaim(add_key=shortlist[index], drop_key=roster[index])
+        )
+    env.transact()
+
+    held = env.rosters[env.agent_team]
+    assert len(held) == config.slots.size, "the roster changed size"
+    assert all(key in held for key in shortlist[:4]), "not every claim landed"
+    assert not any(key in held for key in roster[:4]), "not everybody was cut"
 
 
 def test_a_cap_is_enforced_when_one_is_set():
@@ -685,18 +706,18 @@ def test_a_dropped_player_is_locked_up_for_two_days():
 
     roster = list(env.rosters[env.agent_team])
     add, drop = env.observe()["free_agents"][0], roster[0]
+    cut_at = env.hour
     env.submit_claim(WaiverClaim(add_key=add, drop_key=drop))
+    env.transact()  # the claim resolves at the agent's turn in the queue
 
     assert drop in env.free_agents, "he left the roster"
-    assert drop in env.observe()["on_waivers"], "but he is not addable yet"
-    assert drop not in env.observe()["free_agents"]
-    with pytest.raises(ValueError, match="on waivers"):
-        env.submit_claim(WaiverClaim(add_key=drop, drop_key=roster[1]))
+    assert not env.wire.is_free(drop, cut_at), "he was addable the moment he was cut"
+    assert env.wire.clears_at(drop) == cut_at + WAIVER_HOURS
 
-    # Friday, two days later: he has cleared.
-    env.transact()
-    assert drop not in env.observe()["on_waivers"]
+    # It is Friday now, two days on, and he has cleared.
+    assert env.hour == cut_at + WAIVER_HOURS
     assert env.wire.is_free(drop, env.hour)
+    assert drop not in env.observe()["on_waivers"]
 
 
 def test_a_player_dropped_right_after_being_added_skips_waivers():
@@ -713,8 +734,10 @@ def test_a_player_dropped_right_after_being_added_skips_waivers():
     add = env.observe()["free_agents"][0]
     env.submit_claim(WaiverClaim(add_key=add, drop_key=roster[0]))
     # Undo it in the same phase: he was added moments ago, so cutting him now
-    # puts him straight back in the pool.
-    env.submit_claim(WaiverClaim(add_key=env.observe()["free_agents"][0], drop_key=add))
+    # puts him straight back in the pool. The second claim is validated against
+    # the roster the first one produces, which is why it is legal at all.
+    env.submit_claim(WaiverClaim(add_key=env.observe()["free_agents"][1], drop_key=add))
+    env.transact()
     assert env.wire.is_free(add, env.hour), "the undo sent him to waivers"
     assert add not in env.observe()["on_waivers"]
 
@@ -729,6 +752,7 @@ def test_a_player_cut_on_friday_is_not_available_until_the_next_week():
     roster = list(env.rosters[env.agent_team])
     add, drop = env.observe()["free_agents"][0], roster[0]
     env.submit_claim(WaiverClaim(add_key=add, drop_key=drop))
+    env.transact()
     assert not env.wire.is_free(drop, env.hour)
 
     env.step({key: 1.0 for key in env.rosters[env.agent_team]})
@@ -762,3 +786,100 @@ def test_nobody_is_reclaimed_before_his_waiver_period_ends():
                     f"{move.player_key} was cut at {when} and reclaimed at "
                     f"{move.hour}, inside the {WAIVER_HOURS}-hour period"
                 )
+
+
+# ------------------------------------------------------- waiver priority
+
+
+def test_priority_starts_as_the_inverse_of_the_draft_order():
+    """The team that picked last off the board picks first off the wire."""
+    pool = _pool(weeks=6)
+    config = LeagueConfig(teams=12, first_week=1, last_week=4)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=7)
+    assert env.waiver_priority == list(reversed(env.draft.order))
+    assert sorted(env.waiver_priority) == list(range(12))
+
+
+def test_a_successful_claim_sends_a_team_to_the_back_of_the_queue():
+    """Priority is a resource: spending it costs you the next player.
+
+    This is the whole difference from the reverse-standings order the
+    environment used before, which recomputed every week and so let a bad team
+    hold first pick indefinitely without ever paying for using it.
+    """
+    pool = _pool(weeks=8)
+    config = LeagueConfig(teams=12, first_week=1, last_week=6)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=2)
+
+    before = list(env.waiver_priority)
+    first = before[0]
+    made = env.transact()
+    claimed = {
+        team
+        for team, moves in made.items()
+        if any(move.kind == "waiver-add" for move in moves)
+    }
+    after = list(env.waiver_priority)
+
+    assert sorted(after) == sorted(before), "a team fell out of the queue"
+    for team in claimed:
+        assert after.index(team) > before.index(team) or not claimed - {team}, (
+            f"team {team} claimed and did not move back"
+        )
+    # Everyone who stood pat keeps their relative order, and sits ahead of
+    # everyone who claimed.
+    stood_pat = [team for team in after if team not in claimed]
+    assert stood_pat == [team for team in before if team not in claimed]
+    if claimed and stood_pat:
+        assert max(after.index(t) for t in stood_pat) < min(
+            after.index(t) for t in claimed
+        )
+    if first in claimed:
+        assert after[0] != first or len(claimed) == 12
+
+
+def test_priority_does_not_reset_between_weeks():
+    """A rolling queue, not a per-week recomputation."""
+    pool = _pool(weeks=8)
+    config = LeagueConfig(teams=12, first_week=1, last_week=6)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=5)
+
+    seen = []
+    while not env.done:
+        seen.append(list(env.waiver_priority))
+        env.step({key: 1.0 for key in env.rosters[env.agent_team]})
+    # If it reset, every week would start from the same order.
+    assert len({tuple(order) for order in seen}) > 1, "the queue never moved"
+    assert seen[0] == list(reversed(env.draft.order))
+
+
+def test_the_agent_does_not_jump_the_queue_with_its_own_claim():
+    """A claim resolves at the agent's turn, not before everybody else's.
+
+    Applying it on submission handed the agent first pick of the wire every
+    phase of every season -- the same systematic edge the housekeeping order
+    had, reintroduced through a different door.
+    """
+    pool = _pool(weeks=8, stars=2)
+    config = LeagueConfig(teams=12, first_week=1, last_week=4)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=1)
+
+    # Put the agent last in the queue and have a rival want the same player.
+    env.waiver_priority = [
+        team for team in env.waiver_priority if team != env.agent_team
+    ] + [env.agent_team]
+    wanted = env.observe()["free_agents"][0]
+    roster = list(env.rosters[env.agent_team])
+    env.submit_claim(WaiverClaim(add_key=wanted, drop_key=roster[-1]))
+
+    # Simulate a higher-priority team taking him first.
+    rival = env.waiver_priority[0]
+    env._swap(rival, WaiverClaim(add_key=wanted, drop_key=env.rosters[rival][-1]))
+
+    env.transact()
+    assert wanted in env.rosters[rival], "the rival should have him"
+    assert wanted not in env.rosters[env.agent_team], "the agent jumped the queue"
+    # And the claim that failed is not recorded as having happened.
+    assert all(
+        claim.add_key != wanted for claim in env._applied_claims
+    ), "a claim that lost the player was recorded as landing"

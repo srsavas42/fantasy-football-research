@@ -55,6 +55,10 @@ class DraftResult:
     rosters: dict[int, list[str]]
     picks: pd.DataFrame
     undrafted: pd.DataFrame
+    # First-round pick order. Kept because waiver priority starts as its
+    # inverse: the team that drafted last picks first off the wire, which is
+    # how a league compensates the seat that got the worst board.
+    order: tuple[int, ...] = ()
 
     def roster_frame(self) -> pd.DataFrame:
         rows = [
@@ -226,4 +230,9 @@ def run_draft(
 
     picks = pd.DataFrame(rows)
     undrafted = board[~board["player_key"].isin(taken)].reset_index(drop=True)
-    return DraftResult(rosters=rosters, picks=picks, undrafted=undrafted)
+    return DraftResult(
+        rosters=rosters,
+        picks=picks,
+        undrafted=undrafted,
+        order=tuple(seats),
+    )

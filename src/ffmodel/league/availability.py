@@ -24,11 +24,14 @@ simply gets no targets -- stays unknowable and stays the manager's risk. That
 boundary is the point. Modelling those too would hand every policy information
 no real manager has, and the environment would stop measuring anything.
 
-**Byes are inferred from the panel rather than fetched.** A club's bye is the one
-week in a season it contributes no rows at all, which the stacked pool already
-answers offline for all thirty-two. :func:`bye_weeks` refuses to guess when a
-season does not produce exactly one such week per club, because a silently wrong
-bye is a permanently benched player.
+**Byes are inferred from the panel rather than fetched.** A club is idle in any
+week it contributes no rows at all, which the stacked pool answers offline for
+all thirty-two. That is the bye in every case but two: Buffalo and Cincinnati
+are each idle twice in 2022, because their week 17 game was abandoned after
+Damar Hamlin's cardiac arrest and never replayed. Both weeks are weeks their
+players could not score, which is the only thing a lineup decision needs to
+know, so :func:`idle_weeks` counts them alike and refuses only when a club is
+idle more often than a schedule allows.
 """
 
 from __future__ import annotations
@@ -43,36 +46,47 @@ SEASON_WEEKS = tuple(range(1, 19))
 ACTIVE, OUT, BYE = "ACTIVE", "OUT", "BYE"
 
 
-def bye_weeks(pool: pd.DataFrame) -> dict[tuple[int, str], int]:
-    """``(season, club) -> bye week``, inferred from the week a club is absent.
+# A club can be idle for a second week in a season, and exactly one thing in ten
+# seasons of data causes it: a game that was never played. More than that is a
+# broken panel rather than a schedule.
+MAX_IDLE_WEEKS = 2
 
-    A club contributes rows every week it plays, so the one week it contributes
-    none is its bye. Two cases are not byes and are handled rather than guessed:
 
-    *No missing week* means no bye is observable -- a pool truncated before the
-    club's bye, or a synthetic one. The club is simply left out of the map, and
-    nobody on it is ever marked absent. Silence is the safe failure here.
+def idle_weeks(pool: pd.DataFrame) -> dict[tuple[int, str], set[int]]:
+    """``(season, club) -> the weeks it played no game``.
 
-    *More than one missing week* is genuinely ambiguous, and there is no way to
-    tell a bye from a gap in the panel. That raises, because picking one would
-    bench a player for a week his club really played, every season, invisibly.
+    A club contributes rows every week it plays, so the weeks it contributes
+    none are the weeks its players cannot score. Almost always that is one week
+    and it is the bye. Twice in ten seasons it is two, and both are the same
+    event: Buffalo and Cincinnati each have a second idle week in 2022, because
+    their week 17 game was abandoned after Damar Hamlin's cardiac arrest and was
+    never replayed. Neither club's players could score that week, which is
+    exactly what this function is asked, so both weeks count.
+
+    An earlier version refused to answer whenever a club was absent twice, on
+    the grounds that a bye and a gap in the panel are indistinguishable. That is
+    true and it was still the wrong call: it made a real, known event crash a
+    training run, and the cost of being wrong is symmetric -- benching a player
+    who played, or starting one who could not. Only a club idle for more than
+    two weeks is now treated as a broken panel, because no schedule produces
+    that.
     """
-    out: dict[tuple[int, str], int] = {}
+    out: dict[tuple[int, str], set[int]] = {}
     for (season, club), block in pool.groupby(["season", "team"], sort=False):
         weeks = set(pd.to_numeric(block["week"], errors="coerce").dropna().astype(int))
         if not weeks:
             continue
-        # Only inside the span the club is actually observed over, so a pool cut
-        # at week 14 does not read weeks 15-18 as four more byes.
+        # Only inside the span the club is observed over, so a pool cut at week
+        # 14 does not read weeks 15-18 as four more byes.
         missing = sorted(set(range(min(SEASON_WEEKS), max(weeks) + 1)) - weeks)
-        if len(missing) > 1:
+        if len(missing) > MAX_IDLE_WEEKS:
             raise ValueError(
-                f"{club} in {season} is absent for {len(missing)} weeks "
-                f"{missing}; a bye is exactly one. The panel has a gap, and "
-                "guessing which is the bye would bench a player who played."
+                f"{club} in {season} played no game in {len(missing)} weeks "
+                f"{missing}. A schedule does not do that; the panel has a gap, "
+                "and benching a player who played is not a guess worth making."
             )
         if missing:
-            out[(int(season), str(club))] = int(missing[0])
+            out[(int(season), str(club))] = set(missing)
     return out
 
 
@@ -127,7 +141,7 @@ def build_availability(pool: pd.DataFrame, season: int) -> Availability:
     if block.empty:
         raise ValueError(f"no pool rows for season {season}")
 
-    byes = {club: week for (_, club), week in bye_weeks(block).items()}
+    idle = {club: weeks for (_, club), weeks in idle_weeks(block).items()}
 
     # Resolved per player-week rather than per player, because a player who
     # changes clubs mid-season sits out whichever bye his club at the time had
@@ -149,7 +163,7 @@ def build_availability(pool: pd.DataFrame, season: int) -> Availability:
             # one whose bye he would have taken.
             before = weeks < week
             club = clubs[before][-1] if before.any() else clubs[0]
-            if byes.get(str(club)) == week:
+            if week in idle.get(str(club), ()):
                 bye.add((str(key), week))
 
     out: set[tuple[str, int]] = set()

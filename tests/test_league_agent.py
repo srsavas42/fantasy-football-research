@@ -1,0 +1,273 @@
+"""The learned agent, and the shortcut that makes training it possible.
+
+Two things here are load-bearing and neither is obvious from reading the code.
+
+The feature table is a shortcut around the environment's one hard rule -- it
+answers "what had this player averaged" without going through the truncated
+history frame that makes leakage impossible. So the first thing tested is that
+the shortcut lands in exactly the same place, which is checkable to the float
+rather than arguable.
+
+The second is that the agent is a policy like any other: it ranks its own
+players, the environment assigns the lineup, and nothing it is handed contains a
+week it has not played.
+"""
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from ffmodel.league.agent import (
+    PARAMETER_COUNT,
+    LinearAgent,
+    Scaler,
+    as_waiver_policy,
+)
+from ffmodel.league.config import LeagueConfig
+from ffmodel.league.env import FantasyLeagueEnv, run_episode
+from ffmodel.league.features import (
+    FEATURE_COLUMNS,
+    as_matrix,
+    build_feature_table,
+    build_feature_tables,
+    verify_against_history,
+)
+from ffmodel.league.policies import EwmaPolicy, SeasonPolicy
+from ffmodel.league.train import Arena, CrossEntropyTrainer, Task
+from tests.test_league_env import _pool
+
+
+def test_the_feature_table_says_what_reading_the_history_frame_says():
+    """The shortcut has to be exact, not close.
+
+    Every average in the table is a number the environment would otherwise have
+    derived from a frame truncated to weeks already played. If the two ever
+    disagree, the table is either leaking a week or losing one, and both are
+    silent failures that would show up only as an agent that cannot be
+    reproduced.
+    """
+    pool = _pool(weeks=10, stars=2)
+    for halflife in (1.0, 2.0, 4.0):
+        worst = verify_against_history(pool, 2024, halflife)
+        assert worst == pytest.approx(0.0, abs=1e-12), (
+            f"half-life {halflife} disagrees by {worst}"
+        )
+
+
+def test_a_player_keeps_his_average_through_a_bye():
+    """The lag has to happen after the grid is filled, not before.
+
+    A club's bye leaves the player without a row. Lagging first and filling
+    afterwards carries "everything before week 6" into week 7, when the truth for
+    week 7 is "everything up to week 6" -- so the player looks worse for a week
+    after every gap, and the roster mechanic cuts him for it.
+    """
+    pool = _pool(weeks=10)
+    table = build_feature_table(pool, 2024)
+    # T1's bye is week 3, so week 4 must reflect weeks 1-2, not week 1 alone.
+    key = pool[pool["team"] == "T1"]["player_key"].iloc[0]
+    played = pool[(pool["player_key"] == key) & (pool["week"] < 4)]
+    assert len(played) == 2, "fixture assumption: two weeks played before week 4"
+
+    row = table.loc[(key, 4)]
+    assert row["experience"] == pytest.approx(np.log1p(2))
+    assert row["season_mean"] == pytest.approx(played["points"].mean())
+    # The bye week itself carries his history rather than a hole -- and it is
+    # the *same* history week 4 sees, because no football happened in between.
+    assert table.loc[(key, 3), "experience"] == pytest.approx(np.log1p(2))
+    assert table.loc[(key, 3), "season_mean"] == pytest.approx(played["points"].mean())
+
+
+def test_the_table_never_contains_the_week_it_describes():
+    """Row `w` is built from weeks strictly before `w`. The whole rule."""
+    pool = _pool(weeks=10)
+    table = build_feature_table(pool, 2024)
+    points = pool.set_index(["player_key", "week"])["points"]
+    # A player whose first week is a big score: his own week-1 row must not
+    # know about it, and his week-2 row must.
+    key = pool["player_key"].iloc[0]
+    assert table.loc[(key, 1), "last_points"] == 0.0
+    assert table.loc[(key, 2), "last_points"] == pytest.approx(points.loc[(key, 1)])
+
+
+def test_the_fast_policy_and_the_slow_one_agree_exactly():
+    """Same numbers with the table or without it, or the shortcut is a fork."""
+    pool = _pool(weeks=10, stars=2)
+    table = build_feature_table(pool, 2024)
+    block = pool[pool["season"] == 2024]
+    keys = sorted(block["player_key"].unique())
+    board = block.drop_duplicates("player_key")[["player_key", "adp_rank"]]
+
+    for week in sorted(block["week"].unique()):
+        history = block[block["week"] < week]
+        slow = EwmaPolicy().score(keys, history, int(week), board)
+        fast = EwmaPolicy(table=table).score(keys, history, int(week), board)
+        for key in keys:
+            assert slow[key] == pytest.approx(fast[key], abs=1e-12), (
+                f"{key} disagrees in week {week}"
+            )
+
+
+def test_a_table_policy_refuses_a_history_mode_it_does_not_hold():
+    """The table carries one reading of history. Silently serving another is worse
+    than refusing, because the numbers would look perfectly reasonable."""
+    pool = _pool(weeks=6)
+    table = build_feature_table(pool, 2024)
+    policy = EwmaPolicy(table=table, history_mode="active")
+    with pytest.raises(ValueError, match="history mode"):
+        policy.score(["QB0"], pd.DataFrame(), 3, pd.DataFrame())
+
+
+def test_the_agent_ranks_by_its_weights():
+    """A weight on one feature has to order players by that feature."""
+    pool = _pool(weeks=8)
+    table = build_feature_table(pool, 2024)
+    scaler = Scaler.fit({2024: table})
+    theta = np.zeros(PARAMETER_COUNT)
+    theta[FEATURE_COLUMNS.index("ewma2")] = 1.0
+    agent = LinearAgent.from_parameters(theta, table, scaler)
+
+    keys = [f"RB{index}" for index in range(6)]
+    scores = agent.score(keys, pd.DataFrame(), 5, pd.DataFrame())
+    averages = table.loc[[(key, 5) for key in keys], "ewma2"]
+    assert [k for k, _ in sorted(scores.items(), key=lambda kv: -kv[1])] == [
+        key for key, _ in sorted(zip(keys, averages), key=lambda kv: -kv[1])
+    ]
+
+
+def test_a_wrong_sized_parameter_vector_is_refused():
+    pool = _pool(weeks=6)
+    table = build_feature_table(pool, 2024)
+    scaler = Scaler.fit({2024: table})
+    with pytest.raises(ValueError, match="parameters"):
+        LinearAgent.from_parameters(np.zeros(PARAMETER_COUNT - 1), table, scaler)
+
+
+def test_the_agent_never_cuts_a_player_it_would_start():
+    """A threshold must not be able to authorise trading away a starter."""
+    pool = _pool(weeks=8, stars=3)
+    table = build_feature_table(pool, 2024)
+    scaler = Scaler.fit({2024: table})
+    theta = np.zeros(PARAMETER_COUNT)
+    theta[FEATURE_COLUMNS.index("ewma2")] = 1.0
+    theta[-1] = -1e6  # claim at every opportunity
+    agent = LinearAgent.from_parameters(theta, table, scaler)
+
+    config = LeagueConfig(teams=12, first_week=1, last_week=6)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=1)
+    observation = env.reset()
+    while not env.done:
+        claim = agent.claim(env, observation)
+        if claim is not None:
+            from ffmodel.league.lineup import optimal_lineup
+
+            values = agent.values(observation["roster"], observation["week"])
+            lineup = optimal_lineup(
+                observation["roster"], env.positions, values, env.config.slots
+            )
+            assert claim.drop_key not in lineup.starting_keys(), (
+                f"dropped {claim.drop_key}, who it would have started"
+            )
+            observation = env.submit_claim(claim)
+        scores = agent.score(
+            observation["roster"], observation["history"], observation["week"], observation["board"]
+        )
+        observation, _, _, _ = env.step(scores)
+
+
+def test_the_agent_plays_a_whole_season_without_leaking_a_future_week():
+    """The same guarantee every other policy gets, checked on the learned one."""
+    pool = _pool(weeks=10, stars=2)
+    table = build_feature_table(pool, 2024)
+    scaler = Scaler.fit({2024: table})
+    theta = np.zeros(PARAMETER_COUNT)
+    theta[FEATURE_COLUMNS.index("ewma1")] = 1.0
+    agent = LinearAgent.from_parameters(theta, table, scaler)
+
+    config = LeagueConfig(teams=12, first_week=1, last_week=8)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=2)
+    observation = env.reset()
+    while not env.done:
+        history = observation["history"]
+        if len(history):
+            assert history["week"].max() < observation["week"]
+        claim = agent.claim(env, observation)
+        if claim is not None:
+            observation = env.submit_claim(claim)
+        scores = agent.score(
+            observation["roster"], observation["history"], observation["week"], observation["board"]
+        )
+        observation, _, _, _ = env.step(scores)
+    assert env.result.wins >= 0
+
+
+def test_missing_feature_rows_come_back_as_zeros_not_as_a_crash():
+    pool = _pool(weeks=6)
+    table = build_feature_table(pool, 2024)
+    values = as_matrix(table, ["QB0", "nobody-at-all"], 3)
+    assert values.shape == (2, len(FEATURE_COLUMNS))
+    assert np.all(values[1] == 0.0)
+
+
+# ------------------------------------------------------------------ training
+
+
+def test_the_search_improves_a_deliberately_bad_starting_point():
+    """The one property a trainer has to have: it goes uphill.
+
+    Started at zeros -- which ranks every player identically and is measurably
+    terrible -- a handful of generations must beat where they began, scored on
+    the same seats so the comparison is not a draw of the dice.
+    """
+    pool = _pool(weeks=8, stars=2)
+    tables = build_feature_tables(pool, [2024])
+    scaler = Scaler.fit(tables)
+    arena = Arena(pool=pool, tables=tables, config=LeagueConfig(first_week=1, last_week=8))
+
+    trainer = CrossEntropyTrainer(
+        arena, scaler, seasons=[2024], seeds=6, population=10, batch=4,
+        sigma=0.6, rng=np.random.default_rng(0), workers=1,
+    )
+    tasks = [Task(2024, seed) for seed in range(6)]
+    before = trainer.fitness(np.zeros((1, PARAMETER_COUNT)), tasks)[0]
+    theta = trainer.run(4, log=lambda *_: None)
+    after = trainer.fitness(theta[None, :], tasks)[0]
+    assert after > before, f"search went downhill: {before:.1f} -> {after:.1f}"
+
+
+def test_the_control_variate_is_paired_and_cached():
+    """Fitness is measured against the same seat, not against an average.
+
+    If the baseline were a constant, a candidate that drew easy seeds would
+    outscore a better one that drew hard ones, and the search would be fitting
+    the draw.
+    """
+    pool = _pool(weeks=8)
+    tables = build_feature_tables(pool, [2024])
+    arena = Arena(pool=pool, tables=tables, config=LeagueConfig(first_week=1, last_week=8))
+    trainer = CrossEntropyTrainer(
+        arena, Scaler.fit(tables), seasons=[2024], seeds=4, workers=1
+    )
+    tasks = [Task(2024, seed) for seed in range(4)]
+    first = trainer.baselines(tasks)
+    assert len(set(first)) > 1, "every seat scoring the same is not a seat"
+    # Cached, and identical on a second call -- the control variate must not
+    # itself be a source of noise between generations.
+    assert np.array_equal(first, trainer.baselines(tasks))
+
+
+def test_a_saved_agent_reloads_to_the_same_policy(tmp_path):
+    from ffmodel.league.train import load_agent, save_agent
+
+    pool = _pool(weeks=6)
+    table = build_feature_table(pool, 2024)
+    scaler = Scaler.fit({2024: table})
+    theta = np.linspace(-1.0, 1.0, PARAMETER_COUNT)
+    path = tmp_path / "agent.json"
+    save_agent(path, theta, scaler, {"note": "test"})
+
+    reloaded = load_agent(path, table)
+    assert np.allclose(reloaded.parameters(), theta)
+    keys = ["QB0", "RB0", "WR0"]
+    original = LinearAgent.from_parameters(theta, table, scaler)
+    assert reloaded.values(keys, 3) == original.values(keys, 3)

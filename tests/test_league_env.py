@@ -279,16 +279,28 @@ def test_a_bye_is_inferred_from_the_week_a_club_is_absent():
     assert not availability.is_out(on_t1, 3), "a bye is not an injury"
 
 
-def test_an_ambiguous_gap_raises_rather_than_guessing_a_bye():
-    """Two missing weeks could be a bye plus a hole, and there is no telling.
+def test_a_second_idle_week_is_accepted_because_one_really_happens():
+    """Buffalo and Cincinnati are each idle twice in 2022.
 
-    Guessing would bench a player for a week his club really played, quietly,
-    for as long as the panel stays broken.
+    Their week 17 game was abandoned and never replayed, so neither club's
+    players could score -- which is the only thing a lineup decision asks. An
+    earlier version refused to answer whenever a club was absent twice, which
+    turned a real event into a crash.
     """
     pool = _pool(weeks=8)
-    # Delete a second week for one club, on top of its real bye.
-    broken = pool[~((pool["team"] == "T1") & (pool["week"] == 6))]
-    with pytest.raises(ValueError, match="absent for 2 weeks"):
+    cancelled = pool[~((pool["team"] == "T1") & (pool["week"] == 6))]
+    availability = build_availability(cancelled, 2024)
+    on_t1 = pool[pool["team"] == "T1"]["player_key"].iloc[0]
+    assert availability.status(on_t1, 3) == BYE, "the real bye"
+    assert availability.status(on_t1, 6) == BYE, "the game that was not played"
+    assert availability.status(on_t1, 5) == ACTIVE
+
+
+def test_a_club_idle_more_often_than_a_schedule_allows_still_raises():
+    """Three missing weeks is a broken panel, not a season."""
+    pool = _pool(weeks=10)
+    broken = pool[~((pool["team"] == "T1") & (pool["week"].isin([5, 6, 7])))]
+    with pytest.raises(ValueError, match="played no game in 4 weeks"):
         build_availability(broken, 2024)
 
 

@@ -68,12 +68,30 @@ class AdpPolicy(Policy):
 
     name: str = "adp"
 
+    # The board is fixed for a season but `score` is called thousands of times a
+    # season, and re-indexing a frame on every call was the single largest cost
+    # left once the averages were precomputed. Keyed on the board's identity so
+    # a different board is not silently answered from the last one's cache.
+    _ranks: dict = field(default_factory=dict, repr=False, compare=False)
+
+    def _lookup(self, board) -> dict[str, float]:
+        cached = self._ranks.get(id(board))
+        if cached is None:
+            cached = (
+                dict(zip(board["player_key"], board["adp_rank"]))
+                if len(board)
+                else {}
+            )
+            self._ranks.clear()
+            self._ranks[id(board)] = cached
+        return cached
+
     def score(self, player_keys, history, week, board) -> dict[str, float]:
-        ranks = board.set_index("player_key")["adp_rank"] if len(board) else pd.Series(dtype=float)
+        ranks = self._lookup(board)
         out = {}
         for key in player_keys:
             rank = ranks.get(key, np.nan)
-            rank = UNRANKED if not np.isfinite(rank) else float(rank)
+            rank = UNRANKED if rank is None or not np.isfinite(rank) else float(rank)
             # Invert: a low pick is a high score. Reciprocal rather than
             # negation so the gap between the 1st and 10th pick is larger than
             # between the 101st and 110th, which is how draft value behaves.
@@ -122,6 +140,13 @@ class EwmaPolicy(Policy):
     name: str = "ewma"
     fallback_to_board: bool = True
     history_mode: str = "all"
+    _board: AdpPolicy = field(default_factory=AdpPolicy, repr=False, compare=False)
+    # A precomputed table from :mod:`ffmodel.league.features`, which holds the
+    # same averages this would derive from the history frame and is what makes
+    # an episode fast enough to train against. Optional and equivalent: with it
+    # or without it the policy returns the same numbers, which
+    # `verify_against_history` checks to the float.
+    table: pd.DataFrame | None = field(default=None, repr=False, compare=False)
 
     # The average depends on the week, not on whose roster is being scored, but
     # the environment calls this once per team -- twelve times a week for the
@@ -145,18 +170,45 @@ class EwmaPolicy(Policy):
             return history[history["is_out"] != 1]
         return history
 
+    def _from_table(self, week: int) -> pd.Series:
+        """The week's averages, read rather than derived."""
+        column = f"ewma{self.halflife:g}"
+        try:
+            block = self.table.xs(int(week), level="week")
+        except KeyError:
+            return pd.Series(dtype=float)
+        # A player in his first week of the season has no past, and the frame
+        # version says so by having nothing to average. The table fills those
+        # rows with zeros for the learner's benefit, so they are masked back to
+        # missing here -- otherwise everyone would score zero in week 1 and the
+        # board fallback, which is the only thing with an opinion that early,
+        # would never fire.
+        return block[column].where(block["experience"] > 0.0).to_dict()
+
     def _averages(self, history: pd.DataFrame, week: int) -> pd.Series:
         cached = self._cache.get(week)
         if cached is not None:
             return cached
+        if self.table is not None:
+            if self.history_mode != "all":
+                raise ValueError(
+                    "the precomputed table holds the 'all' history mode only; "
+                    f"this policy is set to {self.history_mode!r}"
+                )
+            averages = self._from_table(week)
+            self._cache.clear()
+            self._cache[week] = averages
+            return averages
         history = self._weeks_counted(history)
         if not len(history):
-            averages = pd.Series(dtype=float)
+            averages = {}
         else:
             alpha = 1.0 - 0.5 ** (1.0 / self.halflife)
             played = history.sort_values("week")
-            averages = played.groupby("player_key")["points"].apply(
-                lambda s: s.ewm(alpha=alpha, adjust=True).mean().iloc[-1]
+            averages = (
+                played.groupby("player_key")["points"]
+                .apply(lambda s: s.ewm(alpha=alpha, adjust=True).mean().iloc[-1])
+                .to_dict()
             )
         # Keyed on the week alone, so a fresh episode must not inherit the last
         # one's numbers: the environment builds a new policy per episode, and
@@ -170,13 +222,13 @@ class EwmaPolicy(Policy):
         averages = self._averages(history, week)
 
         board_scores = (
-            AdpPolicy().score(player_keys, history, week, board)
+            self._board.score(player_keys, history, week, board)
             if self.fallback_to_board
             else {}
         )
         for key in player_keys:
             value = averages.get(key, np.nan)
-            if np.isfinite(value):
+            if value is not None and np.isfinite(value):
                 out[key] = float(value)
             else:
                 # No history at all -- a rookie, or somebody just picked up.
@@ -201,6 +253,7 @@ class SeasonPolicy(Policy):
     halflife: float = EWMA_HALFLIFE
     name: str = "adp-then-ewma"
     history_mode: str = "all"
+    table: pd.DataFrame | None = field(default=None, repr=False, compare=False)
 
     board_policy: AdpPolicy = field(default_factory=AdpPolicy)
     form_policy: EwmaPolicy | None = None
@@ -208,7 +261,9 @@ class SeasonPolicy(Policy):
     def __post_init__(self) -> None:
         if self.form_policy is None:
             self.form_policy = EwmaPolicy(
-                halflife=self.halflife, history_mode=self.history_mode
+                halflife=self.halflife,
+                history_mode=self.history_mode,
+                table=self.table,
             )
 
     def score(self, player_keys, history, week, board) -> dict[str, float]:

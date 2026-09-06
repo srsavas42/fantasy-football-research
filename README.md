@@ -289,16 +289,29 @@ weeks and recent form after. Paired on seed over 3 seasons x 20 seeds:
 
 | vs. the field | wins | SE |
 |---|---|---|
-| perfect start/sit (oracle) | +2.95 | 0.19 |
-| recent form from week 1 | +0.03 | 0.08 |
-| never updating the lineup | -0.55 | 0.16 |
+| perfect start/sit (oracle) | +2.58 | 0.19 |
+| recent form from week 1 | +0.05 | 0.07 |
+| never updating the lineup | -0.15 | 0.19 |
 
-So **every start/sit decision in a season is worth at most 2.95 wins**, and one
-season carries +/-3 wins of pure draft-slot and schedule luck -- four times the
-gap between setting your lineup weekly and never logging in again. A
-single-season comparison of two policies measures nothing; pairing on shared
-seeds is what makes the difference measurable at sixty episodes instead of
-several thousand. See
+So **every start/sit decision in a season is worth at most 2.58 wins**, with a
+perfect waiver wire adding **0.77** on top, and one season carries +/-3 wins of
+pure draft-slot and schedule luck. A single-season comparison of two policies
+measures nothing; pairing on shared seeds is what makes the difference
+measurable at sixty episodes instead of several thousand.
+
+Those opponents are competent, which took work: the first version of them
+started players on bye, leaving **10.3% of every lineup slot** on a guaranteed
+zero and inflating the oracle band by 13%. The environment now states what a
+manager genuinely knows before kickoff -- the bye schedule, and a game-status
+report that lands a median 28 hours early -- and runs the roster rules that go
+with it, IR included. Everything else, including the 75% of scoreless weeks
+nobody could have seen coming, stays the manager's risk. Averaging only the
+weeks a player was *active* is a tempting follow-on and costs 16 points a season;
+removing just the weeks the environment already handles is worth nothing at all.
+
+A waiver claim is graded against the rest of the season in lineup points, which
+is the reward an add/drop agent trains on. See
+[availability and waivers](docs/availability-and-waivers-2026-09.md) and
 [the league environment](docs/league-environment-2026-09.md).
 
 ### Data acquisition
@@ -368,7 +381,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule and naive opponents now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.95 wins ([league environment](docs/league-environment-2026-09.md)) |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)) |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 

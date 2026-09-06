@@ -1,8 +1,16 @@
 # What a better projection is worth, in wins
 
 *September 2026. Code: `src/ffmodel/league/`, `scripts/validate_league.py`,
-`scripts/validate_weekly_baselines.py`. Numbers: `reports/league_baselines.json`,
-`reports/weekly_baselines.json`.*
+`scripts/validate_weekly_baselines.py`. Numbers: `reports/weekly_baselines.json`.*
+
+> **Superseded in part.** The league numbers below were measured against
+> opponents who started players on bye, which cost them about 10% of every
+> lineup. Once that was fixed the field gained ~98 points a season and the oracle
+> band narrowed from 2.95 wins to **2.58**; waivers add a further 0.77. Section 1
+> (the model against naive averages) is unaffected and stands. For the current
+> league figures see
+> [availability and waivers](availability-and-waivers-2026-09.md), and note that
+> `reports/league_baselines.json` now holds the newer run.
 
 Two questions, answered in order, because the second one is only interesting if
 the first one has a good answer.

@@ -25,10 +25,12 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from ffmodel.league.availability import Availability, build_availability
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.draft import run_draft
 from ffmodel.league.lineup import Lineup, optimal_lineup, round_robin, score_lineup
-from ffmodel.league.policies import Policy, SeasonPolicy
+from ffmodel.league.policies import EwmaPolicy, Policy, SeasonPolicy
+from ffmodel.league.roster import Transaction, availability_scores, manage_roster
 
 
 @dataclass
@@ -52,6 +54,7 @@ class WeekResult:
     reward: float
     lineup: Lineup
     claim: WaiverClaim | None = None
+    moves: list[Transaction] = field(default_factory=list)
 
 
 @dataclass
@@ -113,6 +116,7 @@ class FantasyLeagueEnv:
         config: LeagueConfig | None = None,
         *,
         opponent: Policy | None = None,
+        roster_valuation: Policy | None = None,
         agent_team: int = 0,
         seed: int = 0,
     ) -> None:
@@ -121,10 +125,20 @@ class FantasyLeagueEnv:
         self.seed = int(seed)
         self.agent_team = int(agent_team)
         self.opponent = opponent or SeasonPolicy()
+        # How every team values players for add/drop/IR decisions. Deliberately
+        # separate from the lineup policy -- see :meth:`_manage`.
+        self.roster_valuation = roster_valuation or EwmaPolicy()
 
         block = pool[pool["season"] == self.season].copy()
         if block.empty:
             raise ValueError(f"no pool rows for season {season}")
+
+        # Built from the whole season, before the frame is cut down to the
+        # league's weeks. A bye is inferred from the one week a club is absent,
+        # and truncating first would hide the bye of every club whose bye falls
+        # outside the window -- or, worse, invent one for every club at the edge.
+        self.availability = build_availability(block, self.season)
+
         weeks = self.config.weeks
         self.frame = block[block["week"].isin(weeks)].reset_index(drop=True)
 
@@ -153,6 +167,7 @@ class FantasyLeagueEnv:
         self.schedule = round_robin(
             self.config.teams, len(self.config.weeks), seed=self.seed
         )
+        self.ir = {team: [] for team in range(self.config.teams)}
         drafted = {key for keys in self.rosters.values() for key in keys}
         self.free_agents = [
             key for key in self.players["player_key"] if key not in drafted
@@ -160,6 +175,13 @@ class FantasyLeagueEnv:
         self.week_index = 0
         self.done = False
         self.result = SeasonResult()
+        # One entry per played week: the agent's roster and the scores it set
+        # its card with. Public because grading a claim after the season needs
+        # it -- see :mod:`ffmodel.league.credit` -- and it is a record of weeks
+        # already played, so nothing in it could leak the future.
+        self.ledger: list[dict] = []
+        self._pending_claim: WaiverClaim | None = None
+        self._claims_this_week = 0
         self._records = {
             team: {"wins": 0, "losses": 0, "ties": 0, "points": 0.0}
             for team in range(self.config.teams)
@@ -199,11 +221,18 @@ class FantasyLeagueEnv:
             "season": self.season,
             "week": week,
             "roster": list(roster),
+            "ir": list(self.ir[self.agent_team]),
             "positions": {key: self.positions.get(key) for key in roster},
             "names": {key: self.names.get(key) for key in roster},
             "history": history,
             "board": self.board,
             "free_agents": shortlist,
+            # Known before kickoff, so stating it leaks nothing: a bye is public
+            # in August and a game-status report lands a day early. What it does
+            # not cover is the absence nobody sees coming, which stays the
+            # manager's risk -- see :mod:`ffmodel.league.availability`.
+            "unavailable": self.availability.unavailable(roster, week),
+            "availability": self.availability,
             "opponent_id": opponent_id,
             "opponent_roster": list(self.rosters.get(opponent_id, []))
             if opponent_id is not None
@@ -212,7 +241,13 @@ class FantasyLeagueEnv:
         }
 
     def _waiver_shortlist(self, history: pd.DataFrame) -> list[str]:
-        """Free agents worth showing, best recent scorers first."""
+        """Free agents worth showing, best recent scorers first.
+
+        Ranked on the weeks they were active rather than every week on a roster.
+        A free agent is usually somebody who has missed time, and averaging in
+        the weeks he was hurt is what buries the returning starter who is the
+        single most valuable thing on a waiver wire.
+        """
         if not self.free_agents:
             return []
         if history.empty:
@@ -221,11 +256,13 @@ class FantasyLeagueEnv:
                 .sort_values("adp_rank", na_position="last")
             )
             return ranked["player_key"].head(self.config.waiver_shortlist).tolist()
+        block = history[history["player_key"].isin(self.free_agents)]
+        if "played" in block.columns:
+            active = block[block["played"] == 1]
+            if len(active):
+                block = active
         recent = (
-            history[history["player_key"].isin(self.free_agents)]
-            .groupby("player_key")["points"]
-            .mean()
-            .sort_values(ascending=False)
+            block.groupby("player_key")["points"].mean().sort_values(ascending=False)
         )
         return recent.head(self.config.waiver_shortlist).index.tolist()
 
@@ -251,15 +288,43 @@ class FantasyLeagueEnv:
 
         if claim is not None:
             self._apply_claim(self.agent_team, claim)
+        claim = claim or self._pending_claim
+        # Set either way, so a claim passed straight to `step` is shielded from
+        # the housekeeping exactly like one made through `submit_claim`.
+        self._pending_claim = claim
+
+        # Housekeeping first, for everybody. Activating a returning player and
+        # covering a hole change who is even on the roster, so they have to
+        # happen before the card is set rather than after it.
+        #
+        # In waiver priority, worst record first. The order is not a detail: the
+        # teams share one free-agent pool, so whoever runs first gets the best
+        # replacement, and running them in team order would hand seat 0 -- the
+        # agent's -- the top of the wire every week of every season. That is an
+        # edge worth roughly the thing being measured. Reverse standings is both
+        # the fix and what real leagues do.
+        moves = {
+            team: self._manage(team, history, week)
+            for team in self._waiver_order()
+        }
 
         # Everybody else decides with the same information the agent had.
         lineups: dict[int, Lineup] = {}
         for team in range(self.config.teams):
             roster = self.rosters[team]
             if team == self.agent_team:
-                team_scores = scores
+                team_scores = self._fill_unscored(dict(scores), roster)
             else:
                 team_scores = self.opponent.score(roster, history, week, self.board)
+            # Whoever is known not to be playing goes to the bottom. Stated by
+            # the environment because it is a fact rather than an opinion, and
+            # applied to the scores rather than inside the assignment so a
+            # policy that insists on starting an absent player still can.
+            team_scores = availability_scores(
+                team_scores, roster, self.availability, week
+            )
+            if team == self.agent_team:
+                agent_scores = team_scores
             lineups[team] = optimal_lineup(
                 roster, self.positions, team_scores, self.config.slots
             )
@@ -290,6 +355,16 @@ class FantasyLeagueEnv:
         elif tied:
             reward += self.config.tie_bonus
 
+        self.ledger.append(
+            {
+                "week": week,
+                "roster": list(self.rosters[self.agent_team]),
+                "scores": dict(agent_scores),
+                "lineup": lineups[self.agent_team],
+                "claim": claim,
+            }
+        )
+
         outcome = WeekResult(
             week=week,
             points=agent_points,
@@ -300,9 +375,12 @@ class FantasyLeagueEnv:
             reward=reward,
             lineup=lineups[self.agent_team],
             claim=claim,
+            moves=moves[self.agent_team],
         )
         self.result.weeks.append(outcome)
 
+        self._pending_claim = None
+        self._claims_this_week = 0
         self.week_index += 1
         self.done = self.week_index >= len(self.config.weeks)
         if self.done:
@@ -329,8 +407,125 @@ class FantasyLeagueEnv:
             self._records[home]["ties"] += 1
             self._records[away]["ties"] += 1
 
+    def _fill_unscored(
+        self, scores: dict[str, float], roster: list[str]
+    ) -> dict[str, float]:
+        """Give a value to a rostered player the policy never scored.
+
+        Housekeeping can put somebody on the roster after the policy has spoken.
+        Leaving him unscored means a zero, which benches him -- and if he arrived
+        because a starting slot was empty, benching him leaves it empty, so the
+        move that fetched him accomplished nothing.
+
+        The stand-in is the *median of the scored players at his own position*,
+        not another policy's opinion. That matters: a policy's numbers can be
+        projected points, inverse draft ranks, or a learned value with no units
+        at all, and borrowing a second policy's scale would have silently ranked
+        a thirty-point breakout below a replacement-level back. A within-scale
+        median says "treat him as ordinary for his position", which is the least
+        that can be assumed and is guaranteed to be comparable.
+        """
+        unscored = [key for key in roster if key not in scores]
+        if not unscored:
+            return scores
+        by_position: dict[str, list[float]] = {}
+        for key, value in scores.items():
+            position = self.positions.get(key)
+            if position is not None:
+                by_position.setdefault(position, []).append(float(value))
+        overall = sorted(float(value) for value in scores.values())
+        for key in unscored:
+            pool = sorted(by_position.get(self.positions.get(key), [])) or overall
+            scores[key] = pool[len(pool) // 2] if pool else 0.0
+        return scores
+
+    def submit_claim(self, claim: WaiverClaim) -> dict:
+        """Make a waiver claim, then look at the roster it produced.
+
+        Separate from :meth:`step` on purpose. A claim changes who is on the
+        roster, and a policy has to score the roster it will actually field --
+        so the claim resolves first and the observation that follows already
+        includes the new player. Passing a claim to ``step`` instead still works
+        and is the older path, but there the policy has already spoken and the
+        arrival is valued by :meth:`_fill_unscored` rather than by the policy
+        itself.
+        """
+        self._apply_claim(self.agent_team, claim)
+        self._pending_claim = claim
+        return self.observe()
+
+    def _waiver_order(self) -> list[int]:
+        """Who claims first this week: worst record, then fewest points.
+
+        Ties break on team id, which is stable and therefore reproducible; in
+        week 1 every record is identical and the order is simply team order,
+        which is the one week it cannot matter because nobody has a hole yet.
+        """
+        return sorted(
+            range(self.config.teams),
+            key=lambda team: (
+                self._records[team]["wins"],
+                self._records[team]["points"],
+                team,
+            ),
+        )
+
+    def _manage(self, team: int, history: pd.DataFrame, week: int) -> list:
+        """Run one team's roster housekeeping for the week.
+
+        Every team gets the same mechanic, the agent included. These are rules
+        rather than strategy -- a player who is ruled out cannot be started, and
+        a starting slot with nobody in it scores nothing -- so applying them to
+        eleven teams and not the twelfth would make the comparison dishonest in
+        whichever direction happened to help.
+
+        **The valuation is not the team's lineup policy**, and the reason is
+        specific. The standard opponent ranks by the draft board for the first
+        three weeks, and the board has nothing to say about a player nobody
+        drafted: an undrafted breakout scoring thirty a week ranks below every
+        rostered player, so the housekeeping would cut him to cover a hole the
+        week after he was claimed. It did exactly that before this was fixed.
+        Recent production is the only scale on which a rostered player and a
+        waiver pickup are comparable, so roster decisions use it throughout,
+        while lineup decisions stay the policy's own.
+
+        The agent's explicit claim is protected for the week it is made. It is a
+        deliberate decision, and automatic housekeeping undoing a deliberate
+        decision in the same breath is not a rule, it is a bug.
+        """
+
+        def valuation(keys):
+            keys = list(keys)
+            if not keys:
+                return {}
+            return self.roster_valuation.score(keys, history, week, self.board)
+
+        protected = set()
+        if team == self.agent_team and self._pending_claim is not None:
+            protected.add(self._pending_claim.add_key)
+
+        return manage_roster(
+            roster=self.rosters[team],
+            ir=self.ir[team],
+            free_agents=self.free_agents,
+            positions=self.positions,
+            availability=self.availability,
+            week=week,
+            slots=self.config.slots,
+            valuation=valuation,
+            protected=protected,
+        )
+
     def _apply_claim(self, team: int, claim: WaiverClaim) -> None:
         roster = self.rosters[team]
+        if team == self.agent_team:
+            if self._claims_this_week >= self.config.waiver_adds_per_week:
+                raise ValueError(
+                    f"already made {self._claims_this_week} claim(s) in week "
+                    f"{self.week}; the limit is "
+                    f"{self.config.waiver_adds_per_week}"
+                )
+            self._claims_this_week += 1
         if claim.add_key not in self.free_agents:
             raise ValueError(f"{claim.add_key} is not a free agent")
         if claim.drop_key not in roster:
@@ -382,14 +577,17 @@ def run_episode(
     """Play a whole season with one policy in the agent's seat."""
     observation = env.reset()
     while not env.done:
+        if waiver_policy is not None:
+            claim = waiver_policy(env, observation)
+            if claim is not None:
+                # Resolve the claim before the lineup, so the policy scores the
+                # roster it is actually going to field.
+                observation = env.submit_claim(claim)
         scores = policy.score(
             observation["roster"],
             observation["history"],
             observation["week"],
             observation["board"],
         )
-        claim = None
-        if waiver_policy is not None:
-            claim = waiver_policy(env, observation, scores)
-        observation, _reward, _done, _info = env.step(scores, claim)
+        observation, _reward, _done, _info = env.step(scores)
     return env.result

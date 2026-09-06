@@ -138,6 +138,25 @@ def optimal_lineup(
     return best
 
 
+def lineup_holes(lineup: Lineup, slots: RosterSlots) -> dict[str, int]:
+    """Starting slots the card left empty, by position.
+
+    An empty slot scores zero for the week, so this is the signal that a roster
+    cannot cover an absence out of its own depth -- which is what the IR slot and
+    a waiver claim exist to fix. ``"FLEX"`` counts separately because it can be
+    filled from three positions and so is a different question to answer.
+    """
+    holes: dict[str, int] = {}
+    for position, count in slots.dedicated().items():
+        short = count - len(lineup.starters.get(position, []))
+        if short > 0:
+            holes[position] = short
+    short = slots.flex - len(lineup.starters.get("FLEX", []))
+    if short > 0:
+        holes["FLEX"] = short
+    return holes
+
+
 def score_lineup(lineup: Lineup, actual: dict[str, float]) -> float:
     """What the card really scored, under the points players actually put up."""
     return float(sum(actual.get(key, 0.0) for key in lineup.starting_keys()))

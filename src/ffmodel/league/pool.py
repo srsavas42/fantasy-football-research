@@ -41,6 +41,11 @@ POOL_COLUMNS = (
     "played",
 )
 
+# The game-status report, carried only by the skill panel. Kickers are almost
+# never ruled out and a defense is a club rather than a person, so their zeros
+# are honest rather than missing -- see :mod:`ffmodel.league.availability`.
+OUT_COLUMN = "inj_out"
+
 
 def read_adp_all_positions(path: Path) -> pd.DataFrame:
     """One season's board, keeping kickers and defenses.
@@ -205,10 +210,21 @@ def build_player_pool(
         missing = [c for c in POOL_COLUMNS if c not in block.columns]
         if missing:
             raise ValueError(f"{label} panel is missing {missing}")
-        frames.append(block[list(POOL_COLUMNS)].copy())
+        kept = block[list(POOL_COLUMNS)].copy()
+        # Absent for kickers and defenses by construction, so a zero here says
+        # "the report never ruled him out", which for those two is always true.
+        kept["is_out"] = (
+            pd.to_numeric(block[OUT_COLUMN], errors="coerce").fillna(0.0)
+            if OUT_COLUMN in block.columns
+            else 0.0
+        )
+        frames.append(kept)
 
     pool = pd.concat(frames, ignore_index=True)
     pool["points"] = pd.to_numeric(pool["points"], errors="coerce").fillna(0.0)
+    pool["is_out"] = (
+        pd.to_numeric(pool["is_out"], errors="coerce").fillna(0.0).astype(int)
+    )
     pool["played"] = pd.to_numeric(pool["played"], errors="coerce").fillna(0).astype(int)
     pool = pool[pool["position"].isin(POSITIONS)]
     # A defense's name is its club; a skill player missing one cannot be drafted

@@ -36,6 +36,12 @@ class RosterSlots:
     k: int = 1
     dst: int = 1
     bench: int = 6
+    # Injured reserve. Holds only players the game-status report has ruled out,
+    # does not count against the active roster, and cannot be started. It exists
+    # so a manager whose starter is ruled out can cover the hole without cutting
+    # him -- which is the whole reason real leagues have one, and without it a
+    # long injury quietly costs a roster spot for the rest of the season.
+    ir: int = 1
 
     @property
     def starters(self) -> int:
@@ -43,7 +49,12 @@ class RosterSlots:
 
     @property
     def size(self) -> int:
-        """Total roster spots, starters plus bench."""
+        """Active roster spots: starters plus bench, excluding IR.
+
+        IR is deliberately outside this. It is the count the draft fills and the
+        count a waiver add has to make room in, and a player parked on IR is by
+        definition not available for either.
+        """
         return self.starters + self.bench
 
     def dedicated(self) -> dict[str, int]:
@@ -89,6 +100,11 @@ class LeagueConfig:
 
     # Waivers. A cap rather than a bidding market: FAAB is a second learning
     # problem stacked on the first, and the point here is start/sit and add/drop.
+    #
+    # This bounds the *agent's own* claims. It deliberately does not bound the
+    # forced replacements in `ffmodel.league.roster`: those happen because a
+    # starting slot would otherwise be empty, and capping them would leave a team
+    # fielding ten players to satisfy a transaction limit, which no league does.
     waiver_adds_per_week: int = 1
     # How many free agents a policy is shown. The pool is hundreds of players
     # deep and almost all of it is noise; a policy that must rank every one is

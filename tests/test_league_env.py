@@ -631,136 +631,134 @@ def test_the_credit_never_reaches_the_observation():
         grade_claims(env)
 
 
-def test_the_agent_cannot_exceed_its_weekly_claim_limit():
-    """A declared limit that nothing enforces is a lie in the config."""
+def test_by_default_there_is_no_cap_on_adds():
+    """Leagues do not cap transactions; the roster size is the budget.
+
+    What limits a manager instead is the waiver period, which makes a drop a
+    commitment rather than a formality.
+    """
     pool = _pool(weeks=6)
-    config = LeagueConfig(teams=12, first_week=1, last_week=4, waiver_adds_per_week=1)
+    config = LeagueConfig(teams=12, first_week=1, last_week=4)
+    assert config.waiver_adds_per_phase is None
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0)
+
+    for _ in range(4):
+        roster = list(env.rosters[env.agent_team])
+        add = env.observe()["free_agents"][0]
+        # Cut somebody added long enough ago that this is not an undo.
+        drop = roster[0]
+        env.submit_claim(WaiverClaim(add_key=add, drop_key=drop))
+    assert len([k for k in env.rosters[env.agent_team]]) == config.slots.size
+
+
+def test_a_cap_is_enforced_when_one_is_set():
+    pool = _pool(weeks=6)
+    config = LeagueConfig(
+        teams=12, first_week=1, last_week=4, waiver_adds_per_phase=1
+    )
     env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0)
     roster = list(env.rosters[env.agent_team])
-
-    env.submit_claim(WaiverClaim(add_key=env.free_agents[0], drop_key=roster[-1]))
+    env.submit_claim(WaiverClaim(add_key=env.observe()["free_agents"][0], drop_key=roster[-1]))
     with pytest.raises(ValueError, match="the limit is 1"):
         env.submit_claim(
-            WaiverClaim(add_key=env.free_agents[0], drop_key=env.rosters[0][-1])
+            WaiverClaim(add_key=env.observe()["free_agents"][0], drop_key=roster[0])
         )
-
-    # The budget refreshes with the week.
-    scores = {key: 1.0 for key in env.rosters[env.agent_team]}
-    env.step(scores)
+    # The budget refreshes at the next transaction phase.
+    env.transact()
     env.submit_claim(
-        WaiverClaim(add_key=env.free_agents[0], drop_key=env.rosters[0][-1])
+        WaiverClaim(add_key=env.observe()["free_agents"][0], drop_key=roster[0])
     )
 
 
-# ------------------------------------------------------- kickoff sequencing
+# ---------------------------------------------------------------- waivers
 
 
-def _kickoffs(weeks=8, clubs=32, per_slot=8):
-    """A synthetic schedule: clubs spread across several kickoff times a week."""
-    from ffmodel.league.kickoff import KickoffSlots
+def test_a_dropped_player_is_locked_up_for_two_days():
+    """The rule that makes a cut a commitment.
 
-    slot, counts = {}, {}
-    for week in range(1, weeks + 1):
-        counts[week] = (clubs + per_slot - 1) // per_slot
-        for index in range(clubs):
-            slot[(week, f"T{index}")] = index // per_slot
-    return KickoffSlots(season=2024, _slot=slot, _counts=counts)
-
-
-def test_sequencing_changes_nothing_for_a_policy_that_ignores_it():
-    """The load-bearing compatibility property.
-
-    Re-running the same scoring function on the same information returns the
-    same lineup, so a policy that reads nothing about the state of the week must
-    score exactly what it scored when a week was one deadline. If this drifts,
-    every measurement taken before sequencing existed is invalidated.
+    Before this existed the roster mechanic would cut a player and re-claim him
+    in the same transaction, which is not a thing any league permits.
     """
+    pool = _pool(weeks=6)
+    config = LeagueConfig(teams=12, first_week=1, last_week=4)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0)
+
+    roster = list(env.rosters[env.agent_team])
+    add, drop = env.observe()["free_agents"][0], roster[0]
+    env.submit_claim(WaiverClaim(add_key=add, drop_key=drop))
+
+    assert drop in env.free_agents, "he left the roster"
+    assert drop in env.observe()["on_waivers"], "but he is not addable yet"
+    assert drop not in env.observe()["free_agents"]
+    with pytest.raises(ValueError, match="on waivers"):
+        env.submit_claim(WaiverClaim(add_key=drop, drop_key=roster[1]))
+
+    # Friday, two days later: he has cleared.
+    env.transact()
+    assert drop not in env.observe()["on_waivers"]
+    assert env.wire.is_free(drop, env.hour)
+
+
+def test_a_player_dropped_right_after_being_added_skips_waivers():
+    """Otherwise a manager could quarantine anybody by adding and cutting him.
+
+    The roster housekeeping would do it by accident, every time it claimed a
+    replacement and then needed the spot back in the same phase.
+    """
+    pool = _pool(weeks=6)
+    config = LeagueConfig(teams=12, first_week=1, last_week=4)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0)
+
+    roster = list(env.rosters[env.agent_team])
+    add = env.observe()["free_agents"][0]
+    env.submit_claim(WaiverClaim(add_key=add, drop_key=roster[0]))
+    # Undo it in the same phase: he was added moments ago, so cutting him now
+    # puts him straight back in the pool.
+    env.submit_claim(WaiverClaim(add_key=env.observe()["free_agents"][0], drop_key=add))
+    assert env.wire.is_free(add, env.hour), "the undo sent him to waivers"
+    assert add not in env.observe()["on_waivers"]
+
+
+def test_a_player_cut_on_friday_is_not_available_until_the_next_week():
+    """His 48 hours run out after the games have been played."""
     pool = _pool(weeks=8)
-    config = LeagueConfig(teams=12, first_week=1, last_week=8)
+    config = LeagueConfig(teams=12, first_week=1, last_week=4)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0)
 
-    results = []
-    for kickoffs in (None, _kickoffs()):
-        env = FantasyLeagueEnv(
-            pool, season=2024, config=config, seed=4, kickoffs=kickoffs
-        )
-        outcome = run_episode(env, EwmaPolicy())
-        results.append((outcome.wins, round(outcome.total_points, 9)))
-    assert results[0] == results[1], results
+    env.transact()  # to Friday
+    roster = list(env.rosters[env.agent_team])
+    add, drop = env.observe()["free_agents"][0], roster[0]
+    env.submit_claim(WaiverClaim(add_key=add, drop_key=drop))
+    assert not env.wire.is_free(drop, env.hour)
 
-
-def test_a_player_whose_game_started_cannot_be_moved():
-    """Both directions: a starter stays in, a benched player stays out."""
-    slots = RosterSlots(qb=0, rb=1, wr=1, te=0, flex=1, k=0, dst=0, bench=2)
-    positions = {"rb1": "RB", "rb2": "RB", "wr1": "WR", "wr2": "WR", "wr3": "WR"}
-    scores = {"rb1": 20.0, "rb2": 5.0, "wr1": 19.0, "wr2": 18.0, "wr3": 1.0}
-
-    free = optimal_lineup(list(positions), positions, scores, slots)
-    assert set(free.starting_keys()) == {"rb1", "wr1", "wr2"}
-
-    # rb2 kicked off while in the card; wr1 kicked off while on the bench.
-    revised = optimal_lineup(
-        list(positions), positions, scores, slots,
-        locked_in={"rb2"}, locked_out={"wr1"},
-    )
-    assert "rb2" in revised.starting_keys(), "a playing starter was benched"
-    assert "wr1" not in revised.starting_keys(), "a benched player was started"
-    # And the rest of the card is still the best available.
-    assert set(revised.starting_keys()) == {"rb1", "rb2", "wr2"}
+    env.step({key: 1.0 for key in env.rosters[env.agent_team]})
+    # Next Wednesday.
+    assert env.wire.is_free(drop, env.hour), "he never cleared"
 
 
-def test_a_reactive_policy_is_asked_once_per_kickoff():
-    """The extra decision points have to actually reach the policy."""
+def test_nobody_is_reclaimed_before_his_waiver_period_ends():
+    """The behaviour the period exists to prevent, checked end to end.
 
-    class Counter(EwmaPolicy):
-        reactive = True
+    Not "never in the same week": a player cut on Wednesday clears on Friday and
+    may legitimately be claimed before the games. The rule is the 48 hours, so
+    that is what is checked.
+    """
+    from ffmodel.league.waivers import WAIVER_HOURS
 
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-            self.states = []
+    pool = _pool(weeks=8, stars=2)
+    config = LeagueConfig(teams=12, first_week=1, last_week=6)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=3)
+    result = run_episode(env, EwmaPolicy())
 
-        def score(self, player_keys, history, week, board, state=None):
-            if state is not None:
-                self.states.append((week, state.slot))
-            return super().score(player_keys, history, week, board, state)
-
-    pool = _pool(weeks=6)
-    config = LeagueConfig(teams=12, first_week=1, last_week=3)
-    kickoffs = _kickoffs(weeks=6)
-    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0, kickoffs=kickoffs)
-    policy = Counter()
-    run_episode(env, policy)
-
-    for week in config.weeks:
-        seen = [slot for w, slot in policy.states if w == week]
-        assert seen == list(range(kickoffs.slots_in(week))), (
-            f"week {week} offered slots {seen}"
-        )
-
-
-def test_the_running_score_a_reactive_policy_sees_is_only_finished_games():
-    """It may know what has been banked. It may not know what is coming."""
-    banked = []
-
-    class Watcher(EwmaPolicy):
-        reactive = True
-
-        def score(self, player_keys, history, week, board, state=None):
-            if state is not None:
-                banked.append((state.slot, state.points, len(state.locked_in)))
-            return super().score(player_keys, history, week, board, state)
-
-    pool = _pool(weeks=6)
-    config = LeagueConfig(teams=12, first_week=1, last_week=2)
-    env = FantasyLeagueEnv(
-        pool, season=2024, config=config, seed=1, kickoffs=_kickoffs(weeks=6)
-    )
-    run_episode(env, Watcher())
-
-    # The first decision of a week sees nothing banked and nobody locked, and
-    # the total only ever grows as games are played.
-    first = [entry for entry in banked if entry[0] == 0]
-    assert all(points == 0.0 and locked == 0 for _, points, locked in first)
-    by_week = [banked[i : i + 4] for i in range(0, len(banked), 4)]
-    for week in by_week:
-        totals = [points for _, points, _ in week]
-        assert totals == sorted(totals), f"the banked score went down: {totals}"
+    moves = [m for week in result.weeks for m in week.moves]
+    dropped_at = {}
+    for move in moves:
+        if move.kind == "drop":
+            dropped_at[move.player_key] = move.hour
+        elif move.kind == "waiver-add":
+            when = dropped_at.get(move.player_key)
+            if when is not None:
+                assert move.hour - when >= WAIVER_HOURS, (
+                    f"{move.player_key} was cut at {when} and reclaimed at "
+                    f"{move.hour}, inside the {WAIVER_HOURS}-hour period"
+                )

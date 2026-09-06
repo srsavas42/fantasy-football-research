@@ -98,14 +98,18 @@ class LeagueConfig:
     win_bonus: float = 50.0
     tie_bonus: float = 25.0
 
-    # Waivers. A cap rather than a bidding market: FAAB is a second learning
-    # problem stacked on the first, and the point here is start/sit and add/drop.
+    # Waivers. `None` means what leagues actually do: no cap. A manager may
+    # churn the back of a roster as often as he is willing to cut somebody, and
+    # the roster size is the only budget. What limits him instead is the waiver
+    # period -- a dropped player is locked up for 48 hours -- which
+    # `ffmodel.league.waivers` models and which is a far more interesting
+    # constraint than a counter, because it makes a drop a commitment.
     #
-    # This bounds the *agent's own* claims. It deliberately does not bound the
-    # forced replacements in `ffmodel.league.roster`: those happen because a
-    # starting slot would otherwise be empty, and capping them would leave a team
-    # fielding ten players to satisfy a transaction limit, which no league does.
-    waiver_adds_per_week: int = 1
+    # A number here bounds the agent's own claims per transaction phase. It has
+    # never bounded the forced replacements in `ffmodel.league.roster`: those
+    # happen because a starting slot would otherwise be empty, and capping them
+    # would leave a team fielding ten players to satisfy a transaction limit.
+    waiver_adds_per_phase: int | None = None
     # How many free agents a policy is shown. The pool is hundreds of players
     # deep and almost all of it is noise; a policy that must rank every one is
     # solving a harder problem than a manager does with a sorted waiver page.

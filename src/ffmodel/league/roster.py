@@ -59,10 +59,14 @@ class Transaction:
     kind: str  # bench-out | ir-place | ir-activate | waiver-add | drop
     player_key: str
     counterpart: str | None = None
+    # Hours from the season's start. A week has two transaction phases and the
+    # waiver period is measured against this, so "which week" is not enough to
+    # say whether a move was legal.
+    hour: int = 0
 
     def __str__(self) -> str:
         tail = f" <- {self.counterpart}" if self.counterpart else ""
-        return f"w{self.week} {self.kind} {self.player_key}{tail}"
+        return f"w{self.week}h{self.hour} {self.kind} {self.player_key}{tail}"
 
 
 def availability_scores(
@@ -129,6 +133,8 @@ def manage_roster(
     valuation: Valuation,
     allow_waivers: bool = True,
     protected: set[str] | None = None,
+    wire=None,
+    hour: int = 0,
 ) -> list[Transaction]:
     """Run the cycle for one team in one week. Mutates the lists it is given.
 
@@ -154,11 +160,13 @@ def manage_roster(
             cut = bench[0]
             roster.remove(cut)
             free_agents.append(cut)
-            moves.append(Transaction(week, "drop", cut, counterpart=key))
+            if wire is not None:
+                wire.dropped(cut, hour)
+            moves.append(Transaction(week, "drop", cut, counterpart=key, hour=hour))
         ir.remove(key)
         roster.append(key)
         protected.add(key)
-        moves.append(Transaction(week, "ir-activate", key))
+        moves.append(Transaction(week, "ir-activate", key, hour=hour))
 
     # 2. What the card looks like once the absent are benched.
     #
@@ -180,7 +188,8 @@ def manage_roster(
         eligible = _fill_positions(hole)
         for _ in range(count):
             candidate = _best_free_agent(
-                free_agents, positions, availability, week, eligible, valuation
+                free_agents, positions, availability, week, eligible, valuation,
+                wire, hour,
             )
             if candidate is None:
                 break
@@ -195,15 +204,19 @@ def manage_roster(
                 values=values,
                 moves=moves,
                 protected=protected,
+                wire=wire,
+                hour=hour,
             ):
                 break
             roster.append(candidate)
             free_agents.remove(candidate)
+            if wire is not None:
+                wire.added(candidate, hour)
             protected.add(candidate)
             # A new arrival with no entry here reads as worthless and would be
             # the first player cut to cover the next hole.
             values.update(valuation([candidate]))
-            moves.append(Transaction(week, "waiver-add", candidate, counterpart=hole))
+            moves.append(Transaction(week, "waiver-add", candidate, counterpart=hole, hour=hour))
     return moves
 
 
@@ -219,6 +232,8 @@ def _make_room(
     values: dict[str, float],
     moves: list[Transaction],
     protected: set[str] | None = None,
+    wire=None,
+    hour: int = 0,
 ) -> bool:
     """Free one active roster spot. IR first, a cut second.
 
@@ -237,7 +252,7 @@ def _make_room(
         key = max(parkable, key=lambda k: (values.get(k, 0.0), k))
         roster.remove(key)
         ir.append(key)
-        moves.append(Transaction(week, "ir-place", key))
+        moves.append(Transaction(week, "ir-place", key, hour=hour))
         return True
 
     bench = _bench_order(roster, positions, values, slots, protected)
@@ -246,7 +261,9 @@ def _make_room(
     cut = bench[0]
     roster.remove(cut)
     free_agents.append(cut)
-    moves.append(Transaction(week, "drop", cut))
+    if wire is not None:
+        wire.dropped(cut, hour)
+    moves.append(Transaction(week, "drop", cut, hour=hour))
     return True
 
 
@@ -257,16 +274,22 @@ def _best_free_agent(
     week: int,
     eligible: tuple[str, ...],
     valuation: Valuation,
+    wire=None,
+    hour: int = 0,
 ) -> str | None:
-    """The most valuable free agent who can fill the slot *this* week.
+    """The most valuable *addable* free agent who can fill the slot this week.
 
-    Filtered on availability, because a replacement who is himself on bye leaves
-    the slot exactly as empty as it was.
+    Filtered on two things. Availability, because a replacement who is himself
+    on bye leaves the slot exactly as empty as it was. And the waiver wire,
+    because a player cut an hour ago is not available to anybody yet -- which is
+    what stops a team cutting a player and re-claiming him in the same breath.
     """
     candidates = [
         key
         for key in free_agents
-        if positions.get(key) in eligible and availability.is_available(key, week)
+        if positions.get(key) in eligible
+        and availability.is_available(key, week)
+        and (wire is None or wire.is_free(key, hour))
     ]
     if not candidates:
         return None

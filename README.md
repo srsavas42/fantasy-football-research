@@ -322,13 +322,13 @@ for how large a gap justifies a waiver claim -- fitted by cross-entropy search o
 
 | paired comparison | wins | t |
 |---|---|---|
-| learned - field | **+1.178** | +6.96 |
-| learned - ewma2 (same machinery, one weight) | +1.200 | +7.78 |
-| ewma2 - field | -0.022 | -0.13 |
-| oracle - field | +2.289 | +15.16 |
+| learned - field | **+1.078** | +6.65 |
+| learned - ewma2 (same machinery, one weight) | +1.378 | +9.16 |
+| ewma2 - field | -0.300 | -1.90 |
+| oracle - field | +2.278 | +15.45 |
 
-**+1.18 wins a season on seasons it never saw**, half the band a perfect
-start/sit would take, and a title rate of 21% against the field's 12%. The
+**+1.08 wins a season on seasons it never saw**, 47% of the band a perfect
+start/sit would take, and a title rate of 20% against the field's 12%. The
 control row is the load-bearing one: the same parameterisation with a single
 weight on a two-game average lands exactly on the field, so the feature set and
 add/drop plumbing are worth nothing by themselves and the whole gain is the
@@ -344,6 +344,13 @@ feature alone: **+0.60 wins without, +1.13 with**, a paired gain of +0.53 (t =
 collapses from +0.40 to +0.11 at the same time, which is the right thing to
 happen -- the board's information is already inside the projection, so the agent
 stops reading it twice.
+
+The waiver wire has a rolling priority queue -- inverse draft order to start,
+and any team that adds a player goes to the back -- so priority is a resource
+rather than a weekly reset. Building it caught the agent applying its own claims
+before anybody else transacted, which had handed it first pick of the wire every
+phase of every season; claims now resolve at the agent's turn and can fail. That
+is most of why the headline fell from +1.18: the edge was not real.
 
 A week is also no longer a single deadline. Every player locks when **his own
 game** kicks off, so a lineup stays revisable around whoever has not started --
@@ -429,7 +436,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)). An 18-parameter agent trained by cross-entropy search on 2018-2022 takes **+1.18 wins** on the 2023-2025 holdout, half the available band; the weekly and rest-of-season projections are what doubled it ([trained agent](docs/league-agent-2026-09.md)) |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)). An 18-parameter agent trained by cross-entropy search on 2018-2022 takes **+1.08 wins** on the 2023-2025 holdout, 47% of the available band; the weekly and rest-of-season projections are what doubled it ([trained agent](docs/league-agent-2026-09.md)) |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 

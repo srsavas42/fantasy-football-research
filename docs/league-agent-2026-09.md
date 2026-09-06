@@ -342,3 +342,106 @@ waiver decision that used information the lineup has no use for -- roster
 construction, positional scarcity, what the other eleven teams are short of --
 would be a different model rather than a different weighting of the same
 features, and this experiment says nothing about that.
+
+---
+
+# The rest-of-season blend, and a rolling waiver queue (2026-09)
+
+## The blend, and the bug in applying it everywhere
+
+The shipped rest-of-season model is the direct total blended with the draft-board
+rank curve at a variance-optimal weight, estimated per horizon by holding out the
+most recent training season. Measured here: **0.32 early, 0.72 mid, 0.73 late** --
+the board earning its keep in September and giving it back as the season supplies
+usage it never saw.
+
+Applying it to every player was wrong, and expensively so. The curve is a
+statement about a draft board and its weight is fitted on drafted players; an
+unranked player is placed at *the deepest rank the curve ever saw*, which is a
+fallback rather than a forecast. Blending that in at the early-season weight
+replaces two thirds of an undrafted player's projection with a replacement-level
+constant.
+
+| population | MAE vs. unblended | RMSE |
+|---|---|---|
+| all skill rows | **+12.9%** | +5.0% |
+| drafted (the fitted population) | −1.9% | −2.9% |
+| early weeks | **+24.4%** | +8.0% |
+
+And undrafted players are precisely the waiver wire, which is the decision the
+rest-of-season projection exists to serve. Restricted to drafted players it does
+what it should:
+
+| population | MAE | RMSE |
+|---|---|---|
+| all skill rows | **−1.13%** | **−2.05%** |
+| drafted | −1.90% | −2.85% |
+| undrafted | 0.00% | 0.00% |
+| drafted, early | **−4.78%** | −4.97% |
+
+Rank correlation with the actual remaining total rises 0.766 → 0.768, and the
+gain sits where the theory puts it: early, when the model has no in-season data
+and the board is all there is.
+
+**What it is worth to the agent is not measurable.** Holding the trained weights
+fixed and swapping only the projection cache, 75 seats: **+0.15 wins (t = 1.17)
+and −21 points (t = −3.05)**. The projection is better and the agent is not
+detectably better for it. That comparison is if anything tilted *toward* the
+blend, since the weights were fitted on it. A 2% improvement in a feature the
+agent reads at weight 0.44 is simply below what ±3 wins a season can resolve.
+
+Worth keeping anyway -- it is the better projection, it costs nothing at
+inference, and the ROS weight rose from +0.38 to +0.44 when the agent was
+retrained on it -- but not worth claiming as a win.
+
+## Waiver priority is now a rolling queue
+
+It starts as the **inverse of the draft order** -- the team that picked last off
+the board picks first off the wire -- and any team that adds a player moves to the
+back, relative order preserved among those who moved and those who did not.
+
+The point is that priority becomes a *resource*. Reverse standings recomputed
+every week let a bad team hold first pick indefinitely and never pay for using
+it; a rolling queue means spending priority on a marginal pickup sends the next
+player worth having to somebody else.
+
+### The agent was jumping its own queue
+
+Its claims were applied on submission, before any other team transacted. That
+handed it first pick of the wire every phase of every season -- the same
+systematic edge the housekeeping order had, reintroduced through a different
+door. Claims are now queued and resolve at the agent's turn, **where they can
+fail** because a higher-priority team took the player first. A failed claim is no
+longer recorded as having happened, so the waiver credit stops grading swaps the
+agent never made.
+
+Queued claims are validated against the roster the queue *will* produce rather
+than the one standing now, since with no cap a policy can make several claims in
+a phase and the second is naturally about what the first leaves behind.
+
+## Where the agent stands now
+
+90 seats, current environment, paired on seed:
+
+| policy | wins | points | rank | title rate |
+|---|---|---|---|---|
+| oracle | 9.38 | 1702 | 2.57 | 56.7% |
+| **learned** | **8.18** | **1547** | **4.31** | **20.0%** |
+| field | 7.10 | 1484 | 6.12 | 12.2% |
+| ewma2 (control) | 6.80 | 1467 | 6.76 | 4.4% |
+
+| paired comparison | wins | SE | t |
+|---|---|---|---|
+| learned − field | **+1.078** | 0.162 | +6.65 |
+| learned − ewma2 | +1.378 | 0.150 | +9.16 |
+| ewma2 − field | −0.300 | 0.158 | −1.90 |
+| oracle − field | +2.278 | 0.147 | +15.45 |
+
+**+1.08 wins, 47% of the band**, down from +1.18 in the environment where the
+agent jumped the waiver queue. That drop is the unfair edge being removed, and
+the new number is the honest one.
+
+The control moved too, and interestingly: `ewma2` now finishes *below* the field
+(−0.30, t = −1.90) where before it sat exactly on it. Claiming naively is mildly
+harmful once priority is a resource you can waste -- which is the mechanic doing
+its job.

@@ -29,8 +29,31 @@ from ffmodel.league.availability import Availability, build_availability
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.draft import run_draft
 from ffmodel.league.lineup import Lineup, optimal_lineup, round_robin, score_lineup
-from ffmodel.league.policies import EwmaPolicy, Policy, SeasonPolicy
+from ffmodel.league.kickoff import KickoffSlots, build_kickoff_slots
+from ffmodel.league.policies import EwmaPolicy, Policy, SeasonPolicy, WeekState
 from ffmodel.league.roster import Transaction, availability_scores, manage_roster
+
+
+class _FixedScores(Policy):
+    """The agent's submitted scores, wrapped so every team looks like a policy.
+
+    ``step`` receives numbers rather than a policy, so when nobody has handed
+    the environment a reactive agent this stands in: it repeats what was
+    submitted, which is what a single-deadline lineup means. Setting
+    :attr:`FantasyLeagueEnv.agent_policy` replaces it.
+    """
+
+    name = "submitted"
+    reactive = False
+
+    def __init__(self) -> None:
+        self._scores: dict[str, float] = {}
+
+    def remember(self, scores: dict[str, float]) -> None:
+        self._scores = dict(scores)
+
+    def score(self, player_keys, history, week, board, state=None):
+        return {key: self._scores.get(key, 0.0) for key in player_keys}
 
 
 @dataclass
@@ -117,6 +140,7 @@ class FantasyLeagueEnv:
         *,
         opponent: Policy | None = None,
         roster_valuation: Policy | None = None,
+        kickoffs: KickoffSlots | None = None,
         agent_team: int = 0,
         seed: int = 0,
     ) -> None:
@@ -155,6 +179,23 @@ class FantasyLeagueEnv:
 
         # points[(player_key, week)] -> what he actually scored.
         self._points = self.frame.set_index(["player_key", "week"])["points"]
+
+        # When each player's game kicks off, which is what makes a week a
+        # sequence of decisions rather than one. Omitted, the week collapses to
+        # a single deadline before any game -- the old behaviour, and still what
+        # every non-reactive policy experiences.
+        self.kickoffs = kickoffs
+        self._club = dict(
+            zip(
+                zip(self.frame["player_key"], self.frame["week"].astype(int)),
+                self.frame["team"].astype(str),
+            )
+        )
+        # The scores `step` was handed, wrapped so the resolver can treat every
+        # team as a policy. `agent_policy` is consulted instead only when it is
+        # reactive, so a normal agent is asked once a week exactly as before.
+        self._submitted = _FixedScores()
+        self._agent_policy: Policy | None = None
 
         self.reset()
 
@@ -325,14 +366,13 @@ class FantasyLeagueEnv:
             )
             if team == self.agent_team:
                 agent_scores = team_scores
+                self._submitted.remember(team_scores)
             lineups[team] = optimal_lineup(
                 roster, self.positions, team_scores, self.config.slots
             )
 
         actual = self._actual_points(week)
-        totals = {
-            team: score_lineup(lineup, actual) for team, lineup in lineups.items()
-        }
+        totals = self._resolve_week(week, lineups, history, actual)
 
         for team, points in totals.items():
             self._records[team]["points"] += points
@@ -395,6 +435,146 @@ class FantasyLeagueEnv:
             "lineup": lineups[self.agent_team],
         }
         return (self.observe(), reward, self.done, info)
+
+    def _slot_of(self, key: str, week: int) -> int | None:
+        """Which decision point commits this player, or ``None`` if he is idle."""
+        club = self._club.get((key, int(week)))
+        if club is None:
+            return None
+        if self.kickoffs is None:
+            return 0
+        return self.kickoffs.slot_of_club(club, week)
+
+    def _resolve_week(
+        self,
+        week: int,
+        lineups: dict[int, Lineup],
+        history: pd.DataFrame,
+        actual: dict[str, float],
+    ) -> dict[int, float]:
+        """Play the week one kickoff at a time, revising what is still movable.
+
+        Each pass is a decision point: a reactive policy re-scores the players
+        whose games have not started, the card is re-optimised around the ones
+        that have, and then that slot's games are played. A policy that is not
+        reactive is asked once, at the top, because re-running the same scoring
+        function on the same information cannot change its mind -- so the common
+        case costs exactly what it did when a week was a single decision.
+        """
+        totals = {team: 0.0 for team in lineups}
+        locked_in = {team: set() for team in lineups}
+        locked_out = {team: set() for team in lineups}
+        reactive = [
+            team
+            for team in lineups
+            if self._policy_for(team).reactive and self._slots_in(week) > 1
+        ]
+
+        for slot in range(self._slots_in(week)):
+            for team in reactive:
+                lineups[team] = self._revise(
+                    team, week, slot, lineups[team], locked_in, locked_out,
+                    totals, history, lineups_now=lineups,
+                )
+            # The slot's games are played. Everyone in them is now committed,
+            # whichever side of the card they were on.
+            for team, lineup in lineups.items():
+                starting = set(lineup.starting_keys())
+                for key in self.rosters[team]:
+                    if self._slot_of(key, week) != slot:
+                        continue
+                    if key in starting:
+                        locked_in[team].add(key)
+                        totals[team] += float(actual.get(key, 0.0))
+                    else:
+                        locked_out[team].add(key)
+
+        # Anyone whose club never took the field -- a bye, or a game that was
+        # not played -- scores nothing and has already been benched, so the
+        # totals above are complete. Starters with no slot at all are the one
+        # exception: a roster too thin to cover a bye can still seat one, and he
+        # is worth exactly the zero he scored.
+        return totals
+
+    def _slots_in(self, week: int) -> int:
+        return self.kickoffs.slots_in(week) if self.kickoffs is not None else 1
+
+    @property
+    def agent_policy(self) -> Policy | None:
+        return self._agent_policy
+
+    @agent_policy.setter
+    def agent_policy(self, policy: Policy | None) -> None:
+        """Hand the environment the agent's policy so it can be re-asked.
+
+        Only reactive policies need this. ``step`` takes scores rather than a
+        policy, which is the right interface for a single decision and not
+        enough for several -- a later decision point has to be able to ask
+        again, with the state of the week in hand.
+        """
+        self._agent_policy = policy
+
+    def _policy_for(self, team: int) -> Policy:
+        if team != self.agent_team:
+            return self.opponent
+        policy = self._agent_policy
+        # A non-reactive policy would return the same numbers it already gave,
+        # so replaying the submitted card is both equivalent and cheaper.
+        if policy is None or not getattr(policy, "reactive", False):
+            return self._submitted
+        return policy
+
+    def _yet_to_play(self, team, week, lineup, locked_in, locked_out) -> int:
+        """Starters on ``team``'s card whose game has not kicked off."""
+        if lineup is None:
+            return 0
+        return sum(
+            1
+            for key in lineup.starting_keys()
+            if key not in locked_in[team]
+            and key not in locked_out[team]
+            and self._slot_of(key, week) is not None
+        )
+
+    def _revise(
+        self, team, week, slot, lineup, locked_in, locked_out, totals, history,
+        lineups_now=None,
+    ) -> Lineup:
+        lineups_now = lineups_now or {}
+        roster = self.rosters[team]
+        opponent_id = self._opponent_for(week, team)
+        playable = frozenset(
+            key
+            for key in roster
+            if key not in locked_in[team] and key not in locked_out[team]
+        )
+        state = WeekState(
+            slot=slot,
+            slots=self._slots_in(week),
+            points=totals[team],
+            opponent_points=totals.get(opponent_id, 0.0) if opponent_id is not None else 0.0,
+            locked_in=frozenset(locked_in[team]),
+            locked_out=frozenset(locked_out[team]),
+            playable=playable,
+            remaining=self._yet_to_play(team, week, lineup, locked_in, locked_out),
+            opponent_remaining=(
+                self._yet_to_play(
+                    opponent_id, week, lineups_now.get(opponent_id), locked_in, locked_out
+                )
+                if opponent_id is not None
+                else 0
+            ),
+        )
+        scores = self._policy_for(team).score(roster, history, week, self.board, state)
+        scores = availability_scores(scores, roster, self.availability, week)
+        return optimal_lineup(
+            roster,
+            self.positions,
+            scores,
+            self.config.slots,
+            locked_in=locked_in[team],
+            locked_out=locked_out[team],
+        )
 
     def _settle(self, home: int, away: int, home_points: float, away_points: float):
         if home_points > away_points:
@@ -576,6 +756,7 @@ def run_episode(
 ) -> SeasonResult:
     """Play a whole season with one policy in the agent's seat."""
     observation = env.reset()
+    env.agent_policy = policy
     while not env.done:
         if waiver_policy is not None:
             claim = waiver_policy(env, observation)

@@ -17,7 +17,7 @@ from ffmodel.league.availability import ACTIVE, BYE, build_availability
 from ffmodel.league.config import FLEX_POSITIONS, LeagueConfig, RosterSlots
 from ffmodel.league.draft import run_draft
 from ffmodel.league.credit import grade_claims
-from ffmodel.league.env import FantasyLeagueEnv, WaiverClaim
+from ffmodel.league.env import FantasyLeagueEnv, WaiverClaim, run_episode
 from ffmodel.league.lineup import optimal_lineup, round_robin
 from ffmodel.league.policies import EwmaPolicy
 from ffmodel.league.roster import manage_roster
@@ -650,3 +650,117 @@ def test_the_agent_cannot_exceed_its_weekly_claim_limit():
     env.submit_claim(
         WaiverClaim(add_key=env.free_agents[0], drop_key=env.rosters[0][-1])
     )
+
+
+# ------------------------------------------------------- kickoff sequencing
+
+
+def _kickoffs(weeks=8, clubs=32, per_slot=8):
+    """A synthetic schedule: clubs spread across several kickoff times a week."""
+    from ffmodel.league.kickoff import KickoffSlots
+
+    slot, counts = {}, {}
+    for week in range(1, weeks + 1):
+        counts[week] = (clubs + per_slot - 1) // per_slot
+        for index in range(clubs):
+            slot[(week, f"T{index}")] = index // per_slot
+    return KickoffSlots(season=2024, _slot=slot, _counts=counts)
+
+
+def test_sequencing_changes_nothing_for_a_policy_that_ignores_it():
+    """The load-bearing compatibility property.
+
+    Re-running the same scoring function on the same information returns the
+    same lineup, so a policy that reads nothing about the state of the week must
+    score exactly what it scored when a week was one deadline. If this drifts,
+    every measurement taken before sequencing existed is invalidated.
+    """
+    pool = _pool(weeks=8)
+    config = LeagueConfig(teams=12, first_week=1, last_week=8)
+
+    results = []
+    for kickoffs in (None, _kickoffs()):
+        env = FantasyLeagueEnv(
+            pool, season=2024, config=config, seed=4, kickoffs=kickoffs
+        )
+        outcome = run_episode(env, EwmaPolicy())
+        results.append((outcome.wins, round(outcome.total_points, 9)))
+    assert results[0] == results[1], results
+
+
+def test_a_player_whose_game_started_cannot_be_moved():
+    """Both directions: a starter stays in, a benched player stays out."""
+    slots = RosterSlots(qb=0, rb=1, wr=1, te=0, flex=1, k=0, dst=0, bench=2)
+    positions = {"rb1": "RB", "rb2": "RB", "wr1": "WR", "wr2": "WR", "wr3": "WR"}
+    scores = {"rb1": 20.0, "rb2": 5.0, "wr1": 19.0, "wr2": 18.0, "wr3": 1.0}
+
+    free = optimal_lineup(list(positions), positions, scores, slots)
+    assert set(free.starting_keys()) == {"rb1", "wr1", "wr2"}
+
+    # rb2 kicked off while in the card; wr1 kicked off while on the bench.
+    revised = optimal_lineup(
+        list(positions), positions, scores, slots,
+        locked_in={"rb2"}, locked_out={"wr1"},
+    )
+    assert "rb2" in revised.starting_keys(), "a playing starter was benched"
+    assert "wr1" not in revised.starting_keys(), "a benched player was started"
+    # And the rest of the card is still the best available.
+    assert set(revised.starting_keys()) == {"rb1", "rb2", "wr2"}
+
+
+def test_a_reactive_policy_is_asked_once_per_kickoff():
+    """The extra decision points have to actually reach the policy."""
+
+    class Counter(EwmaPolicy):
+        reactive = True
+
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.states = []
+
+        def score(self, player_keys, history, week, board, state=None):
+            if state is not None:
+                self.states.append((week, state.slot))
+            return super().score(player_keys, history, week, board, state)
+
+    pool = _pool(weeks=6)
+    config = LeagueConfig(teams=12, first_week=1, last_week=3)
+    kickoffs = _kickoffs(weeks=6)
+    env = FantasyLeagueEnv(pool, season=2024, config=config, seed=0, kickoffs=kickoffs)
+    policy = Counter()
+    run_episode(env, policy)
+
+    for week in config.weeks:
+        seen = [slot for w, slot in policy.states if w == week]
+        assert seen == list(range(kickoffs.slots_in(week))), (
+            f"week {week} offered slots {seen}"
+        )
+
+
+def test_the_running_score_a_reactive_policy_sees_is_only_finished_games():
+    """It may know what has been banked. It may not know what is coming."""
+    banked = []
+
+    class Watcher(EwmaPolicy):
+        reactive = True
+
+        def score(self, player_keys, history, week, board, state=None):
+            if state is not None:
+                banked.append((state.slot, state.points, len(state.locked_in)))
+            return super().score(player_keys, history, week, board, state)
+
+    pool = _pool(weeks=6)
+    config = LeagueConfig(teams=12, first_week=1, last_week=2)
+    env = FantasyLeagueEnv(
+        pool, season=2024, config=config, seed=1, kickoffs=_kickoffs(weeks=6)
+    )
+    run_episode(env, Watcher())
+
+    # The first decision of a week sees nothing banked and nobody locked, and
+    # the total only ever grows as games are played.
+    first = [entry for entry in banked if entry[0] == 0]
+    assert all(points == 0.0 and locked == 0 for _, points, locked in first)
+    by_week = [banked[i : i + 4] for i in range(0, len(banked), 4)]
+    for week in by_week:
+        totals = [points for _, points, _ in week]
+        assert totals == sorted(totals), f"the banked score went down: {totals}"

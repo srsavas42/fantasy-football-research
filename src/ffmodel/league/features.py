@@ -190,3 +190,41 @@ def verify_against_history(pool: pd.DataFrame, season: int, halflife: float = 1.
         for key, value in zip(keys, got.to_numpy(float)):
             worst = max(worst, abs(float(np.nan_to_num(value)) - expected.get(key, 0.0)))
     return worst
+
+
+def build_volatility(pool: pd.DataFrame, season: int) -> pd.Series:
+    """Standard deviation of a player's own points so far, lagged like the rest.
+
+    Kept out of :data:`FEATURE_COLUMNS` deliberately. It is not a projection --
+    it says nothing about whether a player will score more -- so it has no place
+    in a ranking that maximises points. It exists for the one decision that is
+    not about points: a manager who is thirty behind with one game left wants the
+    volatile player and a manager who is thirty ahead wants the steady one, and
+    neither of those preferences is expressible without it.
+
+    Indexed like the feature table, so a policy can look up ``(player, week)``
+    and get what was knowable going into that week.
+    """
+    block = pool[pool["season"] == int(season)].copy()
+    block = block.sort_values(["player_key", "week"], kind="mergesort").reset_index(
+        drop=True
+    )
+    points = pd.to_numeric(block["points"], errors="coerce").fillna(0.0).astype(float)
+    running = points.groupby(block["player_key"], sort=False).transform(
+        lambda s: s.expanding().std()
+    )
+    out = pd.DataFrame(
+        {
+            "player_key": block["player_key"].to_numpy(),
+            "week": block["week"].astype(int).to_numpy(),
+            "volatility": running.to_numpy(),
+        }
+    ).set_index(["player_key", "week"]).sort_index()
+
+    weeks = list(range(int(block["week"].min()), int(block["week"].max()) + 1))
+    grid = pd.MultiIndex.from_product(
+        [out.index.get_level_values("player_key").unique(), weeks],
+        names=["player_key", "week"],
+    )
+    filled = out.reindex(grid).sort_index().groupby(level="player_key").ffill()
+    return filled.groupby(level="player_key").shift(1)["volatility"].fillna(0.0)

@@ -113,7 +113,7 @@ class LinearAgent(Policy):
 
     # ------------------------------------------------------------- lineups
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
+    def score(self, player_keys, history, week, board, state=None) -> dict[str, float]:
         return self.values(player_keys, week)
 
     # ------------------------------------------------------------- waivers

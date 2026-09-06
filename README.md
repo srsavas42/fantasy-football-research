@@ -333,6 +333,18 @@ parameterisation with a single weight on a two-game average lands exactly on the
 field, so the feature set and add/drop plumbing are worth nothing by themselves
 and the whole gain is the learned parameters.
 
+A week is also no longer a single deadline. Every player locks when **his own
+game** kicks off, so a lineup stays revisable around whoever has not started --
+6.8 kickoff slots a week, ~2.9 of them offering a real choice. Policies that
+ignore the extra decision points play a bit-identical season, which is a test
+rather than a claim. What they are worth with today's information is **nothing**:
+the only thing that changes between kickoffs is the score, and six variants of
+chasing it land at or below zero (best -0.03 wins, t = -1.00). The option is
+wide open -- an agent that knew what the not-yet-started players would score
+gains +2.83 wins -- so the value waits on information that actually arrives
+mid-week, chiefly gameday inactives. See
+[lineup locking](docs/lineup-locking-2026-09.md).
+
 Ablating those parameters says where the edge is. **The draft board keeps its
 value all season and the standard opponent throws it away** -- removing the ADP
 weight costs 0.82 wins, more than the agent's entire edge. Position intercepts

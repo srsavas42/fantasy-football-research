@@ -48,9 +48,20 @@ class Policy:
     ``history`` contains only weeks strictly before the one being decided; the
     environment guarantees that, and a policy that reaches around it is a bug
     rather than a clever feature.
+
+    A week is resolved one kickoff at a time, so the environment offers a
+    decision point before each. ``reactive`` says whether this policy wants
+    them. Leaving it ``False`` is not a limitation: re-running the same scoring
+    function on the same information returns the same lineup, so a policy that
+    reads nothing about the state of the week is *already* playing its best card
+    at the first deadline. Only a policy that reads ``state`` -- who has already
+    played, and what the scoreboard says -- can do anything with a later one,
+    and the environment re-scores only those so a week costs what it always did
+    for everybody else.
     """
 
     name: str = "policy"
+    reactive: bool = False
 
     def score(
         self,
@@ -58,8 +69,42 @@ class Policy:
         history: pd.DataFrame,
         week: int,
         board: pd.DataFrame,
+        state: "WeekState | None" = None,
     ) -> dict[str, float]:
         raise NotImplementedError
+
+
+@dataclass
+class WeekState:
+    """What is known partway through a week, at one kickoff boundary.
+
+    Everything here is a fact a league site puts on screen while games are being
+    played, which is why offering it leaks nothing: the points already banked by
+    both teams, and who can still be moved.
+    """
+
+    slot: int
+    slots: int
+    points: float
+    opponent_points: float
+    locked_in: frozenset
+    locked_out: frozenset
+    playable: frozenset
+    # How many starters on each side have not kicked off. Every league site puts
+    # "yet to play" on the scoreboard, so this is public, and without it the raw
+    # margin is close to meaningless: forty behind with six left is a normal
+    # Sunday, and forty behind with one left is a decision.
+    remaining: int = 0
+    opponent_remaining: int = 0
+
+    @property
+    def margin(self) -> float:
+        """Ahead by this much. Negative is behind."""
+        return self.points - self.opponent_points
+
+    @property
+    def last_call(self) -> bool:
+        return self.slot >= self.slots - 1
 
 
 @dataclass
@@ -86,7 +131,7 @@ class AdpPolicy(Policy):
             self._ranks[id(board)] = cached
         return cached
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
+    def score(self, player_keys, history, week, board, state=None) -> dict[str, float]:
         ranks = self._lookup(board)
         out = {}
         for key in player_keys:
@@ -217,7 +262,7 @@ class EwmaPolicy(Policy):
         self._cache[week] = averages
         return averages
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
+    def score(self, player_keys, history, week, board, state=None) -> dict[str, float]:
         out: dict[str, float] = {}
         averages = self._averages(history, week)
 
@@ -266,7 +311,7 @@ class SeasonPolicy(Policy):
                 table=self.table,
             )
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
+    def score(self, player_keys, history, week, board, state=None) -> dict[str, float]:
         if week < self.switch_week or history.empty:
             return self.board_policy.score(player_keys, history, week, board)
         return self.form_policy.score(player_keys, history, week, board)
@@ -298,7 +343,7 @@ class ProjectionPolicy(Policy):
             raise ValueError(f"projection frame missing {sorted(missing)}")
         self._lookup = frame.set_index(["player_key", "week"])["projection"]
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
+    def score(self, player_keys, history, week, board, state=None) -> dict[str, float]:
         backup = self.fallback.score(player_keys, history, week, board)
         out = {}
         for key in player_keys:
@@ -326,7 +371,7 @@ class PerfectPolicy(Policy):
     def __post_init__(self) -> None:
         self._lookup = self.truth.set_index(["player_key", "week"])["points"]
 
-    def score(self, player_keys, history, week, board) -> dict[str, float]:
+    def score(self, player_keys, history, week, board, state=None) -> dict[str, float]:
         out = {}
         for key in player_keys:
             try:

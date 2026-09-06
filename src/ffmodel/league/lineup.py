@@ -45,11 +45,19 @@ def _take(pool: list[tuple[float, str]], count: int) -> tuple[list[str], list[tu
     return chosen, pool[count:]
 
 
+# Large enough to force a player into the card ahead of anyone else, small
+# enough not to become an infinity in the projected total.
+FORCED = 1e12
+
+
 def optimal_lineup(
     player_keys: list[str],
     positions: dict[str, str],
     scores: dict[str, float],
     slots: RosterSlots,
+    *,
+    locked_in: set[str] | None = None,
+    locked_out: set[str] | None = None,
 ) -> Lineup:
     """Best legal lineup under ``scores``.
 
@@ -59,13 +67,26 @@ def optimal_lineup(
 
     A player missing from ``scores`` is treated as a zero rather than dropped,
     so a policy that forgets somebody benches him instead of crashing.
+
+    ``locked_in`` and ``locked_out`` are players whose game has already kicked
+    off: the ones who were in the card stay in it, and the ones who were not can
+    never enter it. A revised lineup is therefore a choice over the players who
+    have not started yet, which is exactly the choice a real manager has. Only
+    the *set* of starters is constrained, not which slot each occupies -- a back
+    already playing counts the same whether the card calls him RB2 or the flex.
     """
+    locked_in = locked_in or set()
+    locked_out = locked_out or set()
+
     by_position: dict[str, list[tuple[float, str]]] = {}
     for key in player_keys:
         position = positions.get(key)
-        if position is None:
+        if position is None or key in locked_out:
             continue
-        by_position.setdefault(position, []).append((float(scores.get(key, 0.0)), key))
+        value = float(scores.get(key, 0.0))
+        if key in locked_in:
+            value += FORCED
+        by_position.setdefault(position, []).append((value, key))
     for position in by_position:
         # Sort by score, breaking ties on the key so a lineup is reproducible.
         by_position[position].sort(key=lambda item: (-item[0], item[1]))
@@ -135,6 +156,21 @@ def optimal_lineup(
             remaining[position] = rest
         bench = [key for entries in remaining.values() for _, key in entries]
         best = Lineup(starters=starters, bench=sorted(bench), projected=total)
+
+    if locked_in:
+        # Take the forcing term back out, so the projected total means what it
+        # says. A locked player who could not be seated -- which should not
+        # happen, since he was in a legal card a moment ago -- would otherwise
+        # be invisible here, so it is checked rather than assumed.
+        seated = set(best.starting_keys())
+        missing = locked_in - seated
+        if missing:
+            raise ValueError(f"already-playing starters could not be seated: {missing}")
+        best = Lineup(
+            starters=best.starters,
+            bench=best.bench,
+            projected=best.projected - FORCED * len(locked_in),
+        )
     return best
 
 

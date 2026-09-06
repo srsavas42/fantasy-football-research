@@ -314,6 +314,35 @@ is the reward an add/drop agent trains on. See
 [availability and waivers](docs/availability-and-waivers-2026-09.md) and
 [the league environment](docs/league-environment-2026-09.md).
 
+### A trained agent
+
+Sixteen parameters -- a linear score over per-player features, plus a threshold
+for how large a gap justifies a waiver claim -- fitted by cross-entropy search on
+2016-2022 and measured on 2023-2025. Paired on seed, 90 seats:
+
+| paired comparison | wins | t |
+|---|---|---|
+| learned - field | **+0.589** | +3.59 |
+| learned - ewma2 (same machinery, one weight) | +0.622 | +4.53 |
+| ewma2 - field | -0.033 | -0.19 |
+| oracle - field | +2.333 | +15.57 |
+
+**+0.59 wins a season on seasons it never saw**, a quarter of the band a perfect
+start/sit would take. The control row is the load-bearing one: the same
+parameterisation with a single weight on a two-game average lands exactly on the
+field, so the feature set and add/drop plumbing are worth nothing by themselves
+and the whole gain is the learned parameters.
+
+Ablating those parameters says where the edge is. **The draft board keeps its
+value all season and the standard opponent throws it away** -- removing the ADP
+weight costs 0.82 wins, more than the agent's entire edge. Position intercepts
+are worth another 0.47, all of it on the two decisions that compare across
+positions. Eleven of the fifteen features do nothing. And **most of the edge is
+on the waiver wire**: lineups alone give +0.23, so claims are the other +0.36 --
+47% of the available waiver band against 10% of the start/sit band, which says
+plainly where the shipped weekly model should be pointed next. See
+[the trained agent](docs/league-agent-2026-09.md).
+
 ### Data acquisition
 
 The provider-aware data CLI caches parquet plus provenance manifests and keeps
@@ -381,7 +410,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)) |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)). A 16-parameter agent trained by cross-entropy search on 2016-2022 takes **+0.59 wins** on the 2023-2025 holdout, most of it on waivers ([trained agent](docs/league-agent-2026-09.md)) |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 

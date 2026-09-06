@@ -43,7 +43,11 @@ from ffmodel.league.policies import PerfectPolicy, SeasonPolicy
 from ffmodel.league.pool import build_player_pool
 from ffmodel.league.train import Arena, CrossEntropyTrainer, Task, save_agent
 
-TRAIN_SEASONS = (2016, 2017, 2018, 2019, 2020, 2021, 2022)
+# The walk-forward projections need two prior seasons to fit, so they start in
+# 2018 and the training window starts with them. Training on 2016-17 without
+# them and 2018+ with them would let the search learn "trust the projection"
+# from seasons where it is a constant zero.
+TRAIN_SEASONS = (2018, 2019, 2020, 2021, 2022)
 EVAL_SEASONS = (2023, 2024, 2025)
 
 
@@ -141,6 +145,11 @@ def main(argv=None) -> int:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--cold-start", action="store_true")
+    parser.add_argument(
+        "--exclude", type=str, nargs="*", default=[],
+        help="feature names held at zero, so an ablation differs by the feature "
+             "alone rather than by which seasons and seeds each arm drew",
+    )
     parser.add_argument("--output", type=Path, default=Path("artifacts/league_agent.json"))
     parser.add_argument("--report", type=Path, default=Path("reports/league_agent.json"))
     args = parser.parse_args(argv)
@@ -155,9 +164,18 @@ def main(argv=None) -> int:
     arena = Arena(pool=pool, tables=tables, config=LeagueConfig())
     print(f"setup {time.time() - started:.1f}s; {len(FEATURE_COLUMNS)} features")
 
+    mask = np.ones(PARAMETER_COUNT, bool)
+    for name in args.exclude:
+        if name not in FEATURE_COLUMNS:
+            raise SystemExit(f"unknown feature {name!r}")
+        mask[FEATURE_COLUMNS.index(name)] = False
+    if args.exclude:
+        print(f"holding at zero: {', '.join(args.exclude)}")
+
     trainer = CrossEntropyTrainer(
         arena,
         scaler,
+        mask=mask,
         seasons=args.train_seasons,
         seeds=args.train_seeds,
         population=args.population,
@@ -167,7 +185,7 @@ def main(argv=None) -> int:
         rng=np.random.default_rng(args.seed),
     )
     if not args.cold_start:
-        trainer.mu = warm_start()
+        trainer.mu = warm_start() * mask
     start_theta = trainer.mu.copy()
 
     print(
@@ -201,6 +219,7 @@ def main(argv=None) -> int:
             "train_seasons": args.train_seasons,
             "generations": args.generations,
             "cold_start": args.cold_start,
+            "excluded": args.exclude,
         },
     )
     print(f"\nwrote {args.output}")

@@ -159,6 +159,7 @@ class CrossEntropyTrainer:
         smoothing: float = 0.7,
         rng: np.random.Generator | None = None,
         workers: int = 1,
+        mask: np.ndarray | None = None,
     ) -> None:
         self.arena = arena
         self.scaler = scaler
@@ -171,8 +172,13 @@ class CrossEntropyTrainer:
         self.rng = rng or np.random.default_rng(0)
         self.workers = max(1, int(workers))
 
+        # Parameters the search is allowed to move. Holding some at zero is how
+        # a feature is ablated *inside the search* rather than after it: the
+        # comparison then differs by the feature alone, not by which seasons or
+        # seeds each arm happened to draw.
+        self.mask = np.ones(PARAMETER_COUNT, bool) if mask is None else np.asarray(mask, bool)
         self.mu = np.zeros(PARAMETER_COUNT)
-        self.sigma = np.full(PARAMETER_COUNT, float(sigma))
+        self.sigma = np.where(self.mask, float(sigma), 0.0)
         self._baselines: dict[tuple[int, int], float] = {}
         self.history: list[Generation] = []
         self._pool = None
@@ -231,6 +237,7 @@ class CrossEntropyTrainer:
         population = self.rng.normal(
             self.mu, self.sigma, size=(self.population, PARAMETER_COUNT)
         )
+        population[:, ~self.mask] = self.mu[~self.mask]
         # The incumbent competes in its own population. Without it a generation
         # of unlucky draws can walk the mean somewhere worse and there is nothing
         # holding the line.
@@ -246,6 +253,7 @@ class CrossEntropyTrainer:
             self.smoothing * elite.std(axis=0) + (1 - self.smoothing) * self.sigma,
             self.sigma_floor,
         )
+        self.sigma[~self.mask] = 0.0
         record = Generation(
             index=index,
             best=float(scores.max()),

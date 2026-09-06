@@ -27,6 +27,8 @@ reproduces the policy that reads the frame, to the float.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -36,8 +38,15 @@ import pandas as pd
 # policy should be allowed to learn rather than be told.
 HALFLIVES = (1.0, 2.0, 4.0)
 
+# Where the walk-forward projections live. Built by
+# `scripts/build_projections.py`; absent, the two projection features are zero
+# and the agent falls back to what it had before they existed.
+PROJECTION_CACHE = Path(".cache/league_projections.parquet")
+
 FEATURE_COLUMNS = (
     "bias",
+    "projection",
+    "ros_projection",
     "ewma1",
     "ewma2",
     "ewma4",
@@ -77,7 +86,57 @@ def _running(frame: pd.DataFrame, values: pd.Series, how: str, **kwargs) -> pd.S
     raise ValueError(f"unknown statistic {how!r}")
 
 
-def build_feature_table(pool: pd.DataFrame, season: int) -> pd.DataFrame:
+def load_projections(path: Path | None = None) -> pd.DataFrame | None:
+    """The walk-forward projection cache, or ``None`` if it has not been built."""
+    path = PROJECTION_CACHE if path is None else Path(path)
+    if not path.exists():
+        return None
+    return pd.read_parquet(path)
+
+
+def attach_projections(
+    table: pd.DataFrame, projections: pd.DataFrame | None, season: int
+) -> pd.DataFrame:
+    """Join the model's own projections onto the feature grid, **unlagged**.
+
+    Every other column here is a running statistic computed through week ``w``
+    and then shifted, because otherwise it would contain the week it is used to
+    decide. A projection is different in kind: it is already a statement about
+    week ``w`` made without week ``w``, produced by a model fitted on strictly
+    earlier seasons. Lagging it would hand the agent last week's projection to
+    decide this week, which is not a safety measure, it is a bug that would look
+    like the model being useless.
+
+    The two horizons are filled differently across a bye, and the difference is
+    the point. Next week's projection is zero for a week the player does not
+    play, which is exactly right. Rest-of-season is carried forward, because a
+    player idle on Sunday is worth no less for the eight weeks after it -- and
+    the rest-of-season number exists precisely so a waiver decision can ask what
+    a player is worth over the rest of the year rather than over one afternoon.
+    """
+    out = table.copy()
+    if projections is None:
+        out["projection"] = 0.0
+        out["ros_projection"] = 0.0
+        return out
+
+    block = projections[projections["season"] == int(season)]
+    block = block.set_index(["player_key", "week"])[["projection", "ros_projection"]]
+    joined = block.reindex(out.index)
+    out["projection"] = joined["projection"].fillna(0.0).to_numpy(float)
+    out["ros_projection"] = (
+        joined["ros_projection"]
+        .groupby(level="player_key")
+        .ffill()
+        .fillna(0.0)
+        .to_numpy(float)
+    )
+    return out
+
+
+def build_feature_table(
+    pool: pd.DataFrame, season: int, projections: pd.DataFrame | None = None
+) -> pd.DataFrame:
     """One row per ``(player_key, week)`` of ``season``, all strictly prior.
 
     Built from the season's own rows only. A player's history does not reach
@@ -145,11 +204,20 @@ def build_feature_table(pool: pd.DataFrame, season: int) -> pd.DataFrame:
     # A player's first week has no past. Zero is the honest value for every
     # running statistic there, and `experience` being zero is what tells a
     # policy the rest of the row is empty rather than bad.
-    return shifted.fillna(0.0).sort_index()
+    shifted = shifted.fillna(0.0).sort_index()
+    return attach_projections(shifted, projections, season)
 
 
-def build_feature_tables(pool: pd.DataFrame, seasons) -> dict[int, pd.DataFrame]:
-    return {int(season): build_feature_table(pool, season) for season in seasons}
+def build_feature_tables(
+    pool: pd.DataFrame, seasons, projections: pd.DataFrame | None = "auto"
+) -> dict[int, pd.DataFrame]:
+    """Feature tables per season, with the projection cache loaded once."""
+    if isinstance(projections, str) and projections == "auto":
+        projections = load_projections()
+    return {
+        int(season): build_feature_table(pool, season, projections)
+        for season in seasons
+    }
 
 
 def as_matrix(table: pd.DataFrame, keys, week: int) -> np.ndarray:

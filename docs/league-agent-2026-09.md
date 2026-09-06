@@ -266,3 +266,79 @@ in the current environment on the same seats -- not +1.13 against the old +0.59.
   because the action space carries a score per *rostered* player and nothing
   about players it does not hold. Now that the agent has a rest-of-season
   projection for everybody, that limitation is worth removing.
+
+---
+
+# Should waivers be their own model? (2026-09)
+
+Two questions, and they have different answers.
+
+## Where the rest-of-season projection is doing its work
+
+Ablating the trained agent, 75 holdout seats:
+
+| variant | wins vs. field | what it costs |
+|---|---|---|
+| learned (full) | +1.133 | — |
+| − `ros_projection` | +0.267 | **0.87** |
+| − `projection` | +0.267 | 0.87 |
+| − both projections | −0.493 | 1.63 |
+| lineups only (no claims) | +0.293 | 0.84 |
+| ... − `ros_projection` | +0.147 | **0.15** |
+| ... − `projection` | −0.040 | 0.33 |
+| claims only (flat lineup) | −1.240 | — |
+
+**Rest-of-season is worth 0.87 wins overall and 0.15 to lineups**, so roughly
+**83% of its value is in the add/drop decision**. That is what it was added for
+and it is doing exactly that job. The next-week projection splits more evenly:
+0.33 of its 0.87 is lineup work, the rest waivers -- a claim is partly a bet on
+this week too, since a player claimed on Wednesday usually starts on Sunday.
+
+Waivers are now **74% of the agent's whole edge** (+0.84 of +1.13), up from 60%
+before the projections existed. And a flat lineup cannot be rescued by good
+claims: ranking every player identically and claiming well still finishes 1.24
+wins *below* the field.
+
+**So the rest-of-season blend belongs in this model.** It is the input the
+decision carrying three quarters of the agent leans on hardest, and the shipped
+configuration blends the direct total with the ADP rank curve while this uses the
+unblended total. That is the clearest remaining upgrade to the projection layer.
+
+## Whether the waiver decision wants its own weights: no
+
+Three arms, trained identically -- same seasons, seeds, generations, warm start --
+differing only in how many weights the add/drop decision is allowed to hold apart
+from the lineup. Waiver weights are carried as *deltas* on the shared ones, so
+zero recovers the shared model exactly and the search only has to find a reason
+to depart.
+
+| arm | parameters | train | holdout | train − holdout |
+|---|---|---|---|---|
+| shared | 18 | +1.24 | **+1.13** | +0.11 |
+| horizon split (both projections) | 20 | +1.09 | **+1.15** | −0.06 |
+| full separate waiver head | 35 | **+1.55** | **+1.04** | **+0.51** |
+
+Paired on seed against the shared model, neither split is distinguishable from
+it: horizon split +0.013 wins (t = 0.08), full split −0.093 wins (t = −0.67).
+
+The full split is the instructive row. It is **the best arm on the seasons it
+searched over and the worst on the ones it did not** — +1.55 training, +1.04
+holdout, a generalisation gap of 0.51 against 0.11 for the shared model. Seventeen
+extra parameters bought training performance that did not survive contact with a
+new season. That is what overfitting looks like when the noise floor is ±3 wins a
+season, and it is the reason the parameter budget was set at "small" in the first
+place.
+
+**One model, shared weights.** The two decisions do rank players differently --
+the horizon-split arm learned real deltas, +0.31 on the next-week projection and
++0.17 on rest-of-season, meaning the waiver decision wants to lean on projections
+harder than the lineup does — but the difference is not worth a parameter. It is
+also worth keeping the property that sharing guarantees: an agent that ranks
+add/drop on the same function it sets lineups with cannot claim a player it would
+never start, and nothing in these results is worth giving that up for.
+
+The honest caveat: this says a *linear* waiver head is not worth separating. A
+waiver decision that used information the lineup has no use for -- roster
+construction, positional scarcity, what the other eleven teams are short of --
+would be a different model rather than a different weighting of the same
+features, and this experiment says nothing about that.

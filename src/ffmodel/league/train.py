@@ -55,7 +55,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ffmodel.league.agent import PARAMETER_COUNT, LinearAgent, Scaler, as_waiver_policy
+from ffmodel.league.agent import LinearAgent, Scaler, as_waiver_policy, parameter_count
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.env import FantasyLeagueEnv, run_episode
 from ffmodel.league.policies import EwmaPolicy, SeasonPolicy
@@ -94,9 +94,13 @@ class Arena:
         result = run_episode(env, SeasonPolicy(table=self.tables[task.season]))
         return result.total_reward
 
+    split: tuple = ()
+
     def evaluate(self, theta: np.ndarray, task: Task, scaler: Scaler) -> dict:
         env = self.environment(task)
-        agent = LinearAgent.from_parameters(theta, self.tables[task.season], scaler)
+        agent = LinearAgent.from_parameters(
+            theta, self.tables[task.season], scaler, split=self.split
+        )
         result = run_episode(env, agent, waiver_policy=as_waiver_policy(agent))
         standings = result.standings
         return {
@@ -160,6 +164,7 @@ class CrossEntropyTrainer:
         rng: np.random.Generator | None = None,
         workers: int = 1,
         mask: np.ndarray | None = None,
+        split: tuple = (),
     ) -> None:
         self.arena = arena
         self.scaler = scaler
@@ -176,8 +181,10 @@ class CrossEntropyTrainer:
         # a feature is ablated *inside the search* rather than after it: the
         # comparison then differs by the feature alone, not by which seasons or
         # seeds each arm happened to draw.
-        self.mask = np.ones(PARAMETER_COUNT, bool) if mask is None else np.asarray(mask, bool)
-        self.mu = np.zeros(PARAMETER_COUNT)
+        self.split = tuple(split)
+        self.size = parameter_count(self.split)
+        self.mask = np.ones(self.size, bool) if mask is None else np.asarray(mask, bool)
+        self.mu = np.zeros(self.size)
         self.sigma = np.where(self.mask, float(sigma), 0.0)
         self._baselines: dict[tuple[int, int], float] = {}
         self.history: list[Generation] = []
@@ -235,7 +242,7 @@ class CrossEntropyTrainer:
         tasks = [self.tasks[i] for i in chosen]
 
         population = self.rng.normal(
-            self.mu, self.sigma, size=(self.population, PARAMETER_COUNT)
+            self.mu, self.sigma, size=(self.population, self.size)
         )
         population[:, ~self.mask] = self.mu[~self.mask]
         # The incumbent competes in its own population. Without it a generation

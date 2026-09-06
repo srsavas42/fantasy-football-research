@@ -39,8 +39,19 @@ from ffmodel.league.policies import Policy
 # Columns already on a fixed, interpretable scale, which are passed through.
 UNSCALED = ("bias",) + tuple(c for c in FEATURE_COLUMNS if c.startswith("is_"))
 
-# Weights, plus the waiver threshold.
+# Weights, plus the waiver threshold. A split adds one delta per named feature.
 PARAMETER_COUNT = len(FEATURE_COLUMNS) + 1
+
+
+def parameter_count(split: tuple[str, ...] = ()) -> int:
+    return PARAMETER_COUNT + len(split)
+
+
+def _split_indices(split: tuple[str, ...]) -> list[int]:
+    for name in split:
+        if name not in FEATURE_COLUMNS:
+            raise ValueError(f"unknown feature {name!r}")
+    return [FEATURE_COLUMNS.index(name) for name in split]
 
 
 @dataclass
@@ -85,31 +96,64 @@ class LinearAgent(Policy):
     table: pd.DataFrame = field(repr=False)
     scaler: Scaler = field(repr=False)
     name: str = "learned"
+    # Features the add/drop decision is allowed to weigh differently from the
+    # lineup. Empty means one ranking for both, which is the default and the
+    # reason the agent cannot claim a player it would never start.
+    #
+    # The case for allowing a difference is that the two decisions have
+    # different horizons: a lineup is a question about Sunday and a claim is a
+    # question about the rest of the season. Shared weights must compromise
+    # between them, and the compromise is optimal for neither. Carried as a
+    # *delta* on the shared weight rather than a second vector, so zero recovers
+    # the shared model exactly and the search only has to find departures from
+    # it.
+    split: tuple[str, ...] = ()
+    waiver_delta: np.ndarray | None = field(default=None, repr=False)
 
     @classmethod
     def from_parameters(
-        cls, theta: np.ndarray, table: pd.DataFrame, scaler: Scaler, **kwargs
+        cls,
+        theta: np.ndarray,
+        table: pd.DataFrame,
+        scaler: Scaler,
+        split: tuple[str, ...] = (),
+        **kwargs,
     ) -> "LinearAgent":
         theta = np.asarray(theta, float)
-        if theta.shape != (PARAMETER_COUNT,):
-            raise ValueError(f"expected {PARAMETER_COUNT} parameters, got {theta.shape}")
+        expected = parameter_count(split)
+        if theta.shape != (expected,):
+            raise ValueError(f"expected {expected} parameters, got {theta.shape}")
         return cls(
-            weights=theta[:-1],
-            claim_threshold=float(theta[-1]),
+            weights=theta[: len(FEATURE_COLUMNS)],
+            claim_threshold=float(theta[len(FEATURE_COLUMNS)]),
             table=table,
             scaler=scaler,
+            split=tuple(split),
+            waiver_delta=theta[len(FEATURE_COLUMNS) + 1 :],
             **kwargs,
         )
 
     def parameters(self) -> np.ndarray:
-        return np.concatenate([self.weights, [self.claim_threshold]])
+        tail = self.waiver_delta if self.waiver_delta is not None else np.zeros(0)
+        return np.concatenate([self.weights, [self.claim_threshold], tail])
 
-    def values(self, keys, week: int) -> dict[str, float]:
+    @property
+    def waiver_weights(self) -> np.ndarray:
+        """The weights the add/drop decision ranks by."""
+        if not self.split or self.waiver_delta is None or not len(self.waiver_delta):
+            return self.weights
+        weights = self.weights.copy()
+        for index, delta in zip(_split_indices(self.split), self.waiver_delta):
+            weights[index] += delta
+        return weights
+
+    def values(self, keys, week: int, waiver: bool = False) -> dict[str, float]:
         keys = list(keys)
         if not keys:
             return {}
         rows = self.scaler.apply(as_matrix(self.table, keys, week))
-        return dict(zip(keys, rows @ self.weights))
+        weights = self.waiver_weights if waiver else self.weights
+        return dict(zip(keys, rows @ weights))
 
     # ------------------------------------------------------------- lineups
 
@@ -134,11 +178,17 @@ class LinearAgent(Policy):
         week = observation["week"]
         roster = list(observation["roster"])
 
-        roster_values = self.values(roster, week)
-        lineup = optimal_lineup(roster, env.positions, roster_values, env.config.slots)
+        # Who is spare is a lineup question -- it is this week's card that says
+        # who is not needed. Which of the spares to cut, and who to claim, are
+        # rest-of-season questions, so both sides of the comparison are valued
+        # on the waiver weights.
+        lineup = optimal_lineup(
+            roster, env.positions, self.values(roster, week), env.config.slots
+        )
         spare = [key for key in roster if key not in set(lineup.starting_keys())]
         if not spare:
             return None
+        roster_values = self.values(roster, week, waiver=True)
         drop = min(spare, key=lambda key: (roster_values.get(key, 0.0), key))
 
         available = [
@@ -146,7 +196,7 @@ class LinearAgent(Policy):
         ]
         if not available:
             return None
-        free_values = self.values(available, week)
+        free_values = self.values(available, week, waiver=True)
         add = max(available, key=lambda key: (free_values.get(key, 0.0), key))
 
         gain = free_values[add] - roster_values.get(drop, 0.0)

@@ -34,7 +34,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.league.agent import PARAMETER_COUNT, LinearAgent, Scaler, as_waiver_policy
+from ffmodel.league.agent import LinearAgent, Scaler, as_waiver_policy, parameter_count
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.credit import grade_claims
 from ffmodel.league.env import run_episode
@@ -51,11 +51,16 @@ TRAIN_SEASONS = (2018, 2019, 2020, 2021, 2022)
 EVAL_SEASONS = (2023, 2024, 2025)
 
 
-def warm_start() -> np.ndarray:
-    """Weight on a two-game average, and a threshold a claim has to clear."""
-    theta = np.zeros(PARAMETER_COUNT)
+def warm_start(split: tuple = ()) -> np.ndarray:
+    """Weight on a two-game average, and a threshold a claim has to clear.
+
+    Any waiver deltas start at zero, which is the shared model exactly -- so a
+    split arm begins where the unsplit one would and the search only has to find
+    a reason to depart from it.
+    """
+    theta = np.zeros(parameter_count(split))
     theta[FEATURE_COLUMNS.index("ewma2")] = 1.0
-    theta[-1] = 0.5
+    theta[len(FEATURE_COLUMNS)] = 0.5
     return theta
 
 
@@ -70,7 +75,7 @@ def evaluate(arena: Arena, theta, scaler, tasks, *, label: str) -> pd.DataFrame:
     }
     for task in tasks:
         table = arena.tables[task.season]
-        agent = LinearAgent.from_parameters(theta, table, scaler)
+        agent = LinearAgent.from_parameters(theta, table, scaler, split=arena.split)
         # One episode, then graded from the environment it was played in. The
         # claims are a property of that episode, so replaying it to read them
         # would double the cost of every evaluation for nothing.
@@ -146,6 +151,11 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--cold-start", action="store_true")
     parser.add_argument(
+        "--split", type=str, nargs="*", default=[],
+        help="features the add/drop decision may weigh differently from the "
+             "lineup; empty means one ranking for both",
+    )
+    parser.add_argument(
         "--exclude", type=str, nargs="*", default=[],
         help="feature names held at zero, so an ablation differs by the feature "
              "alone rather than by which seasons and seeds each arm drew",
@@ -154,6 +164,10 @@ def main(argv=None) -> int:
     parser.add_argument("--report", type=Path, default=Path("reports/league_agent.json"))
     args = parser.parse_args(argv)
 
+    split = tuple(args.split)
+    if split and set(split) == {"all"}:
+        split = tuple(FEATURE_COLUMNS)
+
     seasons = sorted(set(args.train_seasons) | set(args.eval_seasons))
     started = time.time()
     pool = build_player_pool(seasons)
@@ -161,10 +175,10 @@ def main(argv=None) -> int:
     # Standardisation is fitted on the training seasons only. Fitting it on the
     # holdout too would be a small leak, and a pointless one.
     scaler = Scaler.fit({s: tables[s] for s in args.train_seasons})
-    arena = Arena(pool=pool, tables=tables, config=LeagueConfig())
+    arena = Arena(pool=pool, tables=tables, config=LeagueConfig(), split=split)
     print(f"setup {time.time() - started:.1f}s; {len(FEATURE_COLUMNS)} features")
 
-    mask = np.ones(PARAMETER_COUNT, bool)
+    mask = np.ones(parameter_count(split), bool)
     for name in args.exclude:
         if name not in FEATURE_COLUMNS:
             raise SystemExit(f"unknown feature {name!r}")
@@ -176,6 +190,7 @@ def main(argv=None) -> int:
         arena,
         scaler,
         mask=mask,
+        split=split,
         seasons=args.train_seasons,
         seeds=args.train_seeds,
         population=args.population,
@@ -185,7 +200,9 @@ def main(argv=None) -> int:
         rng=np.random.default_rng(args.seed),
     )
     if not args.cold_start:
-        trainer.mu = warm_start() * mask
+        trainer.mu = warm_start(split) * mask
+    if split:
+        print(f"waiver-specific weights on: {', '.join(split)}")
     start_theta = trainer.mu.copy()
 
     print(
@@ -198,9 +215,11 @@ def main(argv=None) -> int:
     print(f"search took {(time.time() - began) / 60:.1f} min")
 
     print("\n=== learned weights ===")
-    for name, value in zip(FEATURE_COLUMNS, theta[:-1]):
+    for name, value in zip(FEATURE_COLUMNS, theta[: len(FEATURE_COLUMNS)]):
         print(f"  {name:14s} {value:+8.3f}   (start {start_theta[FEATURE_COLUMNS.index(name)]:+.3f})")
-    print(f"  {'claim gap':14s} {theta[-1]:+8.3f}   (start {start_theta[-1]:+.3f})")
+    print(f"  {'claim gap':14s} {theta[len(FEATURE_COLUMNS)]:+8.3f}")
+    for name, delta in zip(split, theta[len(FEATURE_COLUMNS) + 1 :]):
+        print(f"  waiver {name:20s} {delta:+8.3f}  (delta on the shared weight)")
 
     train_tasks = [Task(s, seed) for s in args.train_seasons for seed in range(args.eval_seeds)]
     eval_tasks = [Task(s, seed) for s in args.eval_seasons for seed in range(args.eval_seeds)]
@@ -220,6 +239,7 @@ def main(argv=None) -> int:
             "generations": args.generations,
             "cold_start": args.cold_start,
             "excluded": args.exclude,
+            "split": list(split),
         },
     )
     print(f"\nwrote {args.output}")

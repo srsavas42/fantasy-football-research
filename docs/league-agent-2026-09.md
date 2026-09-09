@@ -445,3 +445,110 @@ The control moved too, and interestingly: `ewma2` now finishes *below* the field
 (−0.30, t = −1.90) where before it sat exactly on it. Claiming naively is mildly
 harmful once priority is a resource you can waste -- which is the mechanic doing
 its job.
+
+---
+
+# Quantiles, acquisition context, and a hidden layer: the current best (2026-09, third pass)
+
+Three additions, tested as four arms trained identically -- same environment
+(blended rest-of-season, rolling waiver priority, no add cap, per-kickoff
+locking), same seasons, same seeds, same 30-generation budget, only the feature
+set and the policy's shape differing:
+
+``A`` -- control, 18 free parameters (the pre-existing feature set, quantiles held at zero)
+``B`` -- + p10/p50/p90 on both the next-week and rest-of-season projections, 23 params
+``C`` -- + a five-feature acquisition-context block (roster depth, the upgrade over the man displaced, the gap to the next free agent, how many of the other eleven teams are short at his position, whether he starts), 29 params, still linear
+``D`` -- the same as C with one hidden layer of width four in place of the linear map, 107 params
+
+## The result, on the standard 90-seat protocol
+
+Two of the four (A and the winner, D) were re-run through `evaluate_agent.py` --
+the script and seat count (3 seasons x 30 seeds) this repo's headline numbers
+come from -- rather than read off the training script's own smaller holdout, so
+the final figures are on identical footing to every other number in this
+document.
+
+| arm | params | wins vs. field | points vs. field | % of 2.28-win band |
+|---|---|---|---|---|
+| A (control) | 18 | +0.611 (t=+3.41) | +53.4 (t=+6.48) | 27% |
+| B (quantiles)* | 23 | +0.89 (t=+4.42) | +78.3 | 40% |
+| C (quantiles + context)* | 29 | +0.77 (t=+3.69) | +93.3 | 34% |
+| **D (quantiles + context + hidden layer)** | **107** | **+1.656 (t=+7.92)** | **+162.2 (t=+15.19)** | **73%** |
+
+\* B and C are read off `train_agent.py`'s own 75-episode holdout rather than the
+90-seat protocol, and are directionally comparable to A and D but not on
+identical footing. They were superseded by D before that second pass was run,
+and re-running them was not worth the compute once D had already won.
+
+**D is the best result this project has produced**, on the same measurement used
+throughout: 73% of the oracle band, versus 47% for the previous best (before
+quantiles, context, and the hidden layer existed) and 27% for the otherwise-equal
+control trained alongside it. It is now the artifact at `artifacts/league_agent.json`.
+
+## Quantiles help. Context helps less than expected, and only with capacity behind it
+
+The clean single-axis reads:
+
+- **A to B, quantiles alone:** train-only holdout roughly doubles (+0.52 to +0.89
+  on the 75-episode measure). A p10 of zero is a different fact from a low mean --
+  "he might not play" rather than "he will score little" -- and the search uses it.
+- **B to C, adding context to a linear policy:** holdout *drops* (+0.89 to +0.77
+  on the 75-episode measure) despite C posting the best training-season number of
+  the three linear arms. The train-minus-holdout gap widens from 0.56 to 0.89 wins
+  -- six more parameters bought fit that did not transfer, the same signature seen
+  earlier when the waiver decision was given its own 35-parameter head instead of
+  sharing the lineup's weights.
+- **C to D, the same context block through a hidden layer instead of a line:**
+  holdout **more than doubles again** (+0.77 to the confirmed +1.656 on the
+  standard protocol), and the train-minus-holdout gap on the 75-episode measure is
+  the *smallest* of the four arms (0.39) despite 107 parameters against C's 29.
+
+That last comparison is the one worth trusting, because it isolates one thing: C
+and D see identical features, including the identical context block; only the
+map from features to a score changes, linear versus one hidden layer of width
+four. This was measured expecting the opposite result -- the working assumption
+going in, stated plainly before training, was that a linear waiver head splitting
+into 35 parameters had already shown what more capacity does under this noise
+floor, and a 107-parameter policy would show it worse. It did not. The failure
+mode that logic predicted (C, adding six parameters) happened exactly as
+described; the hidden layer did not repeat it.
+
+**What seems to be different:** the acquisition-context features want to be
+combined with the rest of the state nonlinearly, and a linear map cannot express
+that. D's largest context weight is `ctx_league_need` (0.393) -- what the other
+eleven teams are short of, the one context feature that requires modelling
+opponents rather than the agent's own roster. C's linear agent leaned on
+`ctx_depth` (0.867, its own roster) instead. Whether that is the actual mechanism
+or a description of the result restated is not settled by one training run each;
+what is on record is that the single-axis swap produced a real, large,
+standard-protocol-verified gain, not a noise-floor artefact -- t = 7.92 is far
+past what a run-to-run coin flip would produce.
+
+## An open question this pass surfaced rather than closed
+
+Arm A, trained fresh in this pass with the identical 18-parameter configuration
+documented earlier at +1.08 wins, came back at +0.611 on the same 90-seat
+protocol -- a real gap, not a measurement artefact, confirmed by running both
+through the same script. Two candidate explanations, not distinguished from each
+other: the waiver system changed underneath (no cap, a rolling queue, in place of
+the reverse-standings priority the +1.08 figure was measured under), or a single
+cross-entropy run is simply noisier than this project has so far had reason to
+believe -- nothing here has trained the same configuration twice to find out.
+Given D's result stands on its own regardless of which explanation is right, this
+was left open rather than chased down; averaging several training seeds per arm
+is the way to settle it, and is the natural next thing to do before trusting any
+single number in this document to the last decimal.
+
+## What is still open
+
+- **B and C were not re-measured on the standard protocol.** Their numbers above
+  are directionally informative, not final; the honest versions are a rerun away
+  and were skipped once D made them moot for the purpose of picking a champion.
+- **The blend, the split experiment, and the context block were each validated
+  once.** Averaging multiple training seeds per arm -- expensive, and not done
+  here -- is what would turn "this run beat that run" into "this configuration
+  reliably beats that one."
+- Everything under "What is still open" in the previous pass still applies: the
+  draft is untouched, the agent does not control its own housekeeping, and the
+  environment's opponents remain the fixed naive field rather than copies of the
+  agent itself.

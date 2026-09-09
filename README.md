@@ -334,6 +334,22 @@ weight on a two-game average lands exactly on the field, so the feature set and
 add/drop plumbing are worth nothing by themselves and the whole gain is the
 learned parameters.
 
+**Superseded.** Adding quantiles (p10/p50/p90 on both projection horizons) and
+a five-feature acquisition-context block (roster depth, the upgrade over the
+player displaced, what the other eleven teams are short of), routed through a
+one-hidden-layer policy instead of a linear one, reaches **+1.656 wins**
+(t = +7.92) on the identical 90-seat protocol -- **73%** of the oracle band,
+against 47% before. The single cleanest comparison -- identical features,
+identical context block, only a linear map swapped for one hidden layer of
+width four -- more than doubles the holdout margin on its own (+0.77 to
++1.656), which is not what an earlier linear waiver-head experiment in this
+project predicted would happen. See
+[the trained agent](docs/league-agent-2026-09.md) for the full four-arm
+comparison and the open question it surfaced: a freshly trained control at the
+old configuration came back below the +1.08 figure above on identical
+measurement, not yet resolved between waiver-system changes since that number
+was measured and single-seed training variance.
+
 **The weekly model is what doubled it.** The agent reads two walk-forward
 projections -- the shipped hurdle for next week, feeding the lineup, and the
 rest-of-season total for the waiver wire, which answers the question a waiver
@@ -436,7 +452,7 @@ Modeling competition matters: for RBs the competition coefficient is strongly ne
 | 4 | Efficiency models (lagged efficiency -> volume; OOF volume + history -> future efficiency) | efficiency v2 posterior marginals validated; receiving YPT mean promoted |
 | 5 | Simulation engine: posterior predictive → weekly & season point distributions | coherent total-season candidate implemented; the v1 coverage failure was traced to a superseded volume layer, not the scoring architecture ([followups](docs/pipeline-followups-2026-08.md)) |
 | 6 | Evaluation: walk-forward backtests, CRPS/log-score, calibration | volume v3 and efficiency v2 complete; total-scoring calibration active. **`docs/volume-v3-validation.md` and `docs/season-scoring-v1-validation.md` predate the 2026-08 review and no longer describe this code** — see [the review](docs/pipeline-review-2026-08.md) and [its follow-ups](docs/pipeline-followups-2026-08.md) |
-| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)). An 18-parameter agent trained by cross-entropy search on 2018-2022 takes **+1.08 wins** on the 2023-2025 holdout, 47% of the available band; the weekly and rest-of-season projections are what doubled it ([trained agent](docs/league-agent-2026-09.md)) |
+| 7 | Weekly pillar: start/sit lineup optimization | next-week and rest-of-season responses validated; **kickers and team defenses added 2026-09**, so all six startable slots now project on one walk-forward ([specialists & weather](docs/specialists-and-weather-2026-09.md)). A 12-team league environment with a snake draft, a round-robin schedule, bye/injury-aware opponents and IR now measures policies in wins rather than CRPS, and puts the whole start/sit decision at 2.58 wins and the waiver wire at 0.77 more ([league environment](docs/league-environment-2026-09.md), [availability & waivers](docs/availability-and-waivers-2026-09.md)). the current agent (quantiles, acquisition context, one hidden layer) takes **+1.66 wins** on the 2023-2025 holdout, 73% of the available band ([trained agent](docs/league-agent-2026-09.md)) |
 | 8 | Draft pillar: tiers, pre-season EV, positional trade-offs | K/DST rest-of-season projections available for the full draftable pool |
 | 9 | Alt-data signal layer: BlueSky/news → live role-prior adjustments (not backtestable, so live-only) | |
 

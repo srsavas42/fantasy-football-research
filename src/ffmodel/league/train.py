@@ -55,7 +55,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ffmodel.league.agent import LinearAgent, Scaler, as_waiver_policy, parameter_count
+from ffmodel.league.agent import (
+    LinearAgent,
+    MLPAgent,
+    Scaler,
+    as_waiver_policy,
+    mlp_parameter_count,
+    parameter_count,
+)
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.env import FantasyLeagueEnv, run_episode
 from ffmodel.league.policies import EwmaPolicy, SeasonPolicy
@@ -96,13 +103,21 @@ class Arena:
 
     split: tuple = ()
     context: bool = False
+    hidden: int = 0
+
+    def build(self, theta, table, scaler):
+        """The policy this arena scores: linear, or one hidden layer."""
+        if self.hidden:
+            return MLPAgent.from_parameters(
+                theta, table, scaler, context=self.context, hidden=self.hidden
+            )
+        return LinearAgent.from_parameters(
+            theta, table, scaler, split=self.split, context=self.context
+        )
 
     def evaluate(self, theta: np.ndarray, task: Task, scaler: Scaler) -> dict:
         env = self.environment(task)
-        agent = LinearAgent.from_parameters(
-            theta, self.tables[task.season], scaler,
-            split=self.split, context=self.context,
-        )
+        agent = self.build(theta, self.tables[task.season], scaler)
         result = run_episode(env, agent, waiver_policy=as_waiver_policy(agent))
         standings = result.standings
         return {
@@ -168,6 +183,7 @@ class CrossEntropyTrainer:
         mask: np.ndarray | None = None,
         split: tuple = (),
         context: bool = False,
+        hidden: int = 0,
     ) -> None:
         self.arena = arena
         self.scaler = scaler
@@ -186,7 +202,12 @@ class CrossEntropyTrainer:
         # seeds each arm happened to draw.
         self.split = tuple(split)
         self.context = bool(context)
-        self.size = parameter_count(self.split, self.context)
+        self.hidden = int(hidden)
+        self.size = (
+            mlp_parameter_count(self.hidden, self.context)
+            if self.hidden
+            else parameter_count(self.split, self.context)
+        )
         self.mask = np.ones(self.size, bool) if mask is None else np.asarray(mask, bool)
         self.mu = np.zeros(self.size)
         self.sigma = np.where(self.mask, float(sigma), 0.0)

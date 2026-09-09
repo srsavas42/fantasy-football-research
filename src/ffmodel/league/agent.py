@@ -257,3 +257,105 @@ def as_waiver_policy(agent: LinearAgent):
         return agent.claim(env, observation)
 
     return choose
+
+
+# A hidden layer's width. Kept small on purpose: at 23 inputs a width of four is
+# already 101 weights against the linear model's 24, and the search budget is
+# fixed by how long an episode takes rather than by how many parameters there
+# are to move.
+HIDDEN = 4
+
+
+def mlp_parameter_count(hidden: int = HIDDEN, context: bool = False) -> int:
+    inputs = len(FEATURE_COLUMNS)
+    return (
+        inputs * hidden  # first layer
+        + hidden  # its biases
+        + hidden  # output layer
+        + 1  # output bias
+        + 1  # claim threshold
+        + (len(CONTEXT_COLUMNS) if context else 0)
+    )
+
+
+@dataclass
+class MLPAgent(LinearAgent):
+    """The same policy with a hidden layer, to price what capacity is worth.
+
+    The linear agent cannot express an interaction: it cannot learn that
+    rest-of-season matters more in September than in December, or that a wide
+    p10-to-p90 range means something different at running back than at kicker.
+    A hidden layer can. The question is whether the search can *find* those
+    interactions before it finds a way to memorise the training seasons, and at
+    this noise floor -- plus or minus three wins a season against a prize of
+    about two and a third -- that is not obvious in either direction.
+
+    Deliberately given the same wall-clock budget as the linear arm rather than
+    a larger one. Capacity that cannot be searched is capacity that cannot be
+    used, and pretending otherwise by handing this arm four times the generations
+    would answer a question nobody asked.
+    """
+
+    hidden: int = HIDDEN
+
+    @classmethod
+    def from_parameters(
+        cls,
+        theta: np.ndarray,
+        table: pd.DataFrame,
+        scaler: Scaler,
+        split: tuple[str, ...] = (),
+        context: bool = False,
+        hidden: int = HIDDEN,
+        **kwargs,
+    ) -> "MLPAgent":
+        theta = np.asarray(theta, float)
+        expected = mlp_parameter_count(hidden, context)
+        if theta.shape != (expected,):
+            raise ValueError(f"expected {expected} parameters, got {theta.shape}")
+        if split:
+            raise ValueError("a hidden layer and a waiver split are not combined")
+        inputs = len(FEATURE_COLUMNS)
+        at = 0
+        first = theta[at : at + inputs * hidden].reshape(inputs, hidden)
+        at += inputs * hidden
+        first_bias = theta[at : at + hidden]
+        at += hidden
+        second = theta[at : at + hidden]
+        at += hidden
+        second_bias = float(theta[at])
+        at += 1
+        threshold = float(theta[at])
+        at += 1
+        weights = theta[at:] if context else None
+        agent = cls(
+            weights=np.zeros(inputs),
+            claim_threshold=threshold,
+            table=table,
+            scaler=scaler,
+            context_weights=weights,
+            hidden=hidden,
+            **kwargs,
+        )
+        agent._first = first
+        agent._first_bias = first_bias
+        agent._second = second
+        agent._second_bias = second_bias
+        agent._theta = theta
+        return agent
+
+    def parameters(self) -> np.ndarray:
+        return self._theta
+
+    def values(self, keys, week: int, waiver: bool = False) -> dict[str, float]:
+        keys = list(keys)
+        if not keys:
+            return {}
+        rows = self.scaler.apply(as_matrix(self.table, keys, week))
+        # tanh rather than a rectifier: the search starts near zero, and a
+        # rectifier there is half dead and gives the population nothing to
+        # climb. tanh is symmetric about the origin and has gradient everywhere,
+        # which for a gradient-free search means every candidate differs from
+        # the mean in a way the fitness can actually see.
+        hidden = np.tanh(rows @ self._first + self._first_bias)
+        return dict(zip(keys, hidden @ self._second + self._second_bias))

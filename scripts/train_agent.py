@@ -34,7 +34,13 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.league.agent import LinearAgent, Scaler, as_waiver_policy, parameter_count
+from ffmodel.league.agent import (
+    LinearAgent,
+    Scaler,
+    as_waiver_policy,
+    mlp_parameter_count,
+    parameter_count,
+)
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.context import CONTEXT_COLUMNS
 from ffmodel.league.credit import grade_claims
@@ -76,9 +82,7 @@ def evaluate(arena: Arena, theta, scaler, tasks, *, label: str) -> pd.DataFrame:
     }
     for task in tasks:
         table = arena.tables[task.season]
-        agent = LinearAgent.from_parameters(
-            theta, table, scaler, split=arena.split, context=arena.context
-        )
+        agent = arena.build(theta, table, scaler)
         # One episode, then graded from the environment it was played in. The
         # claims are a property of that episode, so replaying it to read them
         # would double the cost of every evaluation for nothing.
@@ -154,6 +158,10 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--cold-start", action="store_true")
     parser.add_argument(
+        "--hidden", type=int, default=0,
+        help="width of a hidden layer; 0 keeps the linear policy",
+    )
+    parser.add_argument(
         "--context", action="store_true",
         help="give the acquisition decision the roster and league context block "
              "in ffmodel.league.context",
@@ -185,11 +193,18 @@ def main(argv=None) -> int:
     scaler = Scaler.fit({s: tables[s] for s in args.train_seasons})
     arena = Arena(
         pool=pool, tables=tables, config=LeagueConfig(),
-        split=split, context=args.context,
+        split=split, context=args.context, hidden=args.hidden,
     )
     print(f"setup {time.time() - started:.1f}s; {len(FEATURE_COLUMNS)} features")
 
-    mask = np.ones(parameter_count(split, args.context), bool)
+    size = (
+        mlp_parameter_count(args.hidden, args.context)
+        if args.hidden
+        else parameter_count(split, args.context)
+    )
+    mask = np.ones(size, bool)
+    if args.exclude and args.hidden:
+        raise SystemExit("a hidden layer has no per-feature weights to exclude")
     for name in args.exclude:
         if name not in FEATURE_COLUMNS:
             raise SystemExit(f"unknown feature {name!r}")
@@ -203,6 +218,7 @@ def main(argv=None) -> int:
         mask=mask,
         split=split,
         context=args.context,
+        hidden=args.hidden,
         seasons=args.train_seasons,
         seeds=args.train_seeds,
         population=args.population,
@@ -211,7 +227,7 @@ def main(argv=None) -> int:
         workers=args.workers,
         rng=np.random.default_rng(args.seed),
     )
-    if not args.cold_start:
+    if not args.cold_start and not args.hidden:
         trainer.mu = warm_start(split, args.context) * mask
     if split:
         print(f"waiver-specific weights on: {', '.join(split)}")
@@ -226,16 +242,27 @@ def main(argv=None) -> int:
     theta = trainer.run(args.generations)
     print(f"search took {(time.time() - began) / 60:.1f} min")
 
-    print("\n=== learned weights ===")
-    for name, value in zip(FEATURE_COLUMNS, theta[: len(FEATURE_COLUMNS)]):
-        print(f"  {name:14s} {value:+8.3f}   (start {start_theta[FEATURE_COLUMNS.index(name)]:+.3f})")
-    print(f"  {'claim gap':14s} {theta[len(FEATURE_COLUMNS)]:+8.3f}")
-    tail = theta[len(FEATURE_COLUMNS) + 1 :]
-    for name, delta in zip(split, tail):
-        print(f"  waiver {name:20s} {delta:+8.3f}  (delta on the shared weight)")
-    if args.context:
-        for name, value in zip(CONTEXT_COLUMNS, tail[len(split) :]):
-            print(f"  {name:14s} {value:+8.3f}   (acquisition context)")
+    if args.hidden:
+        # A hidden layer's weights do not name features, so there is nothing
+        # interpretable to print; the context block still does.
+        print(f"\n=== {len(theta)} parameters, hidden width {args.hidden} ===")
+        if args.context:
+            for name, value in zip(CONTEXT_COLUMNS, theta[-len(CONTEXT_COLUMNS) :]):
+                print(f"  {name:14s} {value:+8.3f}   (acquisition context)")
+    else:
+        print("\n=== learned weights ===")
+        for name, value in zip(FEATURE_COLUMNS, theta[: len(FEATURE_COLUMNS)]):
+            print(
+                f"  {name:14s} {value:+8.3f}   "
+                f"(start {start_theta[FEATURE_COLUMNS.index(name)]:+.3f})"
+            )
+        print(f"  {'claim gap':14s} {theta[len(FEATURE_COLUMNS)]:+8.3f}")
+        tail = theta[len(FEATURE_COLUMNS) + 1 :]
+        for name, delta in zip(split, tail):
+            print(f"  waiver {name:20s} {delta:+8.3f}  (delta on the shared weight)")
+        if args.context:
+            for name, value in zip(CONTEXT_COLUMNS, tail[len(split) :]):
+                print(f"  {name:14s} {value:+8.3f}   (acquisition context)")
 
     train_tasks = [Task(s, seed) for s in args.train_seasons for seed in range(args.eval_seeds)]
     eval_tasks = [Task(s, seed) for s in args.eval_seasons for seed in range(args.eval_seeds)]
@@ -258,6 +285,7 @@ def main(argv=None) -> int:
             "split": list(split),
             "context": bool(args.context),
             "context_columns": list(CONTEXT_COLUMNS) if args.context else [],
+            "hidden": args.hidden,
         },
     )
     print(f"\nwrote {args.output}")

@@ -372,3 +372,110 @@ def test_the_search_can_hold_a_feature_at_zero():
     theta = trainer.run(3, log=lambda *_: None)
     assert np.allclose(theta[held], 0.0), theta[held]
     assert not np.allclose(np.delete(theta, held), 0.0), "the search moved nothing"
+
+
+# ------------------------------------------------------ acquisition context
+
+
+def test_context_reads_the_roster_rather_than_the_player():
+    """The whole point: the same player scores differently on different rosters.
+
+    Every other feature is a fact about a player and would be identical here.
+    Depth, and the upgrade over the man he displaces, are facts about a team.
+    """
+    from ffmodel.league.config import LeagueConfig
+    from ffmodel.league.context import CONTEXT_COLUMNS, build_context, team_shortfalls
+
+    slots = LeagueConfig().slots
+    positions = {"rb1": "RB", "rb2": "RB", "rb3": "RB", "wr1": "WR", "free": "RB"}
+    values = {"rb1": 90.0, "rb2": 80.0, "rb3": 20.0, "wr1": 70.0, "free": 60.0}
+
+    deep = ["rb1", "rb2", "rb3", "wr1"]
+    thin = ["rb3", "wr1"]
+    shortfalls = team_shortfalls({0: deep, 1: thin}, positions, slots)
+
+    def context_for(roster, starters):
+        return build_context(
+            ["free"], values=values, roster=roster, starters=starters,
+            positions=positions, slots=slots, free_agents=["free"],
+            shortfalls=shortfalls, agent_team=0,
+        )[0]
+
+    depth = CONTEXT_COLUMNS.index("ctx_depth")
+    upgrade = CONTEXT_COLUMNS.index("ctx_upgrade")
+
+    rich = context_for(deep, {"rb1", "rb2", "wr1"})
+    poor = context_for(thin, {"rb3", "wr1"})
+
+    assert rich[depth] > poor[depth], "a deeper roster should read as deeper"
+    # On the thin roster he displaces a 20-point back; on the deep one an
+    # 80-point back. Same player, opposite decisions.
+    assert poor[upgrade] > rich[upgrade]
+    assert poor[upgrade] > 0 > rich[upgrade]
+
+
+def test_a_replaceable_player_reads_as_replaceable():
+    """The wire gap: worth is relative to the next man on the page."""
+    from ffmodel.league.config import LeagueConfig
+    from ffmodel.league.context import CONTEXT_COLUMNS, build_context, team_shortfalls
+
+    slots = LeagueConfig().slots
+    positions = {"mine": "RB", "a": "RB", "b": "RB"}
+    roster, starters = ["mine"], {"mine"}
+    gap = CONTEXT_COLUMNS.index("ctx_wire_gap")
+
+    def wire_gap(values, free):
+        shortfalls = team_shortfalls({0: roster}, positions, slots)
+        rows = build_context(
+            ["a"], values=values, roster=roster, starters=starters,
+            positions=positions, slots=slots, free_agents=free,
+            shortfalls=shortfalls, agent_team=0,
+        )
+        return rows[0][gap]
+
+    unique = wire_gap({"mine": 10.0, "a": 90.0, "b": 10.0}, ["a", "b"])
+    crowded = wire_gap({"mine": 10.0, "a": 90.0, "b": 88.0}, ["a", "b"])
+    assert unique > crowded, "a player with no equal behind him should stand out"
+
+
+def test_the_context_block_only_touches_the_acquisition():
+    """A lineup has no alternative to weigh; the roster is already what it is."""
+    pool = _pool(weeks=8)
+    table = build_feature_table(pool, 2024, _projections(pool))
+    scaler = Scaler.fit({2024: table})
+
+    from ffmodel.league.agent import parameter_count
+    from ffmodel.league.context import CONTEXT_COLUMNS
+
+    theta = np.zeros(parameter_count(context=True))
+    theta[FEATURE_COLUMNS.index("ewma2")] = 1.0
+    plain = LinearAgent.from_parameters(theta[: parameter_count()], table, scaler)
+    # Wild context weights, which must not move a single lineup score.
+    theta[-len(CONTEXT_COLUMNS) :] = 5.0
+    with_context = LinearAgent.from_parameters(theta, table, scaler, context=True)
+
+    keys = [f"RB{index}" for index in range(6)]
+    assert plain.score(keys, pd.DataFrame(), 5, pd.DataFrame()) == with_context.score(
+        keys, pd.DataFrame(), 5, pd.DataFrame()
+    )
+
+
+def test_the_mlp_carries_its_own_parameter_count_and_ranks():
+    from ffmodel.league.agent import MLPAgent, mlp_parameter_count
+
+    pool = _pool(weeks=8)
+    table = build_feature_table(pool, 2024, _projections(pool))
+    scaler = Scaler.fit({2024: table})
+
+    size = mlp_parameter_count(hidden=4)
+    rng = np.random.default_rng(0)
+    agent = MLPAgent.from_parameters(rng.normal(0, 0.5, size), table, scaler, hidden=4)
+
+    keys = [f"RB{index}" for index in range(6)]
+    scores = agent.score(keys, pd.DataFrame(), 5, pd.DataFrame())
+    assert len(scores) == len(keys)
+    assert len(set(scores.values())) > 1, "every player scored the same"
+    assert np.allclose(agent.parameters().shape, (size,))
+
+    with pytest.raises(ValueError, match="parameters"):
+        MLPAgent.from_parameters(np.zeros(size - 1), table, scaler, hidden=4)

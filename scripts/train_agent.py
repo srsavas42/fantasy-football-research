@@ -179,6 +179,14 @@ def main(argv=None) -> int:
     parser.add_argument("--output", type=Path, default=Path("artifacts/league_agent.json"))
     parser.add_argument("--report", type=Path, default=Path("reports/league_agent.json"))
     parser.add_argument(
+        "--train-only", action="store_true",
+        help="stop after the search and skip the ~200-episode evaluation -- for "
+             "an intermediate chunked call where the checkpoint has not yet "
+             "reached --generations, evaluating an unfinished agent is wasted "
+             "time and the evaluation itself risks running past this call's "
+             "own time budget with nothing saved to show for it",
+    )
+    parser.add_argument(
         "--checkpoint", type=Path, default=None,
         help="save search state here after every generation and resume from it "
              "if it already exists -- the remote container this runs in can be "
@@ -255,6 +263,26 @@ def main(argv=None) -> int:
     began = time.time()
     theta = trainer.run(args.generations, checkpoint=args.checkpoint)
     print(f"search took {(time.time() - began) / 60:.1f} min this invocation")
+
+    if args.train_only:
+        done = len(trainer.history)
+        print(f"train-only: at generation {done}/{args.generations}; skipping evaluation")
+        if done >= args.generations:
+            save_agent(
+                args.output, theta, scaler,
+                {
+                    "features": list(FEATURE_COLUMNS),
+                    "train_seasons": args.train_seasons,
+                    "generations": args.generations,
+                    "cold_start": args.cold_start,
+                    "split": list(split),
+                    "context": bool(args.context),
+                    "context_columns": list(CONTEXT_COLUMNS) if args.context else [],
+                    "hidden": args.hidden,
+                },
+            )
+            print(f"wrote {args.output} (evaluation deferred -- rerun without --train-only)")
+        return 0
 
     if args.hidden:
         # A hidden layer's weights do not name features, so there is nothing

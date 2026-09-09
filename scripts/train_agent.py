@@ -178,6 +178,14 @@ def main(argv=None) -> int:
     )
     parser.add_argument("--output", type=Path, default=Path("artifacts/league_agent.json"))
     parser.add_argument("--report", type=Path, default=Path("reports/league_agent.json"))
+    parser.add_argument(
+        "--checkpoint", type=Path, default=None,
+        help="save search state here after every generation and resume from it "
+             "if it already exists -- the remote container this runs in can be "
+             "reclaimed between turns with no warning, so a run meant to take "
+             "hours has to survive being restarted from the last generation "
+             "rather than from scratch",
+    )
     args = parser.parse_args(argv)
 
     split = tuple(args.split)
@@ -227,7 +235,11 @@ def main(argv=None) -> int:
         workers=args.workers,
         rng=np.random.default_rng(args.seed),
     )
-    if not args.cold_start and not args.hidden:
+    resumed_at = 0
+    if args.checkpoint and args.checkpoint.exists():
+        resumed_at = trainer.load_checkpoint(args.checkpoint)
+        print(f"resumed {args.checkpoint} at generation {resumed_at}")
+    elif not args.cold_start and not args.hidden:
         trainer.mu = warm_start(split, args.context) * mask
     if split:
         print(f"waiver-specific weights on: {', '.join(split)}")
@@ -238,9 +250,11 @@ def main(argv=None) -> int:
         f"population {args.population}, batch {args.batch}, "
         f"{args.generations} generations"
     )
+    if resumed_at >= args.generations:
+        print(f"checkpoint already reached {resumed_at} of {args.generations}; nothing to do")
     began = time.time()
-    theta = trainer.run(args.generations)
-    print(f"search took {(time.time() - began) / 60:.1f} min")
+    theta = trainer.run(args.generations, checkpoint=args.checkpoint)
+    print(f"search took {(time.time() - began) / 60:.1f} min this invocation")
 
     if args.hidden:
         # A hidden layer's weights do not name features, so there is nothing

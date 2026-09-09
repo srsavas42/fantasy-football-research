@@ -297,18 +297,83 @@ class CrossEntropyTrainer:
         self.history.append(record)
         return record
 
-    def run(self, generations: int, *, log=print) -> np.ndarray:
+    def run(
+        self, generations: int, *, log=print, checkpoint: Path | None = None
+    ) -> np.ndarray:
+        """Run generations up to ``generations``, resuming past ones already done.
+
+        Checkpointing after every generation, not at the end, is the point: this
+        search runs inside a remote container that can be reclaimed between
+        turns with no warning, silently killing anything backgrounded, however
+        it was launched. A generation is the unit of work small enough that
+        losing one to that is a delay, not a lost run -- so it is saved.
+        """
         try:
-            for index in range(generations):
+            start = len(self.history)
+            for index in range(start, generations):
                 record = self.step(index)
                 log(
                     f"gen {record.index:3d}  best {record.best:+8.1f}  "
                     f"elite {record.elite_mean:+8.1f}  mean {record.mean:+8.1f}  "
                     f"sigma {record.sigma:.3f}"
                 )
+                if checkpoint is not None:
+                    self.save_checkpoint(checkpoint)
         finally:
             self.close()
         return self.mu
+
+    # --------------------------------------------------------- checkpointing
+
+    def save_checkpoint(self, path: Path) -> None:
+        """Everything needed to resume exactly where the search left off.
+
+        Written to a temp file and renamed into place, so a process killed
+        mid-write leaves the previous checkpoint intact rather than a truncated
+        one that would fail to load.
+        """
+        import pickle
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "mu": self.mu,
+            "sigma": self.sigma,
+            "mask": self.mask,
+            "size": self.size,
+            "rng": self.rng,
+            "baselines": self._baselines,
+            "history": self.history,
+        }
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp, "wb") as handle:
+            pickle.dump(payload, handle)
+        tmp.replace(path)
+
+    def load_checkpoint(self, path: Path) -> int:
+        """Restore search state from :meth:`save_checkpoint`.
+
+        Refuses a checkpoint whose parameter count does not match this run's
+        configuration -- a stale checkpoint from a differently-shaped agent
+        (a different ``--split`` or ``--context``) would otherwise resume into
+        garbage silently. Returns the generation count resumed to.
+        """
+        import pickle
+
+        with open(path, "rb") as handle:
+            payload = pickle.load(handle)
+        if payload["size"] != self.size:
+            raise ValueError(
+                f"checkpoint at {path} has {payload['size']} parameters; this "
+                f"run is configured for {self.size}. Delete it or fix the flags."
+            )
+        self.mu = payload["mu"]
+        self.sigma = payload["sigma"]
+        self.mask = payload["mask"]
+        self.rng = payload["rng"]
+        self._baselines = payload["baselines"]
+        self.history = payload["history"]
+        return len(self.history)
 
 
 def save_agent(path: Path, theta: np.ndarray, scaler: Scaler, meta: dict) -> None:

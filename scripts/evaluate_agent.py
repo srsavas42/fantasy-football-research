@@ -38,7 +38,13 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
-from ffmodel.league.agent import PARAMETER_COUNT, LinearAgent, Scaler, as_waiver_policy
+from ffmodel.league.agent import (
+    PARAMETER_COUNT,
+    LinearAgent,
+    MLPAgent,
+    Scaler,
+    as_waiver_policy,
+)
 from ffmodel.league.config import LeagueConfig
 from ffmodel.league.credit import grade_claims
 from ffmodel.league.env import run_episode
@@ -55,7 +61,26 @@ def ewma2_vector(claim_threshold: float) -> np.ndarray:
     return theta
 
 
-def play(arena: Arena, task: Task, kind: str, theta=None, scaler=None) -> dict:
+def build_agent(theta, table, scaler, meta: dict | None = None):
+    """Reconstruct whatever shape of agent ``meta`` (from ``save_agent``) says.
+
+    A saved agent can be a plain linear ranker, one with a waiver-specific
+    split, one with the acquisition context block, or an MLP -- and getting the
+    wrong shape back from a parameter vector is not a loud failure, it is a
+    silently wrong evaluation. The metadata `train_agent.py` writes alongside
+    every checkpoint is what makes reconstructing the right one automatic
+    instead of a flag the caller has to remember to pass.
+    """
+    meta = meta or {}
+    hidden = int(meta.get("hidden") or 0)
+    context = bool(meta.get("context"))
+    if hidden:
+        return MLPAgent.from_parameters(theta, table, scaler, hidden=hidden, context=context)
+    split = tuple(meta.get("split") or ())
+    return LinearAgent.from_parameters(theta, table, scaler, split=split, context=context)
+
+
+def play(arena: Arena, task: Task, kind: str, theta=None, scaler=None, meta=None) -> dict:
     table = arena.tables[task.season]
     env = arena.environment(task)
     if kind == "field":
@@ -68,7 +93,7 @@ def play(arena: Arena, task: Task, kind: str, theta=None, scaler=None) -> dict:
         result = run_episode(env, PerfectPolicy(truth=truth))
         claims = []
     else:
-        agent = LinearAgent.from_parameters(theta, table, scaler)
+        agent = build_agent(theta, table, scaler, meta)
         result = run_episode(env, agent, waiver_policy=as_waiver_policy(agent))
         claims = grade_claims(env)
     standings = result.standings
@@ -101,16 +126,24 @@ def main(argv=None) -> int:
     tasks = [Task(s, seed) for s in args.seasons for seed in range(args.seeds)]
     print(f"{len(tasks)} seats: seasons {args.seasons} x {args.seeds} seeds")
 
+    # ewma2's threshold comes from the learned agent's own claim gap. For every
+    # linear agent -- split or context or both -- the threshold sits at a fixed
+    # index right after the feature weights, whatever comes after it. Only an
+    # MLP moves it, because the hidden layer's weights come first; there the
+    # control falls back to the trainer's own warm-start value.
+    ewma2_threshold = (
+        float(theta[len(FEATURE_COLUMNS)]) if not saved.get("hidden") else 0.5
+    )
     contenders = {
-        "field": ("field", None),
-        "ewma2": ("agent", ewma2_vector(theta[-1])),
-        "learned": ("agent", theta),
-        "oracle": ("oracle", None),
+        "field": ("field", None, None),
+        "ewma2": ("agent", ewma2_vector(ewma2_threshold), None),
+        "learned": ("agent", theta, saved),
+        "oracle": ("oracle", None, None),
     }
     rows = []
-    for name, (kind, vector) in contenders.items():
+    for name, (kind, vector, meta) in contenders.items():
         for task in tasks:
-            record = play(arena, task, kind, theta=vector, scaler=scaler)
+            record = play(arena, task, kind, theta=vector, scaler=scaler, meta=meta)
             record.update(policy=name, season=task.season, seed=task.seed)
             rows.append(record)
     frame = pd.DataFrame(rows)

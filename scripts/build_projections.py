@@ -93,21 +93,44 @@ SHIPPED_WEEKLY = dict(
 )
 
 
+# The quantiles carried alongside the mean. A projection's *spread* is a
+# different fact from its level and the two decisions want it differently: a
+# lineup behind late wants the p90, a lineup ahead wants the p10, and a waiver
+# claim on a player nobody has seen play is a bet on the top of his range.
+QUANTILES = (10, 50, 90)
+
+
+def _summary(estimator, frame: pd.DataFrame, draws: int, seed: int) -> dict:
+    """Mean and quantiles from one pass of the sampler.
+
+    Drawn once and summarised, rather than sampled separately per statistic, so
+    the mean and the quantiles describe the same predictive distribution rather
+    than three neighbouring ones.
+    """
+    samples = np.asarray(estimator.predict_samples(frame, draws, seed), float)
+    out = {"mean": samples.mean(axis=1)}
+    for q, values in zip(QUANTILES, np.percentile(samples, QUANTILES, axis=1)):
+        out[f"p{q}"] = values
+    return out
+
+
 def _mean(estimator, frame: pd.DataFrame, draws: int, seed: int) -> np.ndarray:
     """The predictive mean, from the same sampler the evaluation scores."""
-    samples = estimator.predict_samples(frame, draws, seed)
-    return np.asarray(samples, float).mean(axis=1)
+    return _summary(estimator, frame, draws, seed)["mean"]
 
 
 def _fit_predict(make, train, test, target, draws, seed, label):
-    """One walk-forward fit, or nothing if it cannot be made honestly."""
+    """One walk-forward fit, or nothing if it cannot be made honestly.
+
+    Returns the full summary -- mean plus quantiles -- or ``None``.
+    """
     values = pd.to_numeric(train[target], errors="coerce")
     usable = np.isfinite(values)
     if usable.sum() < 50 or train["season"].nunique() < MIN_TRAIN_SEASONS:
         return None
     try:
         model = make().fit(train[usable], values[usable].to_numpy(float))
-        return _mean(model, test, draws, seed)
+        return _summary(model, test, draws, seed)
     except Exception as error:  # noqa: BLE001 -- reported, not swallowed
         print(f"    !! {label} failed: {type(error).__name__}: {error}")
         return None
@@ -133,8 +156,8 @@ def _blended_rest(build_model, train, test, draws, seed):
         return None, {}
 
     model = build_model().fit(train, train[TARGET].to_numpy(float))
-    model_mean = _mean(model, test, draws, seed)
-    curve_mean = _mean(curve, test, draws, seed)
+    model_summary = _summary(model, test, draws, seed)
+    curve_summary = _summary(curve, test, draws, seed)
 
     labels = bucket_labels(test["week"].to_numpy(float))
     weight = np.ones(len(test), float)
@@ -155,8 +178,31 @@ def _blended_rest(build_model, train, test, draws, seed):
     # decision this projection exists to serve.
     drafted = pd.to_numeric(test.get("adp_drafted"), errors="coerce").eq(1).to_numpy()
     weight = np.where(drafted, weight, 1.0)
+
     # curve + w * (model - curve): w = 1 is the model, w = 0 is the board.
-    return np.maximum(curve_mean + weight * (model_mean - curve_mean), 0.0), weights
+    #
+    # Applied to each statistic separately, which is a location shift of the
+    # whole predictive distribution rather than a true quantile blend. The exact
+    # object -- quantiles of the mixture of two predictive distributions -- is a
+    # different and worse-behaved thing, and blending the summaries keeps the
+    # quantiles consistent with the mean they are reported beside, which is what
+    # a downstream feature needs.
+    blended = {
+        name: np.maximum(
+            curve_summary[name] + weight * (model_summary[name] - curve_summary[name]),
+            0.0,
+        )
+        for name in model_summary
+    }
+    return blended, weights
+
+
+def _spread(block: pd.DataFrame, horizon: str, summary: dict | None) -> None:
+    """Write one horizon's mean and quantiles into the output block."""
+    stem = "projection" if horizon == "week" else "ros_projection"
+    names = {"mean": stem, **{f"p{q}": f"{stem}_p{q}" for q in QUANTILES}}
+    for key, column in names.items():
+        block[column] = None if summary is None else summary[key]
 
 
 def project_panel(
@@ -175,8 +221,13 @@ def project_panel(
             continue
         started = time.time()
         block = test[["season", "week", "player_key"]].copy()
-        block["projection"] = _fit_predict(
-            weekly, train, test, "points", draws, season, f"{label} next-week {season}"
+        _spread(
+            block,
+            "week",
+            _fit_predict(
+                weekly, train, test, "points", draws, season,
+                f"{label} next-week {season}",
+            ),
         )
         blended, weights = (None, {})
         if blend:
@@ -185,12 +236,12 @@ def project_panel(
                 rest, train[usable], test, draws, season
             )
         if blended is not None:
-            block["ros_projection"] = blended
             print(f"    blend weights {', '.join(f'{k} {v:.2f}' for k, v in weights.items())}")
         else:
-            block["ros_projection"] = _fit_predict(
+            blended = _fit_predict(
                 rest, train, test, TARGET, draws, season, f"{label} ROS {season}"
             )
+        _spread(block, "ros", blended)
         block["games_remaining"] = pd.to_numeric(
             test[OFFSET], errors="coerce"
         ).to_numpy(float)

@@ -36,6 +36,7 @@ import pandas as pd
 
 from ffmodel.league.agent import LinearAgent, Scaler, as_waiver_policy, parameter_count
 from ffmodel.league.config import LeagueConfig
+from ffmodel.league.context import CONTEXT_COLUMNS
 from ffmodel.league.credit import grade_claims
 from ffmodel.league.env import run_episode
 from ffmodel.league.features import FEATURE_COLUMNS, build_feature_tables
@@ -51,14 +52,14 @@ TRAIN_SEASONS = (2018, 2019, 2020, 2021, 2022)
 EVAL_SEASONS = (2023, 2024, 2025)
 
 
-def warm_start(split: tuple = ()) -> np.ndarray:
+def warm_start(split: tuple = (), context: bool = False) -> np.ndarray:
     """Weight on a two-game average, and a threshold a claim has to clear.
 
     Any waiver deltas start at zero, which is the shared model exactly -- so a
     split arm begins where the unsplit one would and the search only has to find
     a reason to depart from it.
     """
-    theta = np.zeros(parameter_count(split))
+    theta = np.zeros(parameter_count(split, context))
     theta[FEATURE_COLUMNS.index("ewma2")] = 1.0
     theta[len(FEATURE_COLUMNS)] = 0.5
     return theta
@@ -75,7 +76,9 @@ def evaluate(arena: Arena, theta, scaler, tasks, *, label: str) -> pd.DataFrame:
     }
     for task in tasks:
         table = arena.tables[task.season]
-        agent = LinearAgent.from_parameters(theta, table, scaler, split=arena.split)
+        agent = LinearAgent.from_parameters(
+            theta, table, scaler, split=arena.split, context=arena.context
+        )
         # One episode, then graded from the environment it was played in. The
         # claims are a property of that episode, so replaying it to read them
         # would double the cost of every evaluation for nothing.
@@ -151,6 +154,11 @@ def main(argv=None) -> int:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--cold-start", action="store_true")
     parser.add_argument(
+        "--context", action="store_true",
+        help="give the acquisition decision the roster and league context block "
+             "in ffmodel.league.context",
+    )
+    parser.add_argument(
         "--split", type=str, nargs="*", default=[],
         help="features the add/drop decision may weigh differently from the "
              "lineup; empty means one ranking for both",
@@ -175,10 +183,13 @@ def main(argv=None) -> int:
     # Standardisation is fitted on the training seasons only. Fitting it on the
     # holdout too would be a small leak, and a pointless one.
     scaler = Scaler.fit({s: tables[s] for s in args.train_seasons})
-    arena = Arena(pool=pool, tables=tables, config=LeagueConfig(), split=split)
+    arena = Arena(
+        pool=pool, tables=tables, config=LeagueConfig(),
+        split=split, context=args.context,
+    )
     print(f"setup {time.time() - started:.1f}s; {len(FEATURE_COLUMNS)} features")
 
-    mask = np.ones(parameter_count(split), bool)
+    mask = np.ones(parameter_count(split, args.context), bool)
     for name in args.exclude:
         if name not in FEATURE_COLUMNS:
             raise SystemExit(f"unknown feature {name!r}")
@@ -191,6 +202,7 @@ def main(argv=None) -> int:
         scaler,
         mask=mask,
         split=split,
+        context=args.context,
         seasons=args.train_seasons,
         seeds=args.train_seeds,
         population=args.population,
@@ -200,7 +212,7 @@ def main(argv=None) -> int:
         rng=np.random.default_rng(args.seed),
     )
     if not args.cold_start:
-        trainer.mu = warm_start(split) * mask
+        trainer.mu = warm_start(split, args.context) * mask
     if split:
         print(f"waiver-specific weights on: {', '.join(split)}")
     start_theta = trainer.mu.copy()
@@ -218,8 +230,12 @@ def main(argv=None) -> int:
     for name, value in zip(FEATURE_COLUMNS, theta[: len(FEATURE_COLUMNS)]):
         print(f"  {name:14s} {value:+8.3f}   (start {start_theta[FEATURE_COLUMNS.index(name)]:+.3f})")
     print(f"  {'claim gap':14s} {theta[len(FEATURE_COLUMNS)]:+8.3f}")
-    for name, delta in zip(split, theta[len(FEATURE_COLUMNS) + 1 :]):
+    tail = theta[len(FEATURE_COLUMNS) + 1 :]
+    for name, delta in zip(split, tail):
         print(f"  waiver {name:20s} {delta:+8.3f}  (delta on the shared weight)")
+    if args.context:
+        for name, value in zip(CONTEXT_COLUMNS, tail[len(split) :]):
+            print(f"  {name:14s} {value:+8.3f}   (acquisition context)")
 
     train_tasks = [Task(s, seed) for s in args.train_seasons for seed in range(args.eval_seeds)]
     eval_tasks = [Task(s, seed) for s in args.eval_seasons for seed in range(args.eval_seeds)]
@@ -240,6 +256,8 @@ def main(argv=None) -> int:
             "cold_start": args.cold_start,
             "excluded": args.exclude,
             "split": list(split),
+            "context": bool(args.context),
+            "context_columns": list(CONTEXT_COLUMNS) if args.context else [],
         },
     )
     print(f"\nwrote {args.output}")

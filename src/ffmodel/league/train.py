@@ -95,11 +95,13 @@ class Arena:
         return result.total_reward
 
     split: tuple = ()
+    context: bool = False
 
     def evaluate(self, theta: np.ndarray, task: Task, scaler: Scaler) -> dict:
         env = self.environment(task)
         agent = LinearAgent.from_parameters(
-            theta, self.tables[task.season], scaler, split=self.split
+            theta, self.tables[task.season], scaler,
+            split=self.split, context=self.context,
         )
         result = run_episode(env, agent, waiver_policy=as_waiver_policy(agent))
         standings = result.standings
@@ -165,6 +167,7 @@ class CrossEntropyTrainer:
         workers: int = 1,
         mask: np.ndarray | None = None,
         split: tuple = (),
+        context: bool = False,
     ) -> None:
         self.arena = arena
         self.scaler = scaler
@@ -182,7 +185,8 @@ class CrossEntropyTrainer:
         # comparison then differs by the feature alone, not by which seasons or
         # seeds each arm happened to draw.
         self.split = tuple(split)
-        self.size = parameter_count(self.split)
+        self.context = bool(context)
+        self.size = parameter_count(self.split, self.context)
         self.mask = np.ones(self.size, bool) if mask is None else np.asarray(mask, bool)
         self.mu = np.zeros(self.size)
         self.sigma = np.where(self.mask, float(sigma), 0.0)

@@ -43,10 +43,26 @@ HALFLIVES = (1.0, 2.0, 4.0)
 # and the agent falls back to what it had before they existed.
 PROJECTION_CACHE = Path(".cache/league_projections.parquet")
 
+# The projection columns, in the order the cache writes them. Each horizon
+# carries a mean and three quantiles: the level and the shape of the range are
+# different facts, and the decisions want them differently -- a lineup behind
+# late wants the p90, a claim on a player nobody has seen play is a bet on the
+# top of his range, and a hurdle model's p10 of zero is the distinct statement
+# "he might not play at all".
+PROJECTION_COLUMNS = (
+    "projection",
+    "projection_p10",
+    "projection_p50",
+    "projection_p90",
+    "ros_projection",
+    "ros_projection_p10",
+    "ros_projection_p50",
+    "ros_projection_p90",
+)
+
 FEATURE_COLUMNS = (
     "bias",
-    "projection",
-    "ros_projection",
+    *PROJECTION_COLUMNS,
     "ewma1",
     "ewma2",
     "ewma4",
@@ -116,21 +132,27 @@ def attach_projections(
     """
     out = table.copy()
     if projections is None:
-        out["projection"] = 0.0
-        out["ros_projection"] = 0.0
+        for column in PROJECTION_COLUMNS:
+            out[column] = 0.0
         return out
 
+    have = [c for c in PROJECTION_COLUMNS if c in projections.columns]
     block = projections[projections["season"] == int(season)]
-    block = block.set_index(["player_key", "week"])[["projection", "ros_projection"]]
+    block = block.set_index(["player_key", "week"])[have]
     joined = block.reindex(out.index)
-    out["projection"] = joined["projection"].fillna(0.0).to_numpy(float)
-    out["ros_projection"] = (
-        joined["ros_projection"]
-        .groupby(level="player_key")
-        .ffill()
-        .fillna(0.0)
-        .to_numpy(float)
-    )
+    for column in PROJECTION_COLUMNS:
+        if column not in have:
+            out[column] = 0.0
+        elif column.startswith("ros_"):
+            out[column] = (
+                joined[column]
+                .groupby(level="player_key")
+                .ffill()
+                .fillna(0.0)
+                .to_numpy(float)
+            )
+        else:
+            out[column] = joined[column].fillna(0.0).to_numpy(float)
     return out
 
 

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from ffmodel.league.context import CONTEXT_COLUMNS, build_context, team_shortfalls
 from ffmodel.league.features import FEATURE_COLUMNS, as_matrix
 from ffmodel.league.lineup import optimal_lineup
 from ffmodel.league.policies import Policy
@@ -43,8 +44,8 @@ UNSCALED = ("bias",) + tuple(c for c in FEATURE_COLUMNS if c.startswith("is_"))
 PARAMETER_COUNT = len(FEATURE_COLUMNS) + 1
 
 
-def parameter_count(split: tuple[str, ...] = ()) -> int:
-    return PARAMETER_COUNT + len(split)
+def parameter_count(split: tuple[str, ...] = (), context: bool = False) -> int:
+    return PARAMETER_COUNT + len(split) + (len(CONTEXT_COLUMNS) if context else 0)
 
 
 def _split_indices(split: tuple[str, ...]) -> list[int]:
@@ -109,6 +110,13 @@ class LinearAgent(Policy):
     # it.
     split: tuple[str, ...] = ()
     waiver_delta: np.ndarray | None = field(default=None, repr=False)
+    # Weights on the decision-time context block in :mod:`ffmodel.league.context`
+    # -- roster depth, the upgrade over the man actually displaced, how
+    # replaceable the player is on the wire, and what the rest of the league is
+    # short of. They apply to the acquisition decision only, because they are
+    # answers to "is he worth more to me than the alternative" and a lineup has
+    # no alternative to weigh: the roster is already what it is.
+    context_weights: np.ndarray | None = field(default=None, repr=False)
 
     @classmethod
     def from_parameters(
@@ -117,25 +125,35 @@ class LinearAgent(Policy):
         table: pd.DataFrame,
         scaler: Scaler,
         split: tuple[str, ...] = (),
+        context: bool = False,
         **kwargs,
     ) -> "LinearAgent":
         theta = np.asarray(theta, float)
-        expected = parameter_count(split)
+        expected = parameter_count(split, context)
         if theta.shape != (expected,):
             raise ValueError(f"expected {expected} parameters, got {theta.shape}")
+        cut = len(FEATURE_COLUMNS)
+        rest = theta[cut + 1 :]
+        deltas = rest[: len(split)]
+        weights = rest[len(split) :] if context else None
         return cls(
-            weights=theta[: len(FEATURE_COLUMNS)],
-            claim_threshold=float(theta[len(FEATURE_COLUMNS)]),
+            weights=theta[:cut],
+            claim_threshold=float(theta[cut]),
             table=table,
             scaler=scaler,
             split=tuple(split),
-            waiver_delta=theta[len(FEATURE_COLUMNS) + 1 :],
+            waiver_delta=deltas,
+            context_weights=weights,
             **kwargs,
         )
 
     def parameters(self) -> np.ndarray:
-        tail = self.waiver_delta if self.waiver_delta is not None else np.zeros(0)
-        return np.concatenate([self.weights, [self.claim_threshold], tail])
+        parts = [self.weights, [self.claim_threshold]]
+        if self.waiver_delta is not None:
+            parts.append(self.waiver_delta)
+        if self.context_weights is not None:
+            parts.append(self.context_weights)
+        return np.concatenate([np.asarray(part, float) for part in parts])
 
     @property
     def waiver_weights(self) -> np.ndarray:
@@ -189,7 +207,6 @@ class LinearAgent(Policy):
         if not spare:
             return None
         roster_values = self.values(roster, week, waiver=True)
-        drop = min(spare, key=lambda key: (roster_values.get(key, 0.0), key))
 
         available = [
             key for key in shortlist if env.availability.is_available(key, week)
@@ -197,6 +214,34 @@ class LinearAgent(Policy):
         if not available:
             return None
         free_values = self.values(available, week, waiver=True)
+
+        # Context is what turns a ranking into an acquisition decision: the same
+        # free agent is a must-add for a team short at his position and a wasted
+        # roster spot for one already deep there, and nothing about the player
+        # tells those apart.
+        scores = {**roster_values, **free_values}
+        if self.context_weights is not None:
+            starting = set(lineup.starting_keys())
+            shortfalls = team_shortfalls(
+                env.rosters, env.positions, env.config.slots,
+                env.availability, week,
+            )
+            shared = dict(
+                values=scores,
+                roster=roster,
+                starters=starting,
+                positions=env.positions,
+                slots=env.config.slots,
+                free_agents=available,
+                shortfalls=shortfalls,
+                agent_team=env.agent_team,
+            )
+            for keys, target in ((available, free_values), (spare, roster_values)):
+                rows = build_context(keys, **shared)
+                for key, bonus in zip(keys, rows @ self.context_weights):
+                    target[key] = target.get(key, 0.0) + bonus
+
+        drop = min(spare, key=lambda key: (roster_values.get(key, 0.0), key))
         add = max(available, key=lambda key: (free_values.get(key, 0.0), key))
 
         gain = free_values[add] - roster_values.get(drop, 0.0)

@@ -188,13 +188,30 @@ class LinearAgent(Policy):
         threshold should be able to authorise, and letting the search discover
         that costs generations it does not have.
         """
+        return self.claim_for(
+            env,
+            env.agent_team,
+            roster=list(observation["roster"]),
+            free_agents=list(observation["free_agents"]),
+            week=observation["week"],
+        )
+
+    def claim_for(self, env, team, *, roster, free_agents, week):
+        """The same decision, made from an arbitrary seat.
+
+        ``claim`` is the agent's own turn and reads its observation. Self-play
+        needs the identical rule run for the other eleven teams, which have no
+        observation because the environment never asks them anything -- so the
+        body lives here, parameterised by whose roster it is, and the only thing
+        the seat changes is which team is excluded from "what the rest of the
+        league is short of".
+        """
         from ffmodel.league.env import WaiverClaim
 
-        shortlist = list(observation["free_agents"])
+        shortlist = list(free_agents)
         if not shortlist:
             return None
-        week = observation["week"]
-        roster = list(observation["roster"])
+        roster = list(roster)
 
         # Who is spare is a lineup question -- it is this week's card that says
         # who is not needed. Which of the spares to cut, and who to claim, are
@@ -234,7 +251,7 @@ class LinearAgent(Policy):
                 slots=env.config.slots,
                 free_agents=available,
                 shortfalls=shortfalls,
-                agent_team=env.agent_team,
+                agent_team=team,
             )
             for keys, target in ((available, free_values), (spare, roster_values)):
                 rows = build_context(keys, **shared)
@@ -255,6 +272,21 @@ def as_waiver_policy(agent: LinearAgent):
 
     def choose(env, observation):
         return agent.claim(env, observation)
+
+    return choose
+
+
+def as_opponent_claims(agent: LinearAgent):
+    """Adapt the same rule to what ``FantasyLeagueEnv.opponent_claims`` expects.
+
+    The environment asks each opponent at its own turn in the waiver queue and
+    hands it the seat rather than an observation, because it never built one.
+    """
+
+    def choose(env, team, *, roster, free_agents, week):
+        return agent.claim_for(
+            env, team, roster=roster, free_agents=free_agents, week=week
+        )
 
     return choose
 

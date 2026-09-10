@@ -144,6 +144,7 @@ class FantasyLeagueEnv:
         *,
         opponent: Policy | None = None,
         roster_valuation: Policy | None = None,
+        opponent_claims=None,
         kickoffs: KickoffSlots | None = None,
         agent_team: int = 0,
         seed: int = 0,
@@ -156,6 +157,13 @@ class FantasyLeagueEnv:
         # How every team values players for add/drop/IR decisions. Deliberately
         # separate from the lineup policy -- see :meth:`_manage`.
         self.roster_valuation = roster_valuation or EwmaPolicy()
+        # What the other eleven teams do on the wire beyond the housekeeping
+        # rules. ``None`` is the standard field, which transacts only when a
+        # rule forces it -- an empty starting slot, a player ruled out. A
+        # callable `(env, team, roster, free_agents, week) -> WaiverClaim|None`
+        # makes them active managers instead, which is what self-play needs and
+        # what `scripts/selfplay_agent.py` measures the cost of.
+        self.opponent_claims = opponent_claims
 
         block = pool[pool["season"] == self.season].copy()
         if block.empty:
@@ -244,6 +252,8 @@ class FantasyLeagueEnv:
         # already played, so nothing in it could leak the future.
         self.ledger: list[dict] = []
         self._pending_claim: WaiverClaim | None = None
+        # An opponent's claim, held only until its housekeeping has run.
+        self._opponent_pending: dict[int, str] = {}
         self._claims_this_phase = 0
         self._records = {
             team: {"wins": 0, "losses": 0, "ties": 0, "points": 0.0}
@@ -714,6 +724,11 @@ class FantasyLeagueEnv:
                 # the agent first pick of the wire every phase of every season,
                 # which is the same systematic edge the housekeeping order had.
                 moves.extend(self._drain_claims())
+            elif self.opponent_claims is not None:
+                # An opponent transacts at its turn too, and the same rules bind
+                # it: the wire has to have cleared, and a player another team
+                # already took this phase is simply gone.
+                moves.extend(self._opponent_claim(team, history, week))
             moves.extend(self._manage(team, history, week))
             made[team] = moves
         for team, moves in made.items():
@@ -760,6 +775,51 @@ class FantasyLeagueEnv:
             )
         return moves
 
+    def _opponent_claim(self, team: int, history: pd.DataFrame, week: int) -> list:
+        """Let one opponent take its turn on the wire.
+
+        One claim per team per phase, which is a mirror rather than a handicap:
+        `run_episode` asks the agent's waiver policy once per phase too, and the
+        trained policy answers with a single swap. The rules that bind the agent
+        bind an opponent identically -- the wire must have cleared, and a player
+        a higher-priority team already took this phase is simply gone.
+
+        The pool offered is `_waiver_shortlist`, which is what the agent's own
+        observation carries. Handing an opponent the whole wire instead would
+        give it a strictly larger choice set than the seat under test, and a
+        field that sees more than the agent is not a mirror -- it is a different
+        and harder game, which would read as the agent's edge collapsing for a
+        reason that has nothing to do with the policy.
+        """
+        available = self._waiver_shortlist(history)
+        if not available:
+            return []
+        claim = self.opponent_claims(
+            self, team,
+            roster=list(self.rosters[team]),
+            free_agents=available,
+            week=week,
+        )
+        if claim is None:
+            return []
+        if claim.drop_key not in self.rosters[team]:
+            return []
+        if claim.add_key not in self.free_agents:
+            return []
+        if not self.wire.is_free(claim.add_key, self.hour):
+            return []
+        self._swap(team, claim)
+        # Protected for this phase exactly as the agent's own claim is. Without
+        # it the housekeeping that runs next, on a valuation that has not been
+        # told anything happened, can cut the player the team just claimed --
+        # which would make every opponent strictly worse than the agent for a
+        # reason that has nothing to do with policy.
+        self._opponent_pending[team] = claim.add_key
+        return [
+            Transaction(week, "waiver-add", claim.add_key, hour=self.hour),
+            Transaction(week, "drop", claim.drop_key, hour=self.hour),
+        ]
+
     def _manage(self, team: int, history: pd.DataFrame, week: int) -> list:
         """Run one team's roster housekeeping for the week.
 
@@ -793,6 +853,9 @@ class FantasyLeagueEnv:
         protected = set()
         if team == self.agent_team and self._pending_claim is not None:
             protected.add(self._pending_claim.add_key)
+        pending = self._opponent_pending.pop(team, None)
+        if pending is not None:
+            protected.add(pending)
 
         return manage_roster(
             roster=self.rosters[team],

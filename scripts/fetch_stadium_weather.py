@@ -44,6 +44,7 @@ comparison is direct rather than a conversion away from being direct.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 import warnings
@@ -53,7 +54,7 @@ warnings.filterwarnings("ignore")
 
 import pandas as pd
 
-from ffmodel.config import MANUAL_DATA_DIR, HTTP_TIMEOUT
+from ffmodel.config import MANUAL_DATA_DIR
 from ffmodel.data import ingest
 from ffmodel.data.http import RemoteDataError, get_json
 
@@ -123,14 +124,34 @@ def load_games(seasons: range) -> pd.DataFrame:
     return schedule[keep].reset_index(drop=True)
 
 
-# Transient enough to be worth another attempt: the free tier's rate limiter
-# and the usual gateway failures. A 400 means the request itself is wrong and
-# retrying it only spends quota.
-RETRYABLE = ("429", "500", "502", "503", "504")
+# A blocklist, not an allowlist. The first full backfill lost 90 minutes of
+# progress to `_ssl.c:999: The handshake operation timed out` -- a plain
+# connection-level failure that carries no HTTP status code at all, and every
+# real run of this script hit it roughly once per stadium-season. An earlier
+# version of this constant listed retryable *status codes* and refused to
+# retry anything that did not carry one of them, which is backwards: a
+# connection that never completed its handshake has no status to check, so it
+# failed the allowlist test and was treated as fatal. The failures worth NOT
+# retrying are the ones retrying cannot fix -- the request itself was wrong --
+# and those are the only ones this excludes.
+NOT_RETRYABLE = ("HTTP 400", "HTTP 401", "HTTP 403", "HTTP 404")
+
+# Real stalls in practice resolved in a handful of seconds once retried, so a
+# short flat gap beats runaway exponential backoff: the cost of a stall is the
+# per-call timeout below, paid up to `retries` times, and there is no evidence
+# a longer wait between attempts helps.
+RETRY_GAP = 2.0
+
+# `urlopen`'s own `timeout` is a *per socket operation* deadline, not a total
+# one, so a response that trickles a few bytes at a time can outlast it. This
+# is the wall-clock ceiling on the socket wait itself, kept short because the
+# observed failure mode (a handshake that never completes) does not become
+# more likely to succeed by waiting longer for it.
+SOCKET_TIMEOUT = 20.0
 
 
-def _request(url: str, params: dict, *, retries: int = 4, delay: float) -> dict:
-    """One call, with backoff, through the package's own HTTP client.
+def _request(url: str, params: dict, *, retries: int = 3, delay: float) -> dict:
+    """One call, with a short retry loop for connection-level failures.
 
     ``ffmodel.data.http`` is standard-library only by design, so this script
     adds no dependency the rest of the package does not already have.
@@ -138,13 +159,90 @@ def _request(url: str, params: dict, *, retries: int = 4, delay: float) -> dict:
     last: Exception | None = None
     for attempt in range(retries):
         try:
-            return get_json(url, params=params, timeout=max(HTTP_TIMEOUT, 120.0))
+            return get_json(url, params=params, timeout=SOCKET_TIMEOUT)
         except RemoteDataError as error:
             last = error
-            if not any(code in str(error) for code in RETRYABLE):
+            if any(code in str(error) for code in NOT_RETRYABLE):
                 raise
-            time.sleep(delay * (2**attempt) + 1.0)
-    raise RuntimeError(f"{url} still failing after {retries} attempts: {last}")
+        time.sleep(RETRY_GAP + delay)
+    raise RuntimeError(f"{url} gave up after {retries} attempts: {last}")
+
+
+PROBE_OUTPUT = Path("data/weather/probe.md")
+
+
+def probe(
+    latitude: float,
+    longitude: float,
+    day: str,
+    leads: tuple[int, ...],
+    *,
+    label: str = "",
+    output: Path = PROBE_OUTPUT,
+) -> int:
+    """One tiny request per source, printing exactly what came back.
+
+    This is the step that should have run before any backfill. It answers the
+    two things the docs cannot: which variables each endpoint actually serves,
+    and how far back the previous-runs archive reaches. One day of one stadium
+    is a few kilobytes, so a wrong guess costs seconds instead of half an hour.
+    """
+    sources: list[tuple[str, int | None]] = [("observed", None)]
+    sources += [(f"lead_{lead}", lead) for lead in leads]
+    failures = 0
+    # Written to a file as well as stdout: a workflow log is not reachable from
+    # every environment that needs this answer, and the committed file is a
+    # durable record of what the API actually served on a given date.
+    lines = [
+        f"# Open-Meteo probe: {label or 'stadium'} on {day}",
+        "",
+        f"Coordinates {latitude}, {longitude}. Requested {len(VARIABLES)} variables.",
+        "",
+    ]
+    for name, lead in sources:
+        header = f"## {name} ({day})"
+        print(f"\n--- {name} ({day}) ---", flush=True)
+        lines += ["", header, ""]
+        started = time.time()
+        try:
+            frame = fetch_block(
+                latitude, longitude, day, day, lead_days=lead, delay=0.5
+            )
+        except Exception as error:  # noqa: BLE001 - the point is to report it
+            failures += 1
+            took = time.time() - started
+            print(f"  FAILED after {took:.1f}s: {error}", flush=True)
+            lines.append(f"**FAILED** after {took:.1f}s: `{error}`")
+            continue
+        took = time.time() - started
+        if frame.empty:
+            failures += 1
+            print(f"  empty response after {took:.1f}s", flush=True)
+            lines.append(f"**Empty response** after {took:.1f}s.")
+            continue
+        served = [c for c in frame.columns if c != "time"]
+        missing = [v for v in VARIABLES if v not in served]
+        row = frame.iloc[len(frame) // 2]
+        sample = {k: str(row[k]) for k in served}
+        print(f"  {len(frame)} hourly rows in {took:.1f}s", flush=True)
+        print(f"  served:  {served}", flush=True)
+        print(f"  MISSING: {missing or 'none'}", flush=True)
+        print(f"  midday sample: {json.dumps(sample)}", flush=True)
+        lines += [
+            f"{len(frame)} hourly rows in {took:.1f}s.",
+            "",
+            f"- **served** ({len(served)}): {', '.join(f'`{c}`' for c in served)}",
+            f"- **missing**: {', '.join(f'`{c}`' for c in missing) if missing else 'none'}",
+            "",
+            "| variable | midday value |",
+            "|---|---|",
+        ]
+        lines += [f"| `{k}` | {v} |" for k, v in sample.items()]
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"\nwrote {output}", flush=True)
+    return failures
 
 
 def _hourly(payload: dict) -> pd.DataFrame:
@@ -188,12 +286,35 @@ def fetch_block(
     return _hourly(_request(url, params, delay=delay))
 
 
+# A full regular season is under six months of hourly rows for eleven
+# variables -- a few hundred KB -- and the unchunked version of this script
+# fetched exactly that per stadium-season in a few seconds each, repeatedly,
+# with no problem. Monthly chunking was added on the theory that a large
+# response was the risk; it was not. The actual failure mode measured in the
+# first full backfill was a TLS handshake timeout roughly once per
+# stadium-season, unrelated to response size, and chunking to 31 days
+# quadrupled the request count and so quadrupled the exposure to it. Left wide
+# enough that no in-season range needs a second chunk.
+CHUNK_DAYS = 200
+
+
+def _chunks(start: str, end: str, days: int = CHUNK_DAYS):
+    """Split an inclusive date range into spans of at most ``days``."""
+    first = pd.Timestamp(start)
+    last = pd.Timestamp(end)
+    while first <= last:
+        stop = min(first + pd.Timedelta(days=days - 1), last)
+        yield first.strftime("%Y-%m-%d"), stop.strftime("%Y-%m-%d")
+        first = stop + pd.Timedelta(days=1)
+
+
 def collect(
     games: pd.DataFrame,
     coordinates: pd.DataFrame,
     *,
     leads: tuple[int, ...],
     delay: float,
+    checkpoint: Path | None = None,
 ) -> pd.DataFrame:
     known = set(coordinates["stadium_id"])
     missing = sorted(set(games["stadium_id"]) - known)
@@ -221,20 +342,31 @@ def collect(
             flush=True,
         )
         for label, lead in sources:
+            # Printed *before* the call, not after: a heartbeat that only
+            # appears on success cannot tell a slow call from a hung one, which
+            # is precisely the confusion the first run of this script caused.
+            print(f"    {label}: requesting...", end=" ", flush=True)
+            began = time.time()
             try:
-                hourly = fetch_block(
-                    site["latitude"],
-                    site["longitude"],
-                    start,
-                    end,
-                    lead_days=lead,
-                    delay=delay,
+                hourly = pd.concat(
+                    [
+                        fetch_block(
+                            site["latitude"],
+                            site["longitude"],
+                            chunk_start,
+                            chunk_end,
+                            lead_days=lead,
+                            delay=delay,
+                        )
+                        for chunk_start, chunk_end in _chunks(start, end)
+                    ],
+                    ignore_index=True,
                 )
             except Exception as error:  # noqa: BLE001 - reported, not swallowed
-                print(f"    {label}: FAILED {error}", flush=True)
+                print(f"FAILED after {time.time() - began:.1f}s: {error}", flush=True)
                 continue
             if hourly.empty:
-                print(f"    {label}: no rows", flush=True)
+                print(f"no rows ({time.time() - began:.1f}s)", flush=True)
                 continue
             merged = block.merge(
                 hourly, left_on="kickoff_hour", right_on="time", how="left"
@@ -243,8 +375,21 @@ def collect(
             merged["lead_days"] = lead if lead is not None else 0
             rows.append(merged.drop(columns=["time"], errors="ignore"))
             got = merged["temperature_2m"].notna().mean() if len(merged) else 0.0
-            print(f"    {label}: {got:.0%} of kickoff hours matched", flush=True)
+            print(
+                f"{got:.0%} of kickoff hours matched ({time.time() - began:.1f}s)",
+                flush=True,
+            )
             time.sleep(delay)
+        # Checkpointed after every stadium-season rather than once at the end.
+        # The first full backfill ran 90 minutes, got 65% through, hit a step
+        # timeout, and kept nothing: the only output path was one write after
+        # every group had been collected, so a timeout anywhere discarded
+        # everything before it. A parquet write here is a few hundred KB and
+        # costs a fraction of a second next to the seconds-to-tens-of-seconds
+        # each request already takes.
+        if checkpoint is not None and rows:
+            checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            pd.concat(rows, ignore_index=True).to_parquet(checkpoint, index=False)
     if not rows:
         raise SystemExit("no weather rows were retrieved at all")
     return pd.concat(rows, ignore_index=True)
@@ -304,20 +449,53 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--stadiums", nargs="*", default=None, help="Limit to these stadium_ids."
     )
+    parser.add_argument(
+        "--probe",
+        metavar="YYYY-MM-DD",
+        default=None,
+        help="Make one tiny request per source for this date and print what came "
+        "back, then exit. Run this before any backfill: it is what says which "
+        "variables each endpoint serves and how far back the previous-runs "
+        "archive reaches.",
+    )
+    parser.add_argument(
+        "--probe-stadium",
+        default="BUF00",
+        help="Stadium to probe with (default BUF00, an outdoor cold-weather site).",
+    )
     args = parser.parse_args(argv)
 
     for lead in args.leads:
         if lead not in range(1, 8):
             raise SystemExit(f"lead {lead} is outside Open-Meteo's archived 1-7 days")
 
-    seasons = range(args.seasons[0], args.seasons[1] + 1)
     coordinates = load_coordinates()
+
+    if args.probe:
+        site = coordinates.set_index("stadium_id").loc[args.probe_stadium]
+        print(
+            f"probing {args.probe_stadium} ({site['stadium']}) at "
+            f"{site['latitude']}, {site['longitude']} on {args.probe}"
+        )
+        failures = probe(
+            site["latitude"],
+            site["longitude"],
+            args.probe,
+            tuple(args.leads),
+            label=f"{args.probe_stadium} ({site['stadium']})",
+        )
+        print(f"\n{failures} of {1 + len(args.leads)} sources failed")
+        return 1 if failures == 1 + len(args.leads) else 0
+
+    seasons = range(args.seasons[0], args.seasons[1] + 1)
     games = load_games(seasons)
     if args.stadiums:
         games = games[games["stadium_id"].isin(args.stadiums)]
     print(f"{len(games)} games, {games.stadium_id.nunique()} stadiums, seasons {seasons}")
 
-    frame = collect(games, coordinates, leads=tuple(args.leads), delay=args.delay)
+    frame = collect(
+        games, coordinates, leads=tuple(args.leads), delay=args.delay, checkpoint=args.output
+    )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(args.output, index=False)

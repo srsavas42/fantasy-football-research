@@ -1430,3 +1430,20 @@ choosing the story over the evidence, which is why the simulator does not ship.
   the market expects, which is not the same as what the offence will do.
 - **The panel is PPR only.** The scoring rules are parameterised and the panel
   builder takes a format, but nothing has been validated in standard or half-PPR.
+
+---
+
+## What it is worth against a naive average, and in wins (2026-09)
+
+Two follow-ups that this document had left open are answered in
+[the league environment](league-environment-2026-09.md):
+
+- Against a grid of fourteen naive baselines, the shipped model wins by **11.6%
+  CRPS on 3 of 3 folds**, and within-position Spearman 0.680 against 0.575. The
+  best naive rung is an EWMA at half-life 2; half-lives 1, 2 and 4 land within
+  1.8% of each other, so the feature layer's `HISTORY_HALFLIFE = 1.0` is not a
+  load-bearing choice.
+- Converted into a season, a *perfect* start/sit is worth **+2.95 wins of 14**
+  against the field, and never updating the lineup at all costs 0.55. That is the
+  whole band the weekly layer plays in, and it bounds what any lineup agent can
+  earn.

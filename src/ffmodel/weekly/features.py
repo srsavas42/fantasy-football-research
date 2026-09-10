@@ -55,6 +55,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ffmodel.weekly.competition import WEIGHT_COLUMN
+
 from ffmodel.weekly.charting import CHARTING_COLUMNS, TRACKED_COLUMNS
 from ffmodel.weekly.tendency import TENDENCY_COLUMNS
 
@@ -163,12 +165,43 @@ def _prior(
     *,
     how: str,
     alpha: float | None = None,
+    weights: pd.Series | None = None,
 ) -> pd.Series:
     """A history statistic of ``values``, lagged one row inside each group.
 
     The lag is applied here and only here. ``how`` is ``"mean"`` (expanding),
     ``"ewm"`` (exponentially weighted), ``"sum"``, ``"count"`` or ``"std"``.
+
+    ``weights`` gives each past observation a say proportional to its entry, and
+    is accepted only on the exponentially weighted path. Pandas has no weighted
+    ``ewm``, but it does not need one: with ``adjust=True`` an exponential
+    average is a ratio of two decayed sums, so
+
+    .. code::
+
+        ewm(w * x) / ewm(w)
+          = sum_i (1-a)^(t-i) w_i x_i / sum_i (1-a)^(t-i) w_i
+
+    is the weighted average exactly, not an approximation of it. Two properties
+    of that identity are worth stating because the calling code relies on both.
+    Only *relative* weights survive -- scaling every weight in a group leaves the
+    result untouched, so a player whose weeks all carry the same weight is
+    returned unchanged. And the numerator and denominator must skip the same
+    rows, which is why the mask below is taken from ``values`` rather than from
+    ``weights``: otherwise a week with no observation would still spend
+    denominator, and every average would be biased toward zero.
     """
+    if weights is not None:
+        if how != "ewm":
+            raise ValueError(f"weights are only defined for an ewm, not {how!r}")
+        observed = values.notna()
+        numerator = _prior(
+            frame, keys, (values * weights).where(observed), how="ewm", alpha=alpha
+        )
+        denominator = _prior(
+            frame, keys, weights.where(observed), how="ewm", alpha=alpha
+        )
+        return numerator / denominator.where(denominator.ne(0.0))
     grouped = values.groupby([frame[k] for k in keys], sort=False)
     if how == "mean":
         statistic = grouped.expanding().mean()
@@ -413,6 +446,18 @@ def add_features(
     played = frame["played"].astype(float)
     points = frame["points"].astype(float)
 
+    # Competition weighting is switched on by the presence of the column, not by
+    # a flag here: `attach_competition` with a kappa of one writes all ones, and
+    # a uniform weight is the identity under `_prior`'s ratio. Collapsing that
+    # case to ``None`` keeps the unweighted path bit-identical rather than
+    # merely equal to it, so the arm can be measured against its own baseline
+    # without a second code path to trust.
+    weights = None
+    if WEIGHT_COLUMN in frame.columns:
+        column = pd.to_numeric(frame[WEIGHT_COLUMN], errors="coerce").fillna(1.0)
+        if float(column.min()) < 1.0:
+            weights = column
+
     frame["prior_weeks"] = _prior(frame, keys, pd.Series(1.0, index=frame.index),
                                   how="count").fillna(0.0)
     frame["prior_games"] = _prior(frame, keys, played, how="sum").fillna(0.0)
@@ -424,7 +469,7 @@ def add_features(
 
     frame["prior_points_mean"] = _prior(frame, keys, points, how="mean")
     frame["prior_points_recent"] = _prior(
-        frame, keys, points, how="ewm", alpha=alpha
+        frame, keys, points, how="ewm", alpha=alpha, weights=weights
     )
     frame["prior_points_sd"] = _prior(frame, keys, points, how="std")
 
@@ -436,7 +481,7 @@ def add_features(
         frame, keys, played_points, how="mean"
     )
     frame["prior_points_recent_given_played"] = _prior(
-        frame, keys, played_points, how="ewm", alpha=alpha
+        frame, keys, played_points, how="ewm", alpha=alpha, weights=weights
     )
 
     # Expected points and the luck term are lagged exactly like actual points,
@@ -449,7 +494,7 @@ def add_features(
             frame["played"].eq(1)
         )
         frame[f"{stem}_recent"] = _prior(
-            frame, keys, masked, how="ewm", alpha=alpha
+            frame, keys, masked, how="ewm", alpha=alpha, weights=weights
         )
         frame[f"{stem}_last"] = _prior(frame, keys, masked, how="ewm", alpha=1.0)
 
@@ -463,7 +508,7 @@ def add_features(
             frame["played"].eq(1)
         )
         frame[f"prior_{source}_recent"] = _prior(
-            frame, keys, masked, how="ewm", alpha=alpha
+            frame, keys, masked, how="ewm", alpha=alpha, weights=weights
         )
     # How often he has been tracked at all, which is the fill's own honesty
     # check: a player the league never measures is a player the median describes.
@@ -476,6 +521,7 @@ def add_features(
             pd.to_numeric(frame[source], errors="coerce").where(frame["played"].eq(1)),
             how="ewm",
             alpha=alpha,
+            weights=weights,
         )
 
     # Snap share is usage like any other and is lagged the same way. It is kept
@@ -485,14 +531,16 @@ def add_features(
             frame["played"].eq(1)
         )
         frame["prior_snap_share_recent"] = _prior(
-            frame, keys, masked, how="ewm", alpha=alpha
+            frame, keys, masked, how="ewm", alpha=alpha, weights=weights
         )
         # The change in snap share is the leading edge of a role change: it moves
         # a week before the ball follows. Lagged like everything else, so this is
         # last week's move, not this week's.
-        step = masked - _prior(frame, keys, masked, how="ewm", alpha=alpha)
+        step = masked - _prior(
+            frame, keys, masked, how="ewm", alpha=alpha, weights=weights
+        )
         frame["prior_snap_share_step"] = _prior(
-            frame, keys, step, how="ewm", alpha=alpha
+            frame, keys, step, how="ewm", alpha=alpha, weights=weights
         )
 
     # The most recent observation, alongside the smoothed average rather than
@@ -519,7 +567,7 @@ def add_features(
             continue
         masked = frame[column].astype(float).where(frame["played"].eq(1))
         frame[f"prior_{column}_recent"] = _prior(
-            frame, keys, masked, how="ewm", alpha=alpha
+            frame, keys, masked, how="ewm", alpha=alpha, weights=weights
         )
 
     # Shares are formed before lagging, so each is a ratio of two numbers from
@@ -542,7 +590,9 @@ def add_features(
         ("prior_rush_share_recent", rush_share),
     ):
         masked = pd.Series(values, index=frame.index).where(frame["played"].eq(1))
-        frame[name] = _prior(frame, keys, masked, how="ewm", alpha=alpha)
+        frame[name] = _prior(
+            frame, keys, masked, how="ewm", alpha=alpha, weights=weights
+        )
         frame[name.replace("_recent", "_last")] = _prior(
             frame, keys, masked, how="ewm", alpha=1.0
         )
@@ -577,7 +627,9 @@ def add_features(
         if values is None:
             continue
         masked = pd.Series(values, index=frame.index).where(frame["played"].eq(1))
-        frame[name] = _prior(frame, keys, masked, how="ewm", alpha=LEVEL_ALPHA)
+        frame[name] = _prior(
+            frame, keys, masked, how="ewm", alpha=LEVEL_ALPHA, weights=weights
+        )
 
     team = _team_history(frame)
     frame = frame.merge(team, on=["season", "week", "team"], how="left")

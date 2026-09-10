@@ -1,0 +1,3364 @@
+{
+  "episodes": [
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1422.86
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 0,
+      "wins": 12,
+      "points": 1772.8400000000004
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1422.7600000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1440.2400000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1449.04
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1448.7400000000002
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1432.7400000000002
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 0,
+      "wins": 7,
+      "points": 1433.04
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1642.0600000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 1,
+      "wins": 13,
+      "points": 1936.74
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1661.3600000000004
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1661.3600000000004
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1656.66
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1656.5600000000002
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1648.5600000000002
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 1,
+      "wins": 10,
+      "points": 1648.66
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1567.4599999999996
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 2,
+      "wins": 11,
+      "points": 1922.3599999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1593.3599999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1588.2599999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1583.4599999999996
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1607.5599999999997
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1607.5599999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 2,
+      "wins": 7,
+      "points": 1597.1599999999996
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 3,
+      "wins": 5,
+      "points": 1475.22
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 3,
+      "wins": 7,
+      "points": 1769.32
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 3,
+      "wins": 4,
+      "points": 1454.92
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 3,
+      "wins": 4,
+      "points": 1455.72
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 3,
+      "wins": 5,
+      "points": 1475.22
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 3,
+      "wins": 3,
+      "points": 1421.52
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 3,
+      "wins": 3,
+      "points": 1418.52
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 3,
+      "wins": 5,
+      "points": 1465.1200000000001
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1567.4599999999996
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 4,
+      "wins": 11,
+      "points": 1922.3599999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1593.3599999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1588.2599999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1583.4599999999996
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1607.5599999999997
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1607.5599999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 4,
+      "wins": 7,
+      "points": 1597.1599999999996
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 5,
+      "wins": 5,
+      "points": 1385.14
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 5,
+      "wins": 9,
+      "points": 1697.5799999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 5,
+      "wins": 4,
+      "points": 1385.24
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 5,
+      "wins": 4,
+      "points": 1386.14
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 5,
+      "wins": 5,
+      "points": 1398.24
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 5,
+      "wins": 4,
+      "points": 1365.4399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 5,
+      "wins": 4,
+      "points": 1349.3400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 5,
+      "wins": 5,
+      "points": 1382.14
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 6,
+      "wins": 5,
+      "points": 1385.14
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 6,
+      "wins": 9,
+      "points": 1697.5799999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 6,
+      "wins": 4,
+      "points": 1385.24
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 6,
+      "wins": 4,
+      "points": 1386.14
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 6,
+      "wins": 5,
+      "points": 1398.24
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 6,
+      "wins": 4,
+      "points": 1365.4399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 6,
+      "wins": 4,
+      "points": 1349.3400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 6,
+      "wins": 5,
+      "points": 1382.14
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1473.5399999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 7,
+      "wins": 11,
+      "points": 1817.62
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1506.8399999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1506.8399999999997
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1478.5399999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1518.7399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1518.7399999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 7,
+      "wins": 8,
+      "points": 1478.5399999999997
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1473.5399999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 8,
+      "wins": 11,
+      "points": 1817.62
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1506.8399999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1506.8399999999997
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1478.5399999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1518.7399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1518.7399999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 8,
+      "wins": 8,
+      "points": 1478.5399999999997
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1260.2799999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 9,
+      "wins": 10,
+      "points": 1531.3399999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1260.62
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1260.62
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1272.3199999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1278.2599999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1268.9599999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 9,
+      "wins": 7,
+      "points": 1263.0199999999998
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1260.2799999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 10,
+      "wins": 10,
+      "points": 1531.3399999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1260.62
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1260.62
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1272.3199999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1278.2599999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1268.9599999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 10,
+      "wins": 7,
+      "points": 1263.0199999999998
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 11,
+      "wins": 9,
+      "points": 1548.4
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 11,
+      "wins": 9,
+      "points": 1726.58
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 11,
+      "wins": 9,
+      "points": 1548.4
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 11,
+      "wins": 8,
+      "points": 1539.6
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 11,
+      "wins": 9,
+      "points": 1548.4
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 11,
+      "wins": 7,
+      "points": 1523.3999999999999
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 11,
+      "wins": 7,
+      "points": 1512.5
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 11,
+      "wins": 8,
+      "points": 1509.6
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1562.7400000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 12,
+      "wins": 10,
+      "points": 1850.2200000000003
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1580.04
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1580.04
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1580.04
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1589.94
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1600.74
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 12,
+      "wins": 8,
+      "points": 1600.74
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1473.5399999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 13,
+      "wins": 11,
+      "points": 1817.62
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1506.8399999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1506.8399999999997
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1478.5399999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1518.7399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1518.7399999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 13,
+      "wins": 8,
+      "points": 1478.5399999999997
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 14,
+      "wins": 5,
+      "points": 1475.22
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 14,
+      "wins": 7,
+      "points": 1769.32
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 14,
+      "wins": 4,
+      "points": 1454.92
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 14,
+      "wins": 4,
+      "points": 1455.72
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 14,
+      "wins": 5,
+      "points": 1475.22
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 14,
+      "wins": 3,
+      "points": 1421.52
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 14,
+      "wins": 3,
+      "points": 1418.52
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 14,
+      "wins": 5,
+      "points": 1465.1200000000001
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1567.4599999999996
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 15,
+      "wins": 11,
+      "points": 1922.3599999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1593.3599999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1588.2599999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1583.4599999999996
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1607.5599999999997
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1607.5599999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 15,
+      "wins": 7,
+      "points": 1597.1599999999996
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1396.6600000000003
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 16,
+      "wins": 10,
+      "points": 1648.16
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1392.06
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1383.7599999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1396.06
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1379.4599999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1362.5600000000002
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 16,
+      "wins": 7,
+      "points": 1374.8600000000004
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1642.0600000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 17,
+      "wins": 13,
+      "points": 1936.74
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1661.3600000000004
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1661.3600000000004
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1656.66
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1656.5600000000002
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1648.5600000000002
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 17,
+      "wins": 10,
+      "points": 1648.66
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 18,
+      "wins": 7,
+      "points": 1531.3400000000001
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 18,
+      "wins": 10,
+      "points": 1828.6399999999999
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 18,
+      "wins": 7,
+      "points": 1542.3400000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 18,
+      "wins": 7,
+      "points": 1525.1000000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 18,
+      "wins": 7,
+      "points": 1514.1000000000001
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 18,
+      "wins": 7,
+      "points": 1513.2
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 18,
+      "wins": 7,
+      "points": 1495.3
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 18,
+      "wins": 8,
+      "points": 1471.5
+    },
+    {
+      "policy": "once",
+      "season": 2023,
+      "seed": 19,
+      "wins": 5,
+      "points": 1475.22
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2023,
+      "seed": 19,
+      "wins": 7,
+      "points": 1769.32
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2023,
+      "seed": 19,
+      "wins": 4,
+      "points": 1454.92
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2023,
+      "seed": 19,
+      "wins": 4,
+      "points": 1455.72
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2023,
+      "seed": 19,
+      "wins": 5,
+      "points": 1475.22
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2023,
+      "seed": 19,
+      "wins": 3,
+      "points": 1421.52
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2023,
+      "seed": 19,
+      "wins": 3,
+      "points": 1418.52
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2023,
+      "seed": 19,
+      "wins": 5,
+      "points": 1465.1200000000001
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1770.3
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 0,
+      "wins": 11,
+      "points": 1924.5600000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1754.8200000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1754.8200000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1762.8200000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1732.68
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1729.38
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 0,
+      "wins": 10,
+      "points": 1744.92
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1277.5400000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 1,
+      "wins": 6,
+      "points": 1519.2199999999996
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1273.8600000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1273.8600000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1273.8600000000001
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1290.9599999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1290.9599999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 1,
+      "wins": 4,
+      "points": 1290.9599999999998
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1553.1800000000003
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 2,
+      "wins": 11,
+      "points": 1823.32
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1567.88
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1567.88
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1553.1800000000003
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1571.6799999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1582.7799999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 2,
+      "wins": 8,
+      "points": 1570.7800000000002
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 3,
+      "wins": 6,
+      "points": 1515.56
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 3,
+      "wins": 12,
+      "points": 1820.48
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 3,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 3,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 3,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 3,
+      "wins": 5,
+      "points": 1488.66
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 3,
+      "wins": 5,
+      "points": 1485.86
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 3,
+      "wins": 5,
+      "points": 1485.86
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1553.1800000000003
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 4,
+      "wins": 11,
+      "points": 1823.32
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1567.88
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1567.88
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1553.1800000000003
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1571.6799999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1582.7799999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 4,
+      "wins": 8,
+      "points": 1570.7800000000002
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 5,
+      "wins": 9,
+      "points": 1620.76
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 5,
+      "wins": 12,
+      "points": 1875.26
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 5,
+      "wins": 7,
+      "points": 1603.1000000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 5,
+      "wins": 7,
+      "points": 1603.1000000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 5,
+      "wins": 8,
+      "points": 1610.0
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 5,
+      "wins": 7,
+      "points": 1604.6000000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 5,
+      "wins": 7,
+      "points": 1604.6000000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 5,
+      "wins": 8,
+      "points": 1610.0
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 6,
+      "wins": 9,
+      "points": 1620.76
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 6,
+      "wins": 12,
+      "points": 1875.26
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 6,
+      "wins": 7,
+      "points": 1603.1000000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 6,
+      "wins": 7,
+      "points": 1603.1000000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 6,
+      "wins": 8,
+      "points": 1610.0
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 6,
+      "wins": 7,
+      "points": 1604.6000000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 6,
+      "wins": 7,
+      "points": 1604.6000000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 6,
+      "wins": 8,
+      "points": 1610.0
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 7,
+      "wins": 6,
+      "points": 1509.9800000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 7,
+      "wins": 10,
+      "points": 1784.0800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 7,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 7,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 7,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 7,
+      "wins": 6,
+      "points": 1491.98
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 7,
+      "wins": 5,
+      "points": 1461.64
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 7,
+      "wins": 5,
+      "points": 1485.9400000000003
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 8,
+      "wins": 6,
+      "points": 1509.9800000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 8,
+      "wins": 10,
+      "points": 1784.0800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 8,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 8,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 8,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 8,
+      "wins": 6,
+      "points": 1491.98
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 8,
+      "wins": 5,
+      "points": 1461.64
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 8,
+      "wins": 5,
+      "points": 1485.9400000000003
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 9,
+      "wins": 9,
+      "points": 1757.6599999999999
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1492.0399999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1469.9399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1492.0399999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 9,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 10,
+      "wins": 9,
+      "points": 1757.6599999999999
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1492.0399999999997
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1469.9399999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1492.0399999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 10,
+      "wins": 7,
+      "points": 1493.0399999999997
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 11,
+      "wins": 7,
+      "points": 1491.24
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 11,
+      "wins": 11,
+      "points": 1733.58
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 11,
+      "wins": 7,
+      "points": 1489.94
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 11,
+      "wins": 7,
+      "points": 1489.94
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 11,
+      "wins": 7,
+      "points": 1489.94
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 11,
+      "wins": 8,
+      "points": 1475.3600000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 11,
+      "wins": 8,
+      "points": 1475.3600000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 11,
+      "wins": 7,
+      "points": 1489.94
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1436.6000000000001
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 12,
+      "wins": 9,
+      "points": 1706.6999999999998
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1418.8
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1418.8
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1425.7
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1421.3
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1421.3
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 12,
+      "wins": 7,
+      "points": 1439.3
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 13,
+      "wins": 6,
+      "points": 1509.9800000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 13,
+      "wins": 10,
+      "points": 1784.0800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 13,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 13,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 13,
+      "wins": 6,
+      "points": 1520.9800000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 13,
+      "wins": 6,
+      "points": 1491.98
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 13,
+      "wins": 5,
+      "points": 1461.64
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 13,
+      "wins": 5,
+      "points": 1485.9400000000003
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 14,
+      "wins": 6,
+      "points": 1515.56
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 14,
+      "wins": 12,
+      "points": 1820.48
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 14,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 14,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 14,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 14,
+      "wins": 5,
+      "points": 1488.66
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 14,
+      "wins": 5,
+      "points": 1485.86
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 14,
+      "wins": 5,
+      "points": 1485.86
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1553.1800000000003
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 15,
+      "wins": 11,
+      "points": 1823.32
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1567.88
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1567.88
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1553.1800000000003
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1571.6799999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1582.7799999999997
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 15,
+      "wins": 8,
+      "points": 1570.7800000000002
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 16,
+      "wins": 6,
+      "points": 1388.5800000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 16,
+      "wins": 9,
+      "points": 1603.1000000000001
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 16,
+      "wins": 5,
+      "points": 1410.4800000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 16,
+      "wins": 5,
+      "points": 1410.4800000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 16,
+      "wins": 5,
+      "points": 1391.9800000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 16,
+      "wins": 5,
+      "points": 1377.1800000000003
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 16,
+      "wins": 5,
+      "points": 1377.1800000000003
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 16,
+      "wins": 5,
+      "points": 1378.4800000000002
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1277.5400000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 17,
+      "wins": 6,
+      "points": 1519.2199999999996
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1273.8600000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1273.8600000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1273.8600000000001
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1290.9599999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1290.9599999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 17,
+      "wins": 4,
+      "points": 1290.9599999999998
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1405.7999999999997
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 18,
+      "wins": 9,
+      "points": 1712.1
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1446.9999999999998
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1446.9999999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1433.8999999999996
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1441.1599999999999
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1441.1599999999999
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 18,
+      "wins": 7,
+      "points": 1428.0599999999997
+    },
+    {
+      "policy": "once",
+      "season": 2024,
+      "seed": 19,
+      "wins": 6,
+      "points": 1515.56
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2024,
+      "seed": 19,
+      "wins": 12,
+      "points": 1820.48
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2024,
+      "seed": 19,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2024,
+      "seed": 19,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2024,
+      "seed": 19,
+      "wins": 6,
+      "points": 1519.1599999999999
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2024,
+      "seed": 19,
+      "wins": 5,
+      "points": 1488.66
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2024,
+      "seed": 19,
+      "wins": 5,
+      "points": 1485.86
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2024,
+      "seed": 19,
+      "wins": 5,
+      "points": 1485.86
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 0,
+      "wins": 12,
+      "points": 1722.6
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 0,
+      "wins": 13,
+      "points": 1952.5399999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 0,
+      "wins": 11,
+      "points": 1718.7
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 0,
+      "wins": 11,
+      "points": 1718.7
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 0,
+      "wins": 12,
+      "points": 1715.8
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 0,
+      "wins": 11,
+      "points": 1719.0
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 0,
+      "wins": 11,
+      "points": 1719.0
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 0,
+      "wins": 12,
+      "points": 1715.8
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1394.5800000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 1,
+      "wins": 8,
+      "points": 1646.3199999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1384.4800000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1384.4800000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1376.0800000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1393.7200000000003
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1393.7200000000003
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 1,
+      "wins": 6,
+      "points": 1376.0800000000002
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1506.3999999999999
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1688.0800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1498.6
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1498.6
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1490.8999999999999
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1482.1
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1482.1
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 2,
+      "wins": 8,
+      "points": 1490.8999999999999
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1647.54
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 3,
+      "wins": 12,
+      "points": 1838.3400000000004
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1642.64
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1650.74
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 3,
+      "wins": 10,
+      "points": 1650.74
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1506.3999999999999
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1688.0800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1498.6
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1498.6
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1490.8999999999999
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1482.1
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1482.1
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 4,
+      "wins": 8,
+      "points": 1490.8999999999999
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1523.0199999999998
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 5,
+      "wins": 11,
+      "points": 1681.9800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1521.9199999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1521.9199999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 5,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1523.0199999999998
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 6,
+      "wins": 11,
+      "points": 1681.9800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1521.9199999999998
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1521.9199999999998
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 6,
+      "wins": 7,
+      "points": 1529.0199999999998
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1602.18
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 7,
+      "wins": 11,
+      "points": 1823.0600000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1636.8400000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1636.8400000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1617.3400000000001
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1625.3400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1625.3400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 7,
+      "wins": 9,
+      "points": 1617.3400000000001
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1602.18
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 8,
+      "wins": 11,
+      "points": 1823.0600000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1636.8400000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1636.8400000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1617.3400000000001
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1625.3400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1625.3400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 8,
+      "wins": 9,
+      "points": 1617.3400000000001
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1460.0
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 9,
+      "wins": 8,
+      "points": 1789.28
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1451.3000000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1465.2
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1466.2000000000003
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1471.3999999999999
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1480.5000000000002
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 9,
+      "wins": 7,
+      "points": 1475.3000000000002
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1460.0
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 10,
+      "wins": 8,
+      "points": 1789.28
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1451.3000000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1465.2
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1466.2000000000003
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1471.3999999999999
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1480.5000000000002
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 10,
+      "wins": 7,
+      "points": 1475.3000000000002
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 11,
+      "wins": 7,
+      "points": 1362.3400000000001
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 11,
+      "wins": 10,
+      "points": 1652.4399999999998
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 11,
+      "wins": 8,
+      "points": 1395.24
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 11,
+      "wins": 8,
+      "points": 1395.24
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 11,
+      "wins": 7,
+      "points": 1382.74
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 11,
+      "wins": 8,
+      "points": 1392.3400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 11,
+      "wins": 8,
+      "points": 1384.1399999999999
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 11,
+      "wins": 7,
+      "points": 1371.6399999999999
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1262.38
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 12,
+      "wins": 7,
+      "points": 1502.8399999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1255.9
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1267.9
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1260.68
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1275.0
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1275.0
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 12,
+      "wins": 5,
+      "points": 1263.08
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1602.18
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 13,
+      "wins": 11,
+      "points": 1823.0600000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1636.8400000000001
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1636.8400000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1617.3400000000001
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1625.3400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1625.3400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 13,
+      "wins": 9,
+      "points": 1617.3400000000001
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1647.54
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 14,
+      "wins": 12,
+      "points": 1838.3400000000004
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1642.64
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1650.74
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 14,
+      "wins": 10,
+      "points": 1650.74
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1506.3999999999999
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1688.0800000000002
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1498.6
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1498.6
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1490.8999999999999
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1482.1
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1482.1
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 15,
+      "wins": 8,
+      "points": 1490.8999999999999
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 16,
+      "wins": 6,
+      "points": 1560.02
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 16,
+      "wins": 14,
+      "points": 1807.2000000000003
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 16,
+      "wins": 6,
+      "points": 1571.4200000000003
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 16,
+      "wins": 7,
+      "points": 1558.6200000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 16,
+      "wins": 7,
+      "points": 1570.3199999999997
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 16,
+      "wins": 7,
+      "points": 1528.42
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 16,
+      "wins": 7,
+      "points": 1520.02
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 16,
+      "wins": 7,
+      "points": 1557.3199999999997
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1394.5800000000002
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 17,
+      "wins": 8,
+      "points": 1646.3199999999997
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1384.4800000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1384.4800000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1376.0800000000002
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1393.7200000000003
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1393.7200000000003
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 17,
+      "wins": 6,
+      "points": 1376.0800000000002
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1544.7600000000004
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 18,
+      "wins": 13,
+      "points": 1784.38
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1585.5600000000002
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1585.5600000000002
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1563.3600000000004
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1583.1600000000003
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1583.1600000000003
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 18,
+      "wins": 8,
+      "points": 1563.3600000000004
+    },
+    {
+      "policy": "once",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1647.54
+    },
+    {
+      "policy": "late-oracle",
+      "season": 2025,
+      "seed": 19,
+      "wins": 12,
+      "points": 1838.3400000000004
+    },
+    {
+      "policy": "chase0.25",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1642.64
+    },
+    {
+      "policy": "chase-resid0.25",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-buy0.25",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1650.74
+    },
+    {
+      "policy": "chase0.5",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-resid0.5",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1645.8400000000001
+    },
+    {
+      "policy": "chase-buy0.5",
+      "season": 2025,
+      "seed": 19,
+      "wins": 10,
+      "points": 1650.74
+    }
+  ]
+}

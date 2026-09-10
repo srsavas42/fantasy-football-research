@@ -17,3 +17,7 @@ dist/
 artifacts/**
 !artifacts/**/
 !artifacts/*/manifest.json
+# The trained league agent is the exception: sixteen numbers plus the
+# standardisation they are defined against, self-contained, and forty-five
+# minutes of search to regenerate. Nothing about it needs a .nc file.
+!artifacts/league_agent.json

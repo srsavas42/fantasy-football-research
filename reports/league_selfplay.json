@@ -1,0 +1,5493 @@
+{
+  "agent": "artifacts/league_agent.json",
+  "summary": [
+    {
+      "field": "full",
+      "seat": "ewma2",
+      "wins": 5.677777777777778,
+      "points": 1461.7835555555557,
+      "rank": 8.055555555555555,
+      "title_rate": 0.06666666666666667
+    },
+    {
+      "field": "full",
+      "seat": "learned",
+      "wins": 7.5777777777777775,
+      "points": 1601.302888888889,
+      "rank": 5.011111111111111,
+      "title_rate": 0.17777777777777778
+    },
+    {
+      "field": "lineups",
+      "seat": "ewma2",
+      "wins": 6.2,
+      "points": 1467.4795555555556,
+      "rank": 7.855555555555555,
+      "title_rate": 0.03333333333333333
+    },
+    {
+      "field": "lineups",
+      "seat": "learned",
+      "wins": 8.488888888888889,
+      "points": 1646.6993333333335,
+      "rank": 3.4,
+      "title_rate": 0.26666666666666666
+    },
+    {
+      "field": "standard",
+      "seat": "ewma2",
+      "wins": 6.8,
+      "points": 1467.4795555555556,
+      "rank": 6.7555555555555555,
+      "title_rate": 0.044444444444444446
+    },
+    {
+      "field": "standard",
+      "seat": "learned",
+      "wins": 8.755555555555556,
+      "points": 1646.6993333333335,
+      "rank": 3.511111111111111,
+      "title_rate": 0.2
+    }
+  ],
+  "margins": {
+    "standard": {
+      "wins": [
+        1.9555555555555555,
+        0.17589515029671907,
+        11.117734356272539
+      ],
+      "points": [
+        179.21977777777772,
+        10.907548097193008,
+        16.430803346528343
+      ]
+    },
+    "lineups": {
+      "wins": [
+        2.2888888888888888,
+        0.17109797767260881,
+        13.377650162929532
+      ],
+      "points": [
+        179.21977777777772,
+        10.907548097193008,
+        16.430803346528343
+      ]
+    },
+    "full": {
+      "wins": [
+        1.9,
+        0.23118324524907752,
+        8.218588669576526
+      ],
+      "points": [
+        139.51933333333332,
+        10.233386980059214,
+        13.633739602069268
+      ]
+    }
+  },
+  "episodes": [
+    {
+      "wins": 10,
+      "points": 1681.3200000000004,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 0
+    },
+    {
+      "wins": 9,
+      "points": 1440.0800000000004,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 0
+    },
+    {
+      "wins": 13,
+      "points": 1809.96,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 1
+    },
+    {
+      "wins": 9,
+      "points": 1551.7799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 1
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 2
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 2
+    },
+    {
+      "wins": 9,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 3
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 3
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1633.02,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 5
+    },
+    {
+      "wins": 5,
+      "points": 1375.3800000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 5
+    },
+    {
+      "wins": 9,
+      "points": 1633.02,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 6
+    },
+    {
+      "wins": 5,
+      "points": 1375.3800000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 6
+    },
+    {
+      "wins": 10,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 7
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 7
+    },
+    {
+      "wins": 10,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 8
+    },
+    {
+      "wins": 9,
+      "points": 1540.16,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 9
+    },
+    {
+      "wins": 8,
+      "points": 1328.3400000000004,
+      "rank": 5,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 9
+    },
+    {
+      "wins": 9,
+      "points": 1540.16,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 10
+    },
+    {
+      "wins": 8,
+      "points": 1328.3400000000004,
+      "rank": 5,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 10
+    },
+    {
+      "wins": 9,
+      "points": 1621.3,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 11
+    },
+    {
+      "wins": 6,
+      "points": 1413.66,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 11
+    },
+    {
+      "wins": 10,
+      "points": 1632.2200000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 12
+    },
+    {
+      "wins": 8,
+      "points": 1603.1,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 12
+    },
+    {
+      "wins": 10,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 13
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 13
+    },
+    {
+      "wins": 9,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 14
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 14
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 15
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 15
+    },
+    {
+      "wins": 12,
+      "points": 1713.7199999999996,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 16
+    },
+    {
+      "wins": 6,
+      "points": 1307.14,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 16
+    },
+    {
+      "wins": 13,
+      "points": 1809.96,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 17
+    },
+    {
+      "wins": 9,
+      "points": 1551.7799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 17
+    },
+    {
+      "wins": 8,
+      "points": 1657.64,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 18
+    },
+    {
+      "wins": 7,
+      "points": 1503.22,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 18
+    },
+    {
+      "wins": 9,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 19
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 19
+    },
+    {
+      "wins": 10,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 20
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 20
+    },
+    {
+      "wins": 13,
+      "points": 1809.96,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 21
+    },
+    {
+      "wins": 9,
+      "points": 1551.7799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 21
+    },
+    {
+      "wins": 9,
+      "points": 1778.1200000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 22
+    },
+    {
+      "wins": 8,
+      "points": 1503.82,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 22
+    },
+    {
+      "wins": 9,
+      "points": 1778.1200000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 23
+    },
+    {
+      "wins": 8,
+      "points": 1503.82,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 23
+    },
+    {
+      "wins": 10,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 24
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 24
+    },
+    {
+      "wins": 9,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 25
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 25
+    },
+    {
+      "wins": 10,
+      "points": 1681.3200000000004,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 26
+    },
+    {
+      "wins": 9,
+      "points": 1440.0800000000004,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 26
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 27
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 27
+    },
+    {
+      "wins": 9,
+      "points": 1540.16,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 28
+    },
+    {
+      "wins": 8,
+      "points": 1328.3400000000004,
+      "rank": 5,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 28
+    },
+    {
+      "wins": 10,
+      "points": 1681.3200000000004,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 29
+    },
+    {
+      "wins": 9,
+      "points": 1440.0800000000004,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 29
+    },
+    {
+      "wins": 12,
+      "points": 1757.62,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 0
+    },
+    {
+      "wins": 9,
+      "points": 1581.3600000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 0
+    },
+    {
+      "wins": 6,
+      "points": 1515.02,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 1
+    },
+    {
+      "wins": 3,
+      "points": 1357.9600000000003,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 1
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 2
+    },
+    {
+      "wins": 6,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 2
+    },
+    {
+      "wins": 7,
+      "points": 1669.96,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 3
+    },
+    {
+      "wins": 7,
+      "points": 1493.86,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 3
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 4
+    },
+    {
+      "wins": 6,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 4
+    },
+    {
+      "wins": 11,
+      "points": 1670.3999999999999,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 5
+    },
+    {
+      "wins": 8,
+      "points": 1546.08,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 5
+    },
+    {
+      "wins": 11,
+      "points": 1670.3999999999999,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 6
+    },
+    {
+      "wins": 8,
+      "points": 1546.08,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 6
+    },
+    {
+      "wins": 8,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 7
+    },
+    {
+      "wins": 6,
+      "points": 1477.68,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 7
+    },
+    {
+      "wins": 8,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 8
+    },
+    {
+      "wins": 6,
+      "points": 1477.68,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1477.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 9
+    },
+    {
+      "wins": 7,
+      "points": 1428.34,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 9
+    },
+    {
+      "wins": 7,
+      "points": 1477.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 10
+    },
+    {
+      "wins": 7,
+      "points": 1428.34,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 10
+    },
+    {
+      "wins": 9,
+      "points": 1627.9000000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 11
+    },
+    {
+      "wins": 8,
+      "points": 1511.0600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 11
+    },
+    {
+      "wins": 8,
+      "points": 1636.6200000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 12
+    },
+    {
+      "wins": 6,
+      "points": 1395.4999999999998,
+      "rank": 11,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 12
+    },
+    {
+      "wins": 8,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 13
+    },
+    {
+      "wins": 6,
+      "points": 1477.68,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 13
+    },
+    {
+      "wins": 7,
+      "points": 1669.96,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 14
+    },
+    {
+      "wins": 7,
+      "points": 1493.86,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 14
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 15
+    },
+    {
+      "wins": 6,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 15
+    },
+    {
+      "wins": 7,
+      "points": 1553.74,
+      "rank": 5,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 16
+    },
+    {
+      "wins": 4,
+      "points": 1338.8600000000001,
+      "rank": 11,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 16
+    },
+    {
+      "wins": 6,
+      "points": 1515.02,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 17
+    },
+    {
+      "wins": 3,
+      "points": 1357.9600000000003,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 17
+    },
+    {
+      "wins": 9,
+      "points": 1535.5400000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 18
+    },
+    {
+      "wins": 7,
+      "points": 1349.36,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 18
+    },
+    {
+      "wins": 7,
+      "points": 1669.96,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 19
+    },
+    {
+      "wins": 7,
+      "points": 1493.86,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 19
+    },
+    {
+      "wins": 8,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 20
+    },
+    {
+      "wins": 6,
+      "points": 1477.68,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 20
+    },
+    {
+      "wins": 6,
+      "points": 1515.02,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 21
+    },
+    {
+      "wins": 3,
+      "points": 1357.9600000000003,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 21
+    },
+    {
+      "wins": 8,
+      "points": 1638.44,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 22
+    },
+    {
+      "wins": 7,
+      "points": 1475.8200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 22
+    },
+    {
+      "wins": 8,
+      "points": 1638.44,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 23
+    },
+    {
+      "wins": 7,
+      "points": 1475.8200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 23
+    },
+    {
+      "wins": 8,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 24
+    },
+    {
+      "wins": 6,
+      "points": 1477.68,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 24
+    },
+    {
+      "wins": 7,
+      "points": 1669.96,
+      "rank": 4,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 25
+    },
+    {
+      "wins": 7,
+      "points": 1493.86,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 25
+    },
+    {
+      "wins": 12,
+      "points": 1757.62,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 26
+    },
+    {
+      "wins": 9,
+      "points": 1581.3600000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 26
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 27
+    },
+    {
+      "wins": 6,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 27
+    },
+    {
+      "wins": 7,
+      "points": 1477.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 28
+    },
+    {
+      "wins": 7,
+      "points": 1428.34,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 28
+    },
+    {
+      "wins": 12,
+      "points": 1757.62,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 29
+    },
+    {
+      "wins": 9,
+      "points": 1581.3600000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 29
+    },
+    {
+      "wins": 10,
+      "points": 1775.9600000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 0
+    },
+    {
+      "wins": 8,
+      "points": 1680.22,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 0
+    },
+    {
+      "wins": 6,
+      "points": 1487.22,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 1
+    },
+    {
+      "wins": 4,
+      "points": 1392.02,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 1
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 2
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 2
+    },
+    {
+      "wins": 10,
+      "points": 1648.7600000000002,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 3
+    },
+    {
+      "wins": 9,
+      "points": 1519.14,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 3
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 4
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1644.64,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 5
+    },
+    {
+      "wins": 8,
+      "points": 1447.5200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 5
+    },
+    {
+      "wins": 9,
+      "points": 1644.64,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 6
+    },
+    {
+      "wins": 8,
+      "points": 1447.5200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 6
+    },
+    {
+      "wins": 7,
+      "points": 1628.06,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 7
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 7
+    },
+    {
+      "wins": 7,
+      "points": 1628.06,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1564.74,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 9
+    },
+    {
+      "wins": 7,
+      "points": 1477.16,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 9
+    },
+    {
+      "wins": 7,
+      "points": 1564.74,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 10
+    },
+    {
+      "wins": 7,
+      "points": 1477.16,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 10
+    },
+    {
+      "wins": 8,
+      "points": 1591.5000000000002,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1356.3200000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1429.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 12
+    },
+    {
+      "wins": 4,
+      "points": 1269.06,
+      "rank": 12,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 12
+    },
+    {
+      "wins": 7,
+      "points": 1628.06,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 13
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 13
+    },
+    {
+      "wins": 10,
+      "points": 1648.7600000000002,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 14
+    },
+    {
+      "wins": 9,
+      "points": 1519.14,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 14
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 15
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 15
+    },
+    {
+      "wins": 8,
+      "points": 1561.48,
+      "rank": 5,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 16
+    },
+    {
+      "wins": 7,
+      "points": 1486.96,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 16
+    },
+    {
+      "wins": 6,
+      "points": 1487.22,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 17
+    },
+    {
+      "wins": 4,
+      "points": 1392.02,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 17
+    },
+    {
+      "wins": 12,
+      "points": 1621.52,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 18
+    },
+    {
+      "wins": 10,
+      "points": 1545.58,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 18
+    },
+    {
+      "wins": 10,
+      "points": 1648.7600000000002,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 19
+    },
+    {
+      "wins": 9,
+      "points": 1519.14,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 19
+    },
+    {
+      "wins": 7,
+      "points": 1628.06,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 20
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 20
+    },
+    {
+      "wins": 6,
+      "points": 1487.22,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 21
+    },
+    {
+      "wins": 4,
+      "points": 1392.02,
+      "rank": 10,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 21
+    },
+    {
+      "wins": 6,
+      "points": 1441.0400000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 22
+    },
+    {
+      "wins": 6,
+      "points": 1402.84,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 22
+    },
+    {
+      "wins": 6,
+      "points": 1441.0400000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 23
+    },
+    {
+      "wins": 6,
+      "points": 1402.84,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 23
+    },
+    {
+      "wins": 7,
+      "points": 1628.06,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 24
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 24
+    },
+    {
+      "wins": 10,
+      "points": 1648.7600000000002,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 25
+    },
+    {
+      "wins": 9,
+      "points": 1519.14,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 25
+    },
+    {
+      "wins": 10,
+      "points": 1775.9600000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 26
+    },
+    {
+      "wins": 8,
+      "points": 1680.22,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 26
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 27
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 9,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 27
+    },
+    {
+      "wins": 7,
+      "points": 1564.74,
+      "rank": 6,
+      "title": 0,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 28
+    },
+    {
+      "wins": 7,
+      "points": 1477.16,
+      "rank": 8,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 28
+    },
+    {
+      "wins": 10,
+      "points": 1775.9600000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "standard",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 29
+    },
+    {
+      "wins": 8,
+      "points": 1680.22,
+      "rank": 3,
+      "title": 0,
+      "field": "standard",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 29
+    },
+    {
+      "wins": 10,
+      "points": 1681.3200000000004,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 0
+    },
+    {
+      "wins": 7,
+      "points": 1440.0800000000004,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 0
+    },
+    {
+      "wins": 13,
+      "points": 1809.96,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 1
+    },
+    {
+      "wins": 9,
+      "points": 1551.7799999999997,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 1
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 2
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 2
+    },
+    {
+      "wins": 8,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 3
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 3
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1633.02,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 5
+    },
+    {
+      "wins": 4,
+      "points": 1375.3800000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 5
+    },
+    {
+      "wins": 9,
+      "points": 1633.02,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 6
+    },
+    {
+      "wins": 4,
+      "points": 1375.3800000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 6
+    },
+    {
+      "wins": 9,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 7
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 7
+    },
+    {
+      "wins": 9,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1540.16,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 9
+    },
+    {
+      "wins": 6,
+      "points": 1328.3400000000004,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 9
+    },
+    {
+      "wins": 7,
+      "points": 1540.16,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 10
+    },
+    {
+      "wins": 6,
+      "points": 1328.3400000000004,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 10
+    },
+    {
+      "wins": 9,
+      "points": 1621.3,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 11
+    },
+    {
+      "wins": 5,
+      "points": 1413.66,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 11
+    },
+    {
+      "wins": 11,
+      "points": 1632.2200000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 12
+    },
+    {
+      "wins": 8,
+      "points": 1603.1,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 12
+    },
+    {
+      "wins": 9,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 13
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 13
+    },
+    {
+      "wins": 8,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 14
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 14
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 15
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 15
+    },
+    {
+      "wins": 11,
+      "points": 1713.7199999999996,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 16
+    },
+    {
+      "wins": 6,
+      "points": 1307.14,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 16
+    },
+    {
+      "wins": 13,
+      "points": 1809.96,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 17
+    },
+    {
+      "wins": 9,
+      "points": 1551.7799999999997,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 17
+    },
+    {
+      "wins": 7,
+      "points": 1657.64,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 18
+    },
+    {
+      "wins": 6,
+      "points": 1503.22,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 18
+    },
+    {
+      "wins": 8,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 19
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 19
+    },
+    {
+      "wins": 9,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 20
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 20
+    },
+    {
+      "wins": 13,
+      "points": 1809.96,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 21
+    },
+    {
+      "wins": 9,
+      "points": 1551.7799999999997,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 21
+    },
+    {
+      "wins": 9,
+      "points": 1778.1200000000001,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 22
+    },
+    {
+      "wins": 6,
+      "points": 1503.82,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 22
+    },
+    {
+      "wins": 9,
+      "points": 1778.1200000000001,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 23
+    },
+    {
+      "wins": 6,
+      "points": 1503.82,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 23
+    },
+    {
+      "wins": 9,
+      "points": 1834.6399999999999,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 24
+    },
+    {
+      "wins": 7,
+      "points": 1460.3400000000001,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 24
+    },
+    {
+      "wins": 8,
+      "points": 1741.5600000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 25
+    },
+    {
+      "wins": 2,
+      "points": 1312.0799999999997,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 25
+    },
+    {
+      "wins": 10,
+      "points": 1681.3200000000004,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 26
+    },
+    {
+      "wins": 7,
+      "points": 1440.0800000000004,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 26
+    },
+    {
+      "wins": 10,
+      "points": 1700.3799999999997,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 27
+    },
+    {
+      "wins": 9,
+      "points": 1592.5000000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 27
+    },
+    {
+      "wins": 7,
+      "points": 1540.16,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 28
+    },
+    {
+      "wins": 6,
+      "points": 1328.3400000000004,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 28
+    },
+    {
+      "wins": 10,
+      "points": 1681.3200000000004,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 29
+    },
+    {
+      "wins": 7,
+      "points": 1440.0800000000004,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 29
+    },
+    {
+      "wins": 11,
+      "points": 1757.62,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 0
+    },
+    {
+      "wins": 9,
+      "points": 1581.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 0
+    },
+    {
+      "wins": 4,
+      "points": 1515.02,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 1
+    },
+    {
+      "wins": 3,
+      "points": 1357.9600000000003,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 1
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 2
+    },
+    {
+      "wins": 5,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 2
+    },
+    {
+      "wins": 8,
+      "points": 1669.96,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 3
+    },
+    {
+      "wins": 6,
+      "points": 1493.86,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 3
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 4
+    },
+    {
+      "wins": 5,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1670.3999999999999,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 5
+    },
+    {
+      "wins": 7,
+      "points": 1546.08,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 5
+    },
+    {
+      "wins": 9,
+      "points": 1670.3999999999999,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 6
+    },
+    {
+      "wins": 7,
+      "points": 1546.08,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 6
+    },
+    {
+      "wins": 9,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 7
+    },
+    {
+      "wins": 4,
+      "points": 1477.68,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 7
+    },
+    {
+      "wins": 9,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 8
+    },
+    {
+      "wins": 4,
+      "points": 1477.68,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1477.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 9
+    },
+    {
+      "wins": 6,
+      "points": 1428.34,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 9
+    },
+    {
+      "wins": 7,
+      "points": 1477.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 10
+    },
+    {
+      "wins": 6,
+      "points": 1428.34,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 10
+    },
+    {
+      "wins": 9,
+      "points": 1627.9000000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1511.0600000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1636.6200000000003,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 12
+    },
+    {
+      "wins": 6,
+      "points": 1395.4999999999998,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 12
+    },
+    {
+      "wins": 9,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 13
+    },
+    {
+      "wins": 4,
+      "points": 1477.68,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 13
+    },
+    {
+      "wins": 8,
+      "points": 1669.96,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 14
+    },
+    {
+      "wins": 6,
+      "points": 1493.86,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 14
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 15
+    },
+    {
+      "wins": 5,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 15
+    },
+    {
+      "wins": 8,
+      "points": 1553.74,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 16
+    },
+    {
+      "wins": 5,
+      "points": 1338.8600000000001,
+      "rank": 11,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 16
+    },
+    {
+      "wins": 4,
+      "points": 1515.02,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 17
+    },
+    {
+      "wins": 3,
+      "points": 1357.9600000000003,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 17
+    },
+    {
+      "wins": 8,
+      "points": 1535.5400000000002,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 18
+    },
+    {
+      "wins": 7,
+      "points": 1349.36,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 18
+    },
+    {
+      "wins": 8,
+      "points": 1669.96,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 19
+    },
+    {
+      "wins": 6,
+      "points": 1493.86,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 19
+    },
+    {
+      "wins": 9,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 20
+    },
+    {
+      "wins": 4,
+      "points": 1477.68,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 20
+    },
+    {
+      "wins": 4,
+      "points": 1515.02,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 21
+    },
+    {
+      "wins": 3,
+      "points": 1357.9600000000003,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 21
+    },
+    {
+      "wins": 8,
+      "points": 1638.44,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 22
+    },
+    {
+      "wins": 6,
+      "points": 1475.8200000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 22
+    },
+    {
+      "wins": 8,
+      "points": 1638.44,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 23
+    },
+    {
+      "wins": 6,
+      "points": 1475.8200000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 23
+    },
+    {
+      "wins": 9,
+      "points": 1707.2799999999997,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 24
+    },
+    {
+      "wins": 4,
+      "points": 1477.68,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 24
+    },
+    {
+      "wins": 8,
+      "points": 1669.96,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 25
+    },
+    {
+      "wins": 6,
+      "points": 1493.86,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 25
+    },
+    {
+      "wins": 11,
+      "points": 1757.62,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 26
+    },
+    {
+      "wins": 9,
+      "points": 1581.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 26
+    },
+    {
+      "wins": 8,
+      "points": 1617.8999999999996,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 27
+    },
+    {
+      "wins": 5,
+      "points": 1485.16,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 27
+    },
+    {
+      "wins": 7,
+      "points": 1477.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 28
+    },
+    {
+      "wins": 6,
+      "points": 1428.34,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 28
+    },
+    {
+      "wins": 11,
+      "points": 1757.62,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 29
+    },
+    {
+      "wins": 9,
+      "points": 1581.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 29
+    },
+    {
+      "wins": 9,
+      "points": 1775.9600000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 0
+    },
+    {
+      "wins": 9,
+      "points": 1680.22,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 0
+    },
+    {
+      "wins": 6,
+      "points": 1487.22,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 1
+    },
+    {
+      "wins": 5,
+      "points": 1392.02,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 1
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 2
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 2
+    },
+    {
+      "wins": 9,
+      "points": 1648.7600000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 3
+    },
+    {
+      "wins": 8,
+      "points": 1519.14,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 3
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 4
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1644.64,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 5
+    },
+    {
+      "wins": 8,
+      "points": 1447.5200000000002,
+      "rank": 6,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 5
+    },
+    {
+      "wins": 9,
+      "points": 1644.64,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 6
+    },
+    {
+      "wins": 8,
+      "points": 1447.5200000000002,
+      "rank": 6,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 6
+    },
+    {
+      "wins": 8,
+      "points": 1628.06,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 7
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 7
+    },
+    {
+      "wins": 8,
+      "points": 1628.06,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 8
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 8
+    },
+    {
+      "wins": 8,
+      "points": 1564.74,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 9
+    },
+    {
+      "wins": 4,
+      "points": 1477.16,
+      "rank": 11,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 9
+    },
+    {
+      "wins": 8,
+      "points": 1564.74,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 10
+    },
+    {
+      "wins": 4,
+      "points": 1477.16,
+      "rank": 11,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 10
+    },
+    {
+      "wins": 8,
+      "points": 1591.5000000000002,
+      "rank": 6,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1356.3200000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1429.7400000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 12
+    },
+    {
+      "wins": 4,
+      "points": 1269.06,
+      "rank": 12,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 12
+    },
+    {
+      "wins": 8,
+      "points": 1628.06,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 13
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 13
+    },
+    {
+      "wins": 9,
+      "points": 1648.7600000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 14
+    },
+    {
+      "wins": 8,
+      "points": 1519.14,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 14
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 15
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 15
+    },
+    {
+      "wins": 9,
+      "points": 1561.48,
+      "rank": 3,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 16
+    },
+    {
+      "wins": 7,
+      "points": 1486.96,
+      "rank": 8,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 16
+    },
+    {
+      "wins": 6,
+      "points": 1487.22,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 17
+    },
+    {
+      "wins": 5,
+      "points": 1392.02,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 17
+    },
+    {
+      "wins": 11,
+      "points": 1621.52,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 18
+    },
+    {
+      "wins": 10,
+      "points": 1545.58,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 18
+    },
+    {
+      "wins": 9,
+      "points": 1648.7600000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 19
+    },
+    {
+      "wins": 8,
+      "points": 1519.14,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 19
+    },
+    {
+      "wins": 8,
+      "points": 1628.06,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 20
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 20
+    },
+    {
+      "wins": 6,
+      "points": 1487.22,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 21
+    },
+    {
+      "wins": 5,
+      "points": 1392.02,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 21
+    },
+    {
+      "wins": 4,
+      "points": 1441.0400000000002,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 22
+    },
+    {
+      "wins": 5,
+      "points": 1402.84,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 22
+    },
+    {
+      "wins": 4,
+      "points": 1441.0400000000002,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 23
+    },
+    {
+      "wins": 5,
+      "points": 1402.84,
+      "rank": 9,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 23
+    },
+    {
+      "wins": 8,
+      "points": 1628.06,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 24
+    },
+    {
+      "wins": 7,
+      "points": 1603.7400000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 24
+    },
+    {
+      "wins": 9,
+      "points": 1648.7600000000002,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 25
+    },
+    {
+      "wins": 8,
+      "points": 1519.14,
+      "rank": 5,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 25
+    },
+    {
+      "wins": 9,
+      "points": 1775.9600000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 26
+    },
+    {
+      "wins": 9,
+      "points": 1680.22,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 26
+    },
+    {
+      "wins": 9,
+      "points": 1554.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 27
+    },
+    {
+      "wins": 6,
+      "points": 1364.72,
+      "rank": 10,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 27
+    },
+    {
+      "wins": 8,
+      "points": 1564.74,
+      "rank": 4,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 28
+    },
+    {
+      "wins": 4,
+      "points": 1477.16,
+      "rank": 11,
+      "title": 0,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 28
+    },
+    {
+      "wins": 9,
+      "points": 1775.9600000000003,
+      "rank": 2,
+      "title": 0,
+      "field": "lineups",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 29
+    },
+    {
+      "wins": 9,
+      "points": 1680.22,
+      "rank": 1,
+      "title": 1,
+      "field": "lineups",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 29
+    },
+    {
+      "wins": 7,
+      "points": 1583.4399999999998,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 0
+    },
+    {
+      "wins": 7,
+      "points": 1514.94,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 0
+    },
+    {
+      "wins": 11,
+      "points": 1745.1400000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 1
+    },
+    {
+      "wins": 10,
+      "points": 1522.74,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 1
+    },
+    {
+      "wins": 8,
+      "points": 1640.8400000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 2
+    },
+    {
+      "wins": 8,
+      "points": 1733.38,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 2
+    },
+    {
+      "wins": 7,
+      "points": 1640.2799999999997,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 3
+    },
+    {
+      "wins": 2,
+      "points": 1370.1999999999998,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 3
+    },
+    {
+      "wins": 8,
+      "points": 1640.8400000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 4
+    },
+    {
+      "wins": 8,
+      "points": 1733.38,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 4
+    },
+    {
+      "wins": 4,
+      "points": 1433.2999999999997,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 5
+    },
+    {
+      "wins": 3,
+      "points": 1325.0000000000002,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 5
+    },
+    {
+      "wins": 4,
+      "points": 1433.2999999999997,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 6
+    },
+    {
+      "wins": 3,
+      "points": 1325.0000000000002,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 6
+    },
+    {
+      "wins": 6,
+      "points": 1628.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 7
+    },
+    {
+      "wins": 6,
+      "points": 1444.96,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 7
+    },
+    {
+      "wins": 6,
+      "points": 1628.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 8
+    },
+    {
+      "wins": 6,
+      "points": 1444.96,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 8
+    },
+    {
+      "wins": 9,
+      "points": 1647.44,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 9
+    },
+    {
+      "wins": 8,
+      "points": 1382.72,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 9
+    },
+    {
+      "wins": 9,
+      "points": 1647.44,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 10
+    },
+    {
+      "wins": 8,
+      "points": 1382.72,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 10
+    },
+    {
+      "wins": 9,
+      "points": 1585.44,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 11
+    },
+    {
+      "wins": 9,
+      "points": 1534.2800000000002,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1626.7000000000003,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 12
+    },
+    {
+      "wins": 9,
+      "points": 1607.4399999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 12
+    },
+    {
+      "wins": 6,
+      "points": 1628.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 13
+    },
+    {
+      "wins": 6,
+      "points": 1444.96,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 13
+    },
+    {
+      "wins": 7,
+      "points": 1640.2799999999997,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 14
+    },
+    {
+      "wins": 2,
+      "points": 1370.1999999999998,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 14
+    },
+    {
+      "wins": 8,
+      "points": 1640.8400000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 15
+    },
+    {
+      "wins": 8,
+      "points": 1733.38,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 15
+    },
+    {
+      "wins": 8,
+      "points": 1647.82,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 16
+    },
+    {
+      "wins": 5,
+      "points": 1440.4399999999998,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 16
+    },
+    {
+      "wins": 11,
+      "points": 1745.1400000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 17
+    },
+    {
+      "wins": 10,
+      "points": 1522.74,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 17
+    },
+    {
+      "wins": 6,
+      "points": 1566.5200000000002,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 18
+    },
+    {
+      "wins": 7,
+      "points": 1489.6,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 18
+    },
+    {
+      "wins": 7,
+      "points": 1640.2799999999997,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 19
+    },
+    {
+      "wins": 2,
+      "points": 1370.1999999999998,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 19
+    },
+    {
+      "wins": 6,
+      "points": 1628.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 20
+    },
+    {
+      "wins": 6,
+      "points": 1444.96,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 20
+    },
+    {
+      "wins": 11,
+      "points": 1745.1400000000003,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 21
+    },
+    {
+      "wins": 10,
+      "points": 1522.74,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 21
+    },
+    {
+      "wins": 9,
+      "points": 1559.6000000000001,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 22
+    },
+    {
+      "wins": 7,
+      "points": 1532.82,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 22
+    },
+    {
+      "wins": 9,
+      "points": 1559.6000000000001,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 23
+    },
+    {
+      "wins": 7,
+      "points": 1532.82,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 23
+    },
+    {
+      "wins": 6,
+      "points": 1628.3600000000004,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 24
+    },
+    {
+      "wins": 6,
+      "points": 1444.96,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 24
+    },
+    {
+      "wins": 7,
+      "points": 1640.2799999999997,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 25
+    },
+    {
+      "wins": 2,
+      "points": 1370.1999999999998,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 25
+    },
+    {
+      "wins": 7,
+      "points": 1583.4399999999998,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 26
+    },
+    {
+      "wins": 7,
+      "points": 1514.94,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 26
+    },
+    {
+      "wins": 8,
+      "points": 1640.8400000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 27
+    },
+    {
+      "wins": 8,
+      "points": 1733.38,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 27
+    },
+    {
+      "wins": 9,
+      "points": 1647.44,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 28
+    },
+    {
+      "wins": 8,
+      "points": 1382.72,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 28
+    },
+    {
+      "wins": 7,
+      "points": 1583.4399999999998,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2023,
+      "seed": 29
+    },
+    {
+      "wins": 7,
+      "points": 1514.94,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2023,
+      "seed": 29
+    },
+    {
+      "wins": 11,
+      "points": 1666.6,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 0
+    },
+    {
+      "wins": 10,
+      "points": 1673.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 0
+    },
+    {
+      "wins": 7,
+      "points": 1425.5200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 1
+    },
+    {
+      "wins": 6,
+      "points": 1348.7200000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 1
+    },
+    {
+      "wins": 11,
+      "points": 1769.0,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 2
+    },
+    {
+      "wins": 9,
+      "points": 1635.4799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 2
+    },
+    {
+      "wins": 8,
+      "points": 1680.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 3
+    },
+    {
+      "wins": 8,
+      "points": 1552.18,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 3
+    },
+    {
+      "wins": 11,
+      "points": 1769.0,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 4
+    },
+    {
+      "wins": 9,
+      "points": 1635.4799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 4
+    },
+    {
+      "wins": 10,
+      "points": 1686.1799999999998,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 5
+    },
+    {
+      "wins": 6,
+      "points": 1550.6799999999998,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 5
+    },
+    {
+      "wins": 10,
+      "points": 1686.1799999999998,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 6
+    },
+    {
+      "wins": 6,
+      "points": 1550.6799999999998,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 6
+    },
+    {
+      "wins": 10,
+      "points": 1681.6799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 7
+    },
+    {
+      "wins": 3,
+      "points": 1506.4,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 7
+    },
+    {
+      "wins": 10,
+      "points": 1681.6799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 8
+    },
+    {
+      "wins": 3,
+      "points": 1506.4,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 8
+    },
+    {
+      "wins": 6,
+      "points": 1548.26,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 9
+    },
+    {
+      "wins": 5,
+      "points": 1423.42,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 9
+    },
+    {
+      "wins": 6,
+      "points": 1548.26,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 10
+    },
+    {
+      "wins": 5,
+      "points": 1423.42,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 10
+    },
+    {
+      "wins": 7,
+      "points": 1564.5600000000002,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 11
+    },
+    {
+      "wins": 7,
+      "points": 1497.84,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 11
+    },
+    {
+      "wins": 8,
+      "points": 1475.3799999999999,
+      "rank": 6,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 12
+    },
+    {
+      "wins": 6,
+      "points": 1368.64,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 12
+    },
+    {
+      "wins": 10,
+      "points": 1681.6799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 13
+    },
+    {
+      "wins": 3,
+      "points": 1506.4,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 13
+    },
+    {
+      "wins": 8,
+      "points": 1680.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 14
+    },
+    {
+      "wins": 8,
+      "points": 1552.18,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 14
+    },
+    {
+      "wins": 11,
+      "points": 1769.0,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 15
+    },
+    {
+      "wins": 9,
+      "points": 1635.4799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 15
+    },
+    {
+      "wins": 7,
+      "points": 1577.94,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 16
+    },
+    {
+      "wins": 7,
+      "points": 1546.7599999999998,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 16
+    },
+    {
+      "wins": 7,
+      "points": 1425.5200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 17
+    },
+    {
+      "wins": 6,
+      "points": 1348.7200000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 17
+    },
+    {
+      "wins": 7,
+      "points": 1581.5,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 18
+    },
+    {
+      "wins": 5,
+      "points": 1467.04,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 18
+    },
+    {
+      "wins": 8,
+      "points": 1680.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 19
+    },
+    {
+      "wins": 8,
+      "points": 1552.18,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 19
+    },
+    {
+      "wins": 10,
+      "points": 1681.6799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 20
+    },
+    {
+      "wins": 3,
+      "points": 1506.4,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 20
+    },
+    {
+      "wins": 7,
+      "points": 1425.5200000000002,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 21
+    },
+    {
+      "wins": 6,
+      "points": 1348.7200000000003,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 21
+    },
+    {
+      "wins": 9,
+      "points": 1616.32,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 22
+    },
+    {
+      "wins": 4,
+      "points": 1425.14,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 22
+    },
+    {
+      "wins": 9,
+      "points": 1616.32,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 23
+    },
+    {
+      "wins": 4,
+      "points": 1425.14,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 23
+    },
+    {
+      "wins": 10,
+      "points": 1681.6799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 24
+    },
+    {
+      "wins": 3,
+      "points": 1506.4,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 24
+    },
+    {
+      "wins": 8,
+      "points": 1680.3600000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 25
+    },
+    {
+      "wins": 8,
+      "points": 1552.18,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 25
+    },
+    {
+      "wins": 11,
+      "points": 1666.6,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 26
+    },
+    {
+      "wins": 10,
+      "points": 1673.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 26
+    },
+    {
+      "wins": 11,
+      "points": 1769.0,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 27
+    },
+    {
+      "wins": 9,
+      "points": 1635.4799999999998,
+      "rank": 2,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 27
+    },
+    {
+      "wins": 6,
+      "points": 1548.26,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 28
+    },
+    {
+      "wins": 5,
+      "points": 1423.42,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 28
+    },
+    {
+      "wins": 11,
+      "points": 1666.6,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2024,
+      "seed": 29
+    },
+    {
+      "wins": 10,
+      "points": 1673.1200000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2024,
+      "seed": 29
+    },
+    {
+      "wins": 10,
+      "points": 1828.6999999999998,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 0
+    },
+    {
+      "wins": 7,
+      "points": 1568.1800000000003,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 0
+    },
+    {
+      "wins": 6,
+      "points": 1441.72,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 1
+    },
+    {
+      "wins": 3,
+      "points": 1311.48,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 1
+    },
+    {
+      "wins": 5,
+      "points": 1347.4800000000002,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 2
+    },
+    {
+      "wins": 4,
+      "points": 1130.72,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 2
+    },
+    {
+      "wins": 4,
+      "points": 1517.5199999999998,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 3
+    },
+    {
+      "wins": 4,
+      "points": 1469.18,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 3
+    },
+    {
+      "wins": 5,
+      "points": 1347.4800000000002,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 4
+    },
+    {
+      "wins": 4,
+      "points": 1130.72,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 4
+    },
+    {
+      "wins": 6,
+      "points": 1606.8199999999997,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 5
+    },
+    {
+      "wins": 2,
+      "points": 1393.6200000000001,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 5
+    },
+    {
+      "wins": 6,
+      "points": 1606.8199999999997,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 6
+    },
+    {
+      "wins": 2,
+      "points": 1393.6200000000001,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 6
+    },
+    {
+      "wins": 8,
+      "points": 1714.7,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 7
+    },
+    {
+      "wins": 4,
+      "points": 1422.7800000000002,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 7
+    },
+    {
+      "wins": 8,
+      "points": 1714.7,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 8
+    },
+    {
+      "wins": 4,
+      "points": 1422.7800000000002,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 8
+    },
+    {
+      "wins": 5,
+      "points": 1579.8,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 9
+    },
+    {
+      "wins": 4,
+      "points": 1479.0,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 9
+    },
+    {
+      "wins": 5,
+      "points": 1579.8,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 10
+    },
+    {
+      "wins": 4,
+      "points": 1479.0,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 10
+    },
+    {
+      "wins": 9,
+      "points": 1476.94,
+      "rank": 4,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 11
+    },
+    {
+      "wins": 5,
+      "points": 1315.5199999999998,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 11
+    },
+    {
+      "wins": 5,
+      "points": 1335.02,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 12
+    },
+    {
+      "wins": 1,
+      "points": 1218.76,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 12
+    },
+    {
+      "wins": 8,
+      "points": 1714.7,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 13
+    },
+    {
+      "wins": 4,
+      "points": 1422.7800000000002,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 13
+    },
+    {
+      "wins": 4,
+      "points": 1517.5199999999998,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 14
+    },
+    {
+      "wins": 4,
+      "points": 1469.18,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 14
+    },
+    {
+      "wins": 5,
+      "points": 1347.4800000000002,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 15
+    },
+    {
+      "wins": 4,
+      "points": 1130.72,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 15
+    },
+    {
+      "wins": 8,
+      "points": 1677.6000000000001,
+      "rank": 3,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 16
+    },
+    {
+      "wins": 7,
+      "points": 1461.1400000000003,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 16
+    },
+    {
+      "wins": 6,
+      "points": 1441.72,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 17
+    },
+    {
+      "wins": 3,
+      "points": 1311.48,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 17
+    },
+    {
+      "wins": 11,
+      "points": 1672.6000000000001,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 18
+    },
+    {
+      "wins": 4,
+      "points": 1415.2,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 18
+    },
+    {
+      "wins": 4,
+      "points": 1517.5199999999998,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 19
+    },
+    {
+      "wins": 4,
+      "points": 1469.18,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 19
+    },
+    {
+      "wins": 8,
+      "points": 1714.7,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 20
+    },
+    {
+      "wins": 4,
+      "points": 1422.7800000000002,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 20
+    },
+    {
+      "wins": 6,
+      "points": 1441.72,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 21
+    },
+    {
+      "wins": 3,
+      "points": 1311.48,
+      "rank": 12,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 21
+    },
+    {
+      "wins": 3,
+      "points": 1309.66,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 22
+    },
+    {
+      "wins": 5,
+      "points": 1317.5600000000002,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 22
+    },
+    {
+      "wins": 3,
+      "points": 1309.66,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 23
+    },
+    {
+      "wins": 5,
+      "points": 1317.5600000000002,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 23
+    },
+    {
+      "wins": 8,
+      "points": 1714.7,
+      "rank": 5,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 24
+    },
+    {
+      "wins": 4,
+      "points": 1422.7800000000002,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 24
+    },
+    {
+      "wins": 4,
+      "points": 1517.5199999999998,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 25
+    },
+    {
+      "wins": 4,
+      "points": 1469.18,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 25
+    },
+    {
+      "wins": 10,
+      "points": 1828.6999999999998,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 26
+    },
+    {
+      "wins": 7,
+      "points": 1568.1800000000003,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 26
+    },
+    {
+      "wins": 5,
+      "points": 1347.4800000000002,
+      "rank": 9,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 27
+    },
+    {
+      "wins": 4,
+      "points": 1130.72,
+      "rank": 10,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 27
+    },
+    {
+      "wins": 5,
+      "points": 1579.8,
+      "rank": 8,
+      "title": 0,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 28
+    },
+    {
+      "wins": 4,
+      "points": 1479.0,
+      "rank": 11,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 28
+    },
+    {
+      "wins": 10,
+      "points": 1828.6999999999998,
+      "rank": 1,
+      "title": 1,
+      "field": "full",
+      "seat": "learned",
+      "season": 2025,
+      "seed": 29
+    },
+    {
+      "wins": 7,
+      "points": 1568.1800000000003,
+      "rank": 7,
+      "title": 0,
+      "field": "full",
+      "seat": "ewma2",
+      "season": 2025,
+      "seed": 29
+    }
+  ]
+}

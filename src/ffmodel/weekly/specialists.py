@@ -234,6 +234,48 @@ def build_kicker_panel(seasons: Iterable[int]) -> pd.DataFrame:
     )
 
 
+def _canonical_team_codes(seasons: Iterable[int]) -> dict[tuple[int, str], str]:
+    """(season, any club code) -> the code that season's schedule uses.
+
+    nflverse is not internally consistent about relocated franchises.
+    ``team_stats`` labels them by their **modern** code in every season --
+    2016 Chargers are ``LAC``, 2016 Raiders are ``LV`` -- while ``schedules``
+    labels them by the code in use **at the time**, ``SD`` and ``OAK``. Merging
+    the two on the club code therefore drops those franchises entirely from
+    exactly the seasons they had not yet moved in: two clubs in 2016 and one in
+    2017 through 2019, silently, on an inner join.
+
+    ``team_id`` is the franchise identity and survives a move (``OAK`` and
+    ``LV`` are both 2520), so it is the bridge. The schedule's own codes are
+    treated as canonical, because the opponent map, the weather join and the
+    rest of this package all key off the schedule.
+    """
+    import nflreadpy as nfl
+
+    seasons = sorted({int(s) for s in seasons})
+    teams = nfl.load_teams().to_pandas()
+    if not {"team_abbr", "team_id"}.issubset(teams.columns):
+        raise ValueError("nflverse team table lacks team_abbr/team_id")
+    teams = teams.dropna(subset=["team_abbr", "team_id"])
+    by_abbr = dict(zip(teams["team_abbr"].astype(str), teams["team_id"].astype(str)))
+
+    schedule = ingest.load_schedules(seasons)
+    if "game_type" in schedule.columns:
+        schedule = schedule[schedule["game_type"] == "REG"]
+
+    mapping: dict[tuple[int, str], str] = {}
+    for season, block in schedule.groupby("season"):
+        season = int(season)
+        codes = set(block["home_team"].astype(str)) | set(block["away_team"].astype(str))
+        # Franchise id -> the code this season actually used.
+        canonical = {by_abbr.get(code): code for code in codes if by_abbr.get(code)}
+        for code, franchise in by_abbr.items():
+            target = canonical.get(franchise)
+            if target is not None:
+                mapping[(season, code)] = target
+    return mapping
+
+
 def build_defense_panel(seasons: Iterable[int]) -> pd.DataFrame:
     """One row per team-week. The 'player' is the club.
 
@@ -251,6 +293,14 @@ def build_defense_panel(seasons: Iterable[int]) -> pd.DataFrame:
     for column in ("season", "week"):
         stats[column] = pd.to_numeric(stats[column], errors="coerce").astype("Int64")
     stats["team"] = stats["team"].astype(str)
+
+    # Relabel the stats feed onto the schedule's codes before merging, or
+    # every relocated franchise silently disappears from the seasons before it
+    # moved. See `_canonical_team_codes`.
+    codes = _canonical_team_codes(seasons)
+    if codes:
+        keys = list(zip(stats["season"].astype(int), stats["team"].astype(str)))
+        stats["team"] = [codes.get(key, key[1]) for key in keys]
 
     scores = _team_scores(seasons)
     panel = stats.merge(scores, on=["season", "week", "team"], how="inner")

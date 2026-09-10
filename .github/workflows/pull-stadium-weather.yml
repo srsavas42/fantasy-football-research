@@ -37,6 +37,15 @@ on:
         description: "Seconds between Open-Meteo calls (politeness throttle)."
         required: false
         default: "0.5"
+      probe:
+        description: >
+          Probe mode. Give a date (YYYY-MM-DD) to make one tiny request per
+          source and print exactly what came back — which variables each
+          endpoint serves, and whether the previous-runs archive reaches that
+          far. Run this before any backfill; it costs seconds. Blank does a
+          normal pull.
+        required: false
+        default: ""
       dry_run:
         description: "Upload the result as a workflow artifact but do not commit it."
         type: boolean
@@ -61,6 +70,7 @@ jobs:
       LEADS_INPUT: ${{ inputs.leads }}
       STADIUMS_INPUT: ${{ inputs.stadiums }}
       DELAY_INPUT: ${{ inputs.delay_seconds }}
+      PROBE_INPUT: ${{ inputs.probe }}
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +96,16 @@ jobs:
             nflverse-weather-v1-
 
       - name: Fetch Open-Meteo conditions
+        # A validated 2024-2025 run (34 stadiums, 2 seasons, 3 sources, 204
+        # calls, zero failures) measured Open-Meteo taking roughly 24s on about
+        # 40% of calls and 2s on the rest -- a real, successful response time,
+        # not a stall. At that rate a full 2016-2025 backfill (~978 calls) is
+        # 2.5-3 hours, not 90 minutes. `collect()` checkpoints to disk after
+        # every stadium-season and the steps below run with `always()`, so a
+        # timeout here now costs only unfinished work, not finished work --
+        # but this ceiling should still comfortably exceed the honest estimate
+        # rather than being tuned to the last run that happened to fit.
+        timeout-minutes: 300
         run: |
           set -euo pipefail
           # Deliberately unquoted below: both --seasons and --leads take one
@@ -98,6 +118,9 @@ jobs:
           fi
           if [ -n "$STADIUMS_INPUT" ]; then
             args+=(--stadiums $STADIUMS_INPUT)
+          fi
+          if [ -n "$PROBE_INPUT" ]; then
+            args+=(--probe "$PROBE_INPUT")
           fi
           echo "running: python scripts/fetch_stadium_weather.py ${args[*]}"
           python scripts/fetch_stadium_weather.py "${args[@]}" | tee weather-run.log
@@ -117,20 +140,35 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the result as an artifact
+        # `always()` is load-bearing, not decorative. Without a status-check
+        # function in an `if:`, GitHub implicitly ANDs in `success()` -- the
+        # first full backfill hit the fetch step's timeout 65% of the way
+        # through, and both this step and the commit below were silently
+        # skipped as a result, discarding everything the run had checkpointed
+        # to disk. `data/weather/` is written incrementally by the fetcher
+        # now specifically so a step timeout leaves something to pick up here.
+        if: always()
+        # A probe prints to the log and writes no parquet, so `error` would fail
+        # a run that did exactly what was asked of it.
         uses: actions/upload-artifact@v4
         with:
           name: stadium-weather
           path: |
             data/weather/
             weather-run.log
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Commit and push the weather table
-        # See the coaching workflow for why both spellings of "true" are
-        # excluded here: API dispatch and UI dispatch disagree on whether this
+        # `always()` here for the same reason as the upload step above: this
+        # condition previously checked only `dry_run`, which reads as "runs
+        # unless dry_run" but actually means "runs only if the fetch step
+        # succeeded AND dry_run is false", because an `if:` with no explicit
+        # status function gets `success()` ANDed in regardless of what it
+        # says. See the coaching workflow for why both spellings of "true" are
+        # excluded: API dispatch and UI dispatch disagree on whether this
         # input arrives as a boolean or a string, and the non-empty string
         # "false" is truthy in GitHub's expression language.
-        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        if: ${{ always() && inputs.dry_run != true && inputs.dry_run != 'true' }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -141,7 +179,7 @@ jobs:
             exit 0
           fi
           git commit \
-            -m "Update stadium weather table" \
-            -m "Automated pull from the Pull stadium weather workflow. Seasons: ${SEASONS_INPUT:-2016 2025}; leads: ${LEADS_INPUT:-none}."
+            -m "Update stadium weather data" \
+            -m "Automated pull from the Pull stadium weather workflow. Seasons: ${SEASONS_INPUT:-2016 2025}; leads: ${LEADS_INPUT:-none}; probe: ${PROBE_INPUT:-none}."
           git pull --rebase origin "${GITHUB_REF_NAME}" || true
           git push origin "HEAD:${GITHUB_REF_NAME}"

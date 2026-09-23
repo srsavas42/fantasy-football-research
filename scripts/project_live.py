@@ -49,6 +49,10 @@ import pandas as pd
 
 from ffmodel.data import ingest
 from ffmodel.models.market_blend import blend_samples
+from ffmodel.weekly.availability_rate import (
+    PlayedRate,
+    add_played_rate_target,
+)
 from ffmodel.weekly.charting import attach_charting
 from ffmodel.weekly.expected import attach_expected
 from ffmodel.weekly.features import add_features
@@ -254,14 +258,26 @@ def main(argv=None) -> int:
             ros[want] = blend_samples(ros[want], curve_samples[want], weight, seed=seed + 1)
     print(f"  blend weight on the model, by horizon: {weights}")
 
+    # Per game, two ways, because they answer different questions and the naive
+    # one is a trap. The rest-of-season total already prices availability, so
+    # dividing it by the *scheduled* games left discounts the absence twice and
+    # describes a player who suits up every week -- which is not the player the
+    # total was about. `points_per_active_game` divides by the games he is
+    # actually expected to play, and is the rate to compare two players on.
+    played_rate = PlayedRate().fit(add_played_rate_target(train))
+    rate = played_rate.predict(rows)
     games = rows[OFFSET].to_numpy(float)
+    expected_games = games * rate
+    total = ros.mean(axis=1)
     ros_out = pd.DataFrame({
         "player": rows["player_name"].to_numpy(),
         "position": rows["position"].to_numpy(),
         "team": rows["team"].to_numpy(),
         "games_left": games,
-        "rest_of_season_points": ros.mean(axis=1),
-        "points_per_game": ros.mean(axis=1) / np.where(games > 0, games, np.nan),
+        "expected_games_played": expected_games,
+        "rest_of_season_points": total,
+        "points_per_active_game": total / np.where(expected_games > 0, expected_games, np.nan),
+        "points_per_scheduled_game": total / np.where(games > 0, games, np.nan),
         "p10": np.quantile(ros, 0.10, axis=1),
         "p50": np.quantile(ros, 0.50, axis=1),
         "p90": np.quantile(ros, 0.90, axis=1),

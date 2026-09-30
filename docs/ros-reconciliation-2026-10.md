@@ -221,6 +221,33 @@ projected (bias -3.2), presumably benchings and shutdowns that the model does no
 part of why the returner intervals run narrow: 29% never play again and 42% are back the
 next game.
 
+### Return-timing terms in the games model
+
+Tested after finding the gap is games, on the same 2023-2025 holdouts, changing only the
+expected-games fit (the rate is unchanged):
+
+| variant | drafted returners MAE (bias) | top-50 returners | everyone | share of games, drafted returners (actual 0.531) |
+|---|---:|---:|---:|---:|
+| current | 28.6 (+7.9) | 35.7 (+13.2) | 28.0 (0.0) | 0.454 |
+| **returner x horizon terms** (log games left, games left <= 6 and <= 3, each for players who just missed a game) | **28.0** (+5.4) | **34.3** (+9.5) | 28.0 (-0.3) | 0.484 |
+| the same plus the player's own history of past absences (spell count, mean length, share of short spells) | 28.0 (+4.9) | 34.7 (+8.7) | 27.9 (-0.2) | 0.490 |
+| the horizon terms for everyone, not just returners | 28.0 (+5.6) | 34.2 (+9.6) | 28.0 (+1.1) | 0.482 |
+| the club's prior-season return rate | 28.6 (+7.8) | 35.7 (+13.0) | 28.0 (0.0) | 0.456 |
+
+- The horizon terms help: a paired bootstrap over player-seasons gives +1.1 points on drafted
+  returners (95% CI +0.6 to +1.6) and +2.3 on the top 50 (+0.9 to +3.7), with no change
+  for everyone else. The reason is that with a long horizon a returner gets most of his
+  games and with a short one the season's end (benching, shutdowns) takes them.
+- It closes about half of the gap, not all of it: +7.9 becomes +5.4. By season the MAE gain
+  is 2024 (30.4 to 28.9) and 2025 (26.4 to 26.0), with 2023 slightly worse (29.3 to 29.5).
+- **Player history adds nothing** beyond the horizon terms (+1.0 against +1.1, and worse for
+  the top 50). Players with short past spells are not reliably the ones who return sooner.
+- **The club's return rate adds nothing**.
+- Applying the horizon terms to *everyone* is wrong: it moves the overall bias to +1.1 and
+  weeks 1-3 to +5.6, because the same share does not fall with horizon for players who
+  just played. They belong to the returner groups only.
+- Not shipped. The model in `ros_reconciled.py` is unchanged.
+
 ## What is not solved
 
 - **Returners are still under-projected**: +7.9 for drafted returners and +13.2 for the

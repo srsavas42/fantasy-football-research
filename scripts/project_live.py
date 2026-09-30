@@ -82,6 +82,14 @@ from ffmodel.weekly.tendency import attach_tendency
 
 FIRST_SEASON = 2016
 
+# A player placed on injured reserve must miss at least this many games. It is
+# what turns "he is on the reserve list" from a flag into a bound: a player put
+# there this week cannot be back for the game being projected, however healthy
+# the rest of the record looks.
+IR_MINIMUM_GAMES = 4
+
+MANUAL_STATUS = Path("projections/manual_status_2026.csv")
+
 
 def schedule_for(season: int) -> pd.DataFrame:
     """Regular-season games, one row per club-week, with the closing line."""
@@ -107,6 +115,50 @@ def games_remaining_from_schedule(schedule: pd.DataFrame, week: int) -> pd.Serie
     """
     ahead = schedule[schedule["week"] >= week]
     return ahead.groupby("team")["week"].size()
+
+
+def reserve_out_through(season: int, week: int, schedule: pd.DataFrame) -> pd.Series:
+    """Last week a reserve-list player is guaranteed to miss, by ``player_id``.
+
+    The roster feed says who is on reserve *this* week. The placement week is the
+    start of the unbroken run of reserve snapshots ending now, and the minimum
+    is counted in **club games**, not calendar weeks: a bye inside the window
+    pushes the earliest return out a week, and treating weeks as games would let
+    a player back a game early.
+
+    This is a floor, not a forecast. It says nothing about when he actually
+    returns, only when he cannot, which is the part the feed knows for certain.
+    """
+    roster = _roster_weeks([season])
+    roster = roster[roster["position"].isin(PANEL_POSITIONS)]
+    status = roster.set_index(["player_id", "week"])["status"]
+    now = roster[(roster["week"] == week) & (roster["status"] == "RES")]
+    games = schedule.groupby("team")["week"].apply(lambda w: sorted(int(x) for x in w))
+
+    out: dict[str, int] = {}
+    for player_id, team in zip(now["player_id"], now["team"]):
+        placed = week
+        for earlier in range(week - 1, 0, -1):
+            if status.get((player_id, earlier)) == "RES":
+                placed = earlier
+            else:
+                break
+        club = [w for w in games.get(team, []) if w >= placed]
+        # The week of his IR_MINIMUM_GAMES-th missed game. A club with fewer games
+        # left than the minimum is simply out for whatever remains.
+        last = club[min(IR_MINIMUM_GAMES, len(club)) - 1] if club else week
+        out[str(player_id)] = max(int(last), week)
+    return pd.Series(out, dtype=float)
+
+
+def manual_out_through(rows: pd.DataFrame) -> pd.Series:
+    """News the feed has not caught up to, keyed to the rows by index."""
+    if not MANUAL_STATUS.exists():
+        return pd.Series(0.0, index=rows.index)
+    manual = pd.read_csv(MANUAL_STATUS)
+    key = manual.set_index(["player_name", "team"])["out_through_week"]
+    got = [key.get((n, t), 0) for n, t in zip(rows["player_name"], rows["team"])]
+    return pd.Series(np.asarray(got, float), index=rows.index)
 
 
 def build_live_rows(season: int, week: int, panel: pd.DataFrame) -> pd.DataFrame:
@@ -219,6 +271,16 @@ def main(argv=None) -> int:
         use_pedigree=True, use_charting=True, by_position=True,
     ).fit(train, weekly_target)
     samples = hurdle.predict_samples(rows, draws=args.draws, seed=seed)
+    # Who cannot play, and for how long. Reserve status from the roster feed sets
+    # a floor; the manual file can only extend it.
+    schedule = schedule_for(args.season)
+    floor = reserve_out_through(args.season, args.week, schedule)
+    out_through = rows["player_key"].map(floor).fillna(0.0)
+    out_through = np.maximum(out_through, manual_out_through(rows)).to_numpy(float)
+    unavailable = out_through >= args.week
+    samples[unavailable] = 0.0
+    print(f"  {int(unavailable.sum())} players out for week {args.week} "
+          f"(reserve list or manual override)")
     week_out = pd.DataFrame({
         "player": rows["player_name"].to_numpy(),
         "position": rows["position"].to_numpy(),
@@ -228,8 +290,10 @@ def main(argv=None) -> int:
         "p10": np.quantile(samples, 0.10, axis=1),
         "p50": np.quantile(samples, 0.50, axis=1),
         "p90": np.quantile(samples, 0.90, axis=1),
-        "p_plays": hurdle.play_probability(rows),
+        "p_plays": np.where(unavailable, 0.0, hurdle.play_probability(rows)),
         "inj_status": rows["inj_status"].to_numpy(),
+        "roster_status": rows["status"].to_numpy(),
+        "out_through_week": np.where(unavailable, out_through, np.nan),
     }).sort_values("projected_points", ascending=False).reset_index(drop=True)
     # Rank within position, because that is the shape of the decision: a flex
     # spot is a choice among running backs and receivers, never among everybody.
@@ -264,10 +328,29 @@ def main(argv=None) -> int:
     # describes a player who suits up every week -- which is not the player the
     # total was about. `points_per_active_game` divides by the games he is
     # actually expected to play, and is the rate to compare two players on.
+    # Games he is certain to miss. The model priced ordinary availability and
+    # knows nothing about a reserve stint, so its total is scaled by the share of
+    # remaining games left once the certain absence is removed. The scaling is
+    # applied to the draws, so the quantiles, the total and the expected games
+    # all move together and the per-active-game rate -- his rate when he plays --
+    # is untouched. It is approximate: the model's own availability estimate
+    # already reflects the recent absence, so a returning player is discounted a
+    # little twice, which errs conservative.
+    club_games = schedule.groupby("team")["week"].apply(lambda w: np.asarray(w, int))
+    certain_out = np.array([
+        int(((club_games.get(t, np.array([])) >= args.week)
+             & (club_games.get(t, np.array([])) <= o)).sum()) if o >= args.week else 0
+        for t, o in zip(rows["team"], out_through)
+    ], float)
+    left = rows[OFFSET].to_numpy(float)
+    keep = np.clip((left - certain_out) / np.where(left > 0, left, np.nan), 0.0, 1.0)
+    keep = np.nan_to_num(keep, nan=0.0)
+    ros = ros * keep[:, None]
+
     played_rate = PlayedRate().fit(add_played_rate_target(train))
     rate = played_rate.predict(rows)
     games = rows[OFFSET].to_numpy(float)
-    expected_games = games * rate
+    expected_games = games * rate * keep
     total = ros.mean(axis=1)
     ros_out = pd.DataFrame({
         "player": rows["player_name"].to_numpy(),
@@ -282,6 +365,8 @@ def main(argv=None) -> int:
         "p50": np.quantile(ros, 0.50, axis=1),
         "p90": np.quantile(ros, 0.90, axis=1),
         "adp_rank": rows["adp_rank"].to_numpy(),
+        "roster_status": rows["status"].to_numpy(),
+        "out_through_week": np.where(out_through >= args.week, out_through, np.nan),
     }).sort_values("rest_of_season_points", ascending=False).reset_index(drop=True)
     ros_out.insert(0, "overall_rank", ros_out.index + 1)
     ros_out.insert(1, "pos_rank", ros_out.groupby("position").cumcount() + 1)

@@ -58,6 +58,28 @@ ratio says more than 25 (n=88)    4.12    14.07   4.49
 
 The ratio method's bias on the returning-player split is -1.19 against +0.46, and
 when it produces a number like Nacua's it is wrong by fourteen points a game.
+
+That table compared the direct rate with an *unblended* ratio. The version that
+actually shipped divided the *blended* total, and it is worse again. Same
+walk-forward, every relevant player with at least one game over the remainder
+(so noisier than the table above), MAE in points a game with bias in brackets:
+
+==================================  ===========  ===============
+population                          direct       shipped ratio
+==================================  ===========  ===============
+everyone (n=12,332)                 3.39 (+0.03) 4.29 (-1.00)
+drafted, where the blend applies    3.50 (-0.01) 4.63 (-1.41)
+undrafted, where it is a no-op      3.14 (+0.11) 3.48 (-0.01)
+missed last week                    3.90 (+0.07) 5.85 (-3.05)
+  ... and drafted (n=847)           3.76 (+0.36) 7.37 (-5.46)
+  ... and top-50 ADP (n=209)        4.17 (+0.67) 10.25 (-9.28)
+shipped rate above 25 (n=376)       5.52 (-1.04) 19.91 (-19.59)
+==================================  ===========  ===============
+
+The undrafted row is the control: there the blend does nothing and the two are
+close, so the damage is the blend meeting a denominator that knows about the
+absence. It grows with how much the board believes in the player and how long he
+has been out -- a ten-point miss for a top-50 player who sat last week.
 """
 
 from __future__ import annotations

@@ -120,9 +120,10 @@ The share of remaining games played by players who had missed three to five game
 
 A fit over all years averages the two eras and under-projects returners in every recent
 season. An era indicator, a linear trend, or training on only the last four or five seasons
-all help: the drafted-returner bias falls from +10.4 to between +6.3 and +9.2, and games
-become nearly calibrated (predicted 0.443 against an actual 0.448). **Why it changed is not
-known.** Every holdout season is in the newer era, which flatters the fix; for a live
+all help: the drafted-returner bias falls from +10.4 to between +6.3 and +9.2. (An earlier
+draft said games then became nearly calibrated, 0.443 against 0.448. That does not hold for
+drafted returners, who still play 0.531 of their remaining games against 0.454 projected;
+see the next section.) **Why it changed is not known.** Every holdout season is in the newer era, which flatters the fix; for a live
 season it matters because half of the training years are in the older one. The shipped
 model uses the era indicator.
 
@@ -185,12 +186,47 @@ players: a third of top-50 returners landed below the shipped p10, and only 54% 
 a nominal 80% band. The new ones are much better and **still too narrow for returners**
 (68-75% inside), and slightly narrower overall (77.9% against 79.4%).
 
+## Where the returner gap comes from: games played, and they come back sooner
+
+Drafted players who missed their last game, 2023-2025, split into the games he plays and
+the points he scores in them. Among the 1,121 with at least three games left (bias +10.1):
+
+| | projected | actual |
+|---|---:|---:|
+| games played | 4.16 | 4.94 |
+| share of games left | 0.455 | 0.540 |
+| points per game played (games-weighted) | 10.35 | 10.72 |
+
+Of the +10.1, **+8.2 is games and +1.8 is rate.** They are not out for longer than the model
+thinks; they are back sooner, and score about what the model says when they are. The
+shortfall is in the designated-absence cases and not the reserve list:
+
+| last game missed as | n | share projected | share actual |
+|---|---:|---:|---:|
+| reserve list | 518 | 0.290 | 0.292 |
+| designated Out | 325 | 0.564 | 0.647 |
+| Questionable/Doubtful | 194 | 0.660 | 0.745 |
+| inactive, no designation | 501 | 0.590 | 0.668 |
+
+It is worst for short absences (the gap in share is 0.03 after one missed game, 0.07-0.08
+after three or more) and it moves by season: 0.605 actual against 0.473 projected in 2024,
+0.482 against 0.449 in 2025.
+
+Two cautions. First, "early" is against the model's average, not the team's timetable; with
+no severity or return-date information nothing here can say whether the player came back
+earlier than the club expected. Second, the same cut has the opposite sign late in the
+season: with fewer than three games left, returners play 0.214 of them against 0.412
+projected (bias -3.2), presumably benchings and shutdowns that the model does not see. The
++7.9 for all drafted returners is the net of the two. The outcomes are also bimodal, which is
+part of why the returner intervals run narrow: 29% never play again and 42% are back the
+next game.
+
 ## What is not solved
 
 - **Returners are still under-projected**: +7.9 for drafted returners and +13.2 for the
-  top 50, after every change above. Games are nearly calibrated by the end, so the gap sits
-  in the rate and in how a returner's games and scoring covary. The missing information is
-  probably severity and timetable news, which the feeds do not carry.
+  top 50, after every change above. Most of it is **games, not rate**: see the next
+  section. The missing information is probably severity and timetable news, which the
+  feeds do not carry.
 - **Weeks 1-3 are slightly worse**, as above.
 - **The intervals** for returners are too narrow.
 - **A live run on Wednesday** has no game-status designations yet (they are filed Friday), so

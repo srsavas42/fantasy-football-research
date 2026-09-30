@@ -49,13 +49,6 @@ import numpy as np
 import pandas as pd
 
 from ffmodel.data import ingest
-from ffmodel.models.market_blend import blend_samples
-from ffmodel.weekly.availability_rate import (
-    RATE_TARGET,
-    PlayedRate,
-    add_played_rate_target,
-    add_points_per_active_game_target,
-)
 from ffmodel.weekly.charting import attach_charting
 from ffmodel.weekly.expected import attach_expected
 from ffmodel.weekly.features import add_features
@@ -66,21 +59,13 @@ from ffmodel.weekly.frame import (
     _roster_weeks,
     build_panel,
 )
-from ffmodel.weekly.market import (
-    WeeklyRankCurve,
-    attach_adp,
-    bucket_labels,
-    fit_blend_weights,
-)
+from ffmodel.weekly.injury_type import attach_injury_type
+from ffmodel.weekly.market import attach_adp
 from ffmodel.weekly.news import add_news_features
 from ffmodel.weekly.nextweek import Hurdle
 from ffmodel.weekly.pedigree import add_pedigree_features
-from ffmodel.weekly.restofseason import (
-    OFFSET,
-    TARGET,
-    DirectTotal,
-    add_rest_of_season_target,
-)
+from ffmodel.weekly.restofseason import OFFSET, TARGET, add_rest_of_season_target
+from ffmodel.weekly.ros_reconciled import ReconciledROS, add_absence_state, summarise
 from ffmodel.weekly.tendency import attach_tendency
 
 FIRST_SEASON = 2016
@@ -246,6 +231,10 @@ def main(argv=None) -> int:
         )
     )
     frame = add_rest_of_season_target(frame)
+    # Why and for how long each player has been out, and what was on his report.
+    # Needs the whole frame (it reads the previous row), so it is done before the
+    # live rows are sliced off.
+    frame = add_absence_state(attach_injury_type(frame))
 
     # The schedule, not the panel, says how many games are left. Overridden
     # after `add_rest_of_season_target` because that helper counts panel
@@ -310,39 +299,19 @@ def main(argv=None) -> int:
     week_out.round(3).to_csv(week_path, index=False)
 
     # ------------------------------------------------------- rest of season
-    def build():
-        return DirectTotal(use_team=True, use_phase=True, use_adp=True, use_role=True)
+    # One calculation, not three: total = expected games x points per game played,
+    # so every column of the row is a breakdown of the same number and none can
+    # disagree with another. See ffmodel.weekly.ros_reconciled.
+    fit_rows = train[np.isfinite(pd.to_numeric(train[TARGET], errors="coerce"))]
+    model = ReconciledROS().fit(fit_rows).fit_intervals(fit_rows)
+    parts = model.predict(rows)
+    grid = model.quantile_grid(rows, parts["total"].to_numpy())
 
-    direct = build().fit(train, train[TARGET].to_numpy(float))
-    ros = direct.predict_samples(rows, draws=args.draws, seed=seed)
-    # Early in a season the board still knows things the model does not, so the
-    # drafted rows are blended toward it at the fitted per-horizon weight. The
-    # weight goes to 1.0 once the model has usage the board never saw.
-    weights = fit_blend_weights(train, build, TARGET, seed=seed)
-    curve = WeeklyRankCurve(per_game=False, offset=OFFSET).fit(train, weekly_target)
-    curve_samples = curve.predict_samples(rows, draws=args.draws, seed=seed)
-    labels = bucket_labels(rows["week"].to_numpy(float))
-    drafted = pd.to_numeric(rows["adp_drafted"], errors="coerce").eq(1).to_numpy()
-    for name, weight in weights.items():
-        want = (labels == name) & drafted
-        if want.any():
-            ros[want] = blend_samples(ros[want], curve_samples[want], weight, seed=seed + 1)
-    print(f"  blend weight on the model, by horizon: {weights}")
-
-    # Per game, two ways, because they answer different questions and the naive
-    # one is a trap. The rest-of-season total already prices availability, so
-    # dividing it by the *scheduled* games left discounts the absence twice and
-    # describes a player who suits up every week -- which is not the player the
-    # total was about. `points_per_active_game` divides by the games he is
-    # actually expected to play, and is the rate to compare two players on.
-    # Games he is certain to miss. The model priced ordinary availability and
-    # knows nothing about a reserve stint, so its total is scaled by the share of
-    # remaining games left once the certain absence is removed. The scaling is
-    # applied to the draws, so the quantiles, the total and the expected games
-    # all move together and the per-active-game rate -- his rate when he plays --
-    # is untouched. It is approximate: the model's own availability estimate
-    # already reflects the recent absence, so a returning player is discounted a
-    # little twice, which errs conservative.
+    # Games he is certain to miss. The model has no way to know a reserve stint is
+    # a fixed length, so the certain absence is taken off afterwards: expected
+    # games and the quantiles are scaled by the share of remaining games left once
+    # it is removed. The rate -- his rate when he plays -- is untouched, so the
+    # identity holds on the scaled row.
     club_games = schedule.groupby("team")["week"].apply(lambda w: np.asarray(w, int))
     certain_out = np.array([
         int(((club_games.get(t, np.array([])) >= args.week)
@@ -352,22 +321,11 @@ def main(argv=None) -> int:
     left = rows[OFFSET].to_numpy(float)
     keep = np.clip((left - certain_out) / np.where(left > 0, left, np.nan), 0.0, 1.0)
     keep = np.nan_to_num(keep, nan=0.0)
-    ros = ros * keep[:, None]
-
-    played_rate = PlayedRate().fit(add_played_rate_target(train))
-    rate = played_rate.predict(rows)
-    games = rows[OFFSET].to_numpy(float)
-    expected_games = games * rate * keep
-    total = ros.mean(axis=1)
-    # His rate when he plays, modelled directly rather than read off the total.
-    # Dividing the blended total by expected games mixes a numerator that is
-    # pulled toward a healthy-season board curve with a denominator discounted
-    # for this player's own absences, and put Nacua at 32 a game.
-    rate_train = add_points_per_active_game_target(train)
-    rate_train = rate_train[rate_train[RATE_TARGET].notna()]
-    rate_model = build().fit(rate_train, rate_train[RATE_TARGET].to_numpy(float))
-    active_rate = rate_model.predict_samples(rows, draws=args.draws, seed=seed).mean(axis=1)
-    active_rate = np.where(keep > 0, active_rate, np.nan)
+    games = left
+    expected_games = parts["expected_games"].to_numpy() * keep
+    active_rate = np.where(keep > 0, parts["rate"].to_numpy(), np.nan)
+    total = np.where(keep > 0, expected_games * active_rate, 0.0)
+    quant = summarise(grid * keep[:, None])
     ros_out = pd.DataFrame({
         "player": rows["player_name"].to_numpy(),
         "position": rows["position"].to_numpy(),
@@ -377,9 +335,9 @@ def main(argv=None) -> int:
         "rest_of_season_points": total,
         "points_per_active_game": active_rate,
         "points_per_scheduled_game": total / np.where(games > 0, games, np.nan),
-        "p10": np.quantile(ros, 0.10, axis=1),
-        "p50": np.quantile(ros, 0.50, axis=1),
-        "p90": np.quantile(ros, 0.90, axis=1),
+        "p10": quant["p10"],
+        "p50": quant["p50"],
+        "p90": quant["p90"],
         "adp_rank": rows["adp_rank"].to_numpy(),
         "roster_status": rows["status"].to_numpy(),
         "out_through_week": np.where(out_through >= args.week, out_through, np.nan),

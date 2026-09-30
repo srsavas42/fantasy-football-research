@@ -80,6 +80,13 @@ The undrafted row is the control: there the blend does nothing and the two are
 close, so the damage is the blend meeting a denominator that knows about the
 absence. It grows with how much the board believes in the player and how long he
 has been out -- a ten-point miss for a top-50 player who sat last week.
+
+**Superseded for shipping.** The rate and the games count in this module are still
+two models whose product is not the total. ``ffmodel.weekly.ros_reconciled`` replaces
+the pair with one calculation -- the rate weighted by games played, the games fitted
+per absence state -- and ships the product as the total. This module stays as the
+record of why, and for :func:`add_points_per_active_game_target`, which the new model
+uses.
 """
 
 from __future__ import annotations
@@ -126,6 +133,7 @@ def add_played_rate_target(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 RATE_TARGET = "ppag_rest"
+GAMES_PLAYED_REST = "games_played_rest"
 
 
 def add_points_per_active_game_target(frame: pd.DataFrame) -> pd.DataFrame:
@@ -146,6 +154,7 @@ def add_points_per_active_game_target(frame: pd.DataFrame) -> pd.DataFrame:
         .cumsum()
         .iloc[::-1]
     )
+    out[GAMES_PLAYED_REST] = games
     out[RATE_TARGET] = pd.to_numeric(out[TARGET], errors="coerce") / games.where(games > 0)
     return out
 

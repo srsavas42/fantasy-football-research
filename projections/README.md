@@ -31,24 +31,31 @@ Wednesday run has none (see the caveats below).
 `p_plays` the chance he is active. A low `p10` with a high `p_plays` is a bust risk; a low
 `p_plays` is an availability risk. Two players with the same mean are not the same decision.
 
-`rest_of_season.csv`
+`rest_of_season.csv` -- every row is one calculation:
+`rest_of_season_points = expected_games_played x points_per_active_game`.
 
 | column | meaning |
 |---|---|
-| `rest_of_season_points` | expected total from this week to the end, availability included |
+| `rest_of_season_points` | expected total from this week to the end: games x rate |
 | `expected_games_played` | of `games_left`, how many he is expected to be active for |
-| `points_per_active_game` | his rate **in the weeks he plays**, fitted directly; compare players on this |
-| `points_per_scheduled_game` | total over scheduled games, so it carries the absence; a cost, not a rate |
+| `points_per_active_game` | his games-weighted rate **in the weeks he plays**; compare players on this |
+| `points_per_scheduled_game` | the total over scheduled games, so it carries the absence; a cost, not a rate |
+| `p10`, `p50`, `p90` | quantiles of the total, from measured residuals |
 | `roster_status`, `out_through_week` | reserve-list players and overrides; the last week he is certain to miss |
+
+The identity holds to the CSV's rounding (about 0.02 points). See
+`docs/ros-reconciliation-2026-10.md`.
 
 Both files carry `overall_rank` and `pos_rank`. Raw PPR favours quarterbacks, so rank against
 your own replacement level at each position rather than on `overall_rank`.
 
 ## Caveats that apply to every file
 
-- **Total, rate and expected games are three separately fitted numbers.** The total is not
-  `rate x expected games`. For a star who has just missed time the total is the less
-  certain of the three, because the draft-board blend behind it treats him as healthy.
+- **Returners are still under-projected.** Drafted players who just missed a game score
+  about 8 points more than projected, top-50 players about 13. The model has no severity or
+  timetable information, which the feeds do not carry.
+- **Weeks 1-3 of a season are slightly less accurate** than the draft-board blend the file
+  used before (1-2%); from week 4 the new total is at least as good.
 - **Rates are unreliable when `expected_games_played` is small.** Rookies and long absences
   can read wildly high or low; filter on it before ranking on the rate.
 - **The reserve-list floor is a floor, not a return date.** It is the fourth missed club game
@@ -65,6 +72,6 @@ the code has changed since.
 |---|---|
 | `week02/` | the active-game rate and the reserve-list handling; `points_per_game` assumes he plays every remaining game |
 | `week03/` | the reserve-list handling and the direct rate; its `points_per_active_game` is the superseded ratio and overstates returning stars |
-| `week04/` | current schema. Built on a Wednesday: no game-status designations yet |
+| `week04/` | current schema and model. Built on a Wednesday: no game-status designations yet |
 
 Do not use `week02/` or `week03/` for a decision in a later week.

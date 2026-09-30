@@ -82,3 +82,26 @@ def test_calibration_reports_a_gap_per_bucket():
     got = calibration(np.linspace(0, 1, 500), np.linspace(0, 1, 500), bins=4)
     assert len(got) == 4
     assert np.allclose(got["gap"], 0.0, atol=1e-9)
+
+
+def test_the_rate_target_divides_by_games_played_not_games_scheduled():
+    """Points per game *played*. A player who sits half the remainder has the
+    same rate as one who played all of it, which is the point of the column."""
+    from ffmodel.weekly.availability_rate import RATE_TARGET, add_points_per_active_game_target
+
+    frame = _frame([1, 0, 1, 1])
+    frame["ros_points"] = [30.0, 20.0, 20.0, 10.0]  # remaining totals from each week
+    out = add_points_per_active_game_target(frame)
+    # From week 1: 30 points over the 3 games he played. From week 3: 20 over 2.
+    assert out[RATE_TARGET].iloc[0] == pytest.approx(10.0)
+    assert out[RATE_TARGET].iloc[2] == pytest.approx(10.0)
+
+
+def test_a_player_who_never_plays_again_has_no_rate_not_a_zero():
+    """A zero would teach the fit that a hurt player is a bad player."""
+    from ffmodel.weekly.availability_rate import RATE_TARGET, add_points_per_active_game_target
+
+    frame = _frame([1, 0, 0, 0])
+    frame["ros_points"] = [5.0, 0.0, 0.0, 0.0]
+    out = add_points_per_active_game_target(frame)
+    assert out[RATE_TARGET].iloc[1:].isna().all()

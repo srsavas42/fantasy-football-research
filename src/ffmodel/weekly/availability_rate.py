@@ -32,6 +32,32 @@ that matters most here is worse still: a player who missed last week has a
 So the rate is fitted rather than borrowed, on the same walk-forward discipline
 as everything else, and :func:`calibration` is what says whether the fit earned
 its place before a column is written from it.
+
+**A second correction, about what to do with that denominator.** It was first
+used to turn the rest-of-season total into a per-game rate by division, and that
+was wrong in a way that showed up as Puka Nacua at 32 points a game. The shipped
+total is blended toward the draft-board curve, which does not know he missed two
+games, while the expected-games denominator is discounted for exactly that. A
+ratio of two separately fitted things inherits both of their errors and
+disagrees with itself whenever they disagree with each other. Nacua's model-only
+total over the same denominator is 23.5 -- still high -- so the blend was not the
+whole story either.
+
+The rate is therefore modelled directly: rest-of-season points divided by games
+*played*, fitted with the same ridge and the same features as the total
+(:func:`add_points_per_active_game_target`). Walk-forward on 2023-2025, for
+players with at least three games over the remainder, MAE in points a game:
+
+================================  ======  ======  =========
+population                        direct  ratio   own mean
+================================  ======  ======  =========
+everyone (n=10,119)               2.99    3.42    3.39
+missed last week (n=1,327)        3.26    4.23    3.63
+ratio says more than 25 (n=88)    4.12    14.07   4.49
+================================  ======  ======  =========
+
+The ratio method's bias on the returning-player split is -1.19 against +0.46, and
+when it produces a number like Nacua's it is wrong by fourteen points a game.
 """
 
 from __future__ import annotations
@@ -75,6 +101,31 @@ def add_played_rate_target(frame: pd.DataFrame) -> pd.DataFrame:
     offset = pd.to_numeric(out[OFFSET], errors="coerce")
     out[TARGET] = (out["_games_played_rest"] / offset.where(offset > 0)).clip(0.0, 1.0)
     return out.drop(columns=["_games_played_rest"])
+
+
+RATE_TARGET = "ppag_rest"
+
+
+def add_points_per_active_game_target(frame: pd.DataFrame) -> pd.DataFrame:
+    """Rest-of-season points divided by the games he actually played in them.
+
+    The response for a per-game rate. It is undefined for a player who never
+    takes the field again, and those rows are left NaN rather than set to zero:
+    a zero would teach the fit that a player who is hurt is a bad player, which
+    is exactly the confusion the rate exists to remove.
+    """
+    from ffmodel.weekly.restofseason import TARGET
+
+    out = frame.sort_values(["player_key", "season", "week"], kind="mergesort").copy()
+    played = pd.to_numeric(out["played"], errors="coerce").fillna(0.0)
+    games = (
+        played.iloc[::-1]
+        .groupby([out["player_key"].iloc[::-1], out["season"].iloc[::-1]], sort=False)
+        .cumsum()
+        .iloc[::-1]
+    )
+    out[RATE_TARGET] = pd.to_numeric(out[TARGET], errors="coerce") / games.where(games > 0)
+    return out
 
 
 class PlayedRate:

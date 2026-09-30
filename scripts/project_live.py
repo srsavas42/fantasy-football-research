@@ -50,8 +50,10 @@ import pandas as pd
 from ffmodel.data import ingest
 from ffmodel.models.market_blend import blend_samples
 from ffmodel.weekly.availability_rate import (
+    RATE_TARGET,
     PlayedRate,
     add_played_rate_target,
+    add_points_per_active_game_target,
 )
 from ffmodel.weekly.charting import attach_charting
 from ffmodel.weekly.expected import attach_expected
@@ -352,6 +354,15 @@ def main(argv=None) -> int:
     games = rows[OFFSET].to_numpy(float)
     expected_games = games * rate * keep
     total = ros.mean(axis=1)
+    # His rate when he plays, modelled directly rather than read off the total.
+    # Dividing the blended total by expected games mixes a numerator that is
+    # pulled toward a healthy-season board curve with a denominator discounted
+    # for this player's own absences, and put Nacua at 32 a game.
+    rate_train = add_points_per_active_game_target(train)
+    rate_train = rate_train[rate_train[RATE_TARGET].notna()]
+    rate_model = build().fit(rate_train, rate_train[RATE_TARGET].to_numpy(float))
+    active_rate = rate_model.predict_samples(rows, draws=args.draws, seed=seed).mean(axis=1)
+    active_rate = np.where(keep > 0, active_rate, np.nan)
     ros_out = pd.DataFrame({
         "player": rows["player_name"].to_numpy(),
         "position": rows["position"].to_numpy(),
@@ -359,7 +370,7 @@ def main(argv=None) -> int:
         "games_left": games,
         "expected_games_played": expected_games,
         "rest_of_season_points": total,
-        "points_per_active_game": total / np.where(expected_games > 0, expected_games, np.nan),
+        "points_per_active_game": active_rate,
         "points_per_scheduled_game": total / np.where(games > 0, games, np.nan),
         "p10": np.quantile(ros, 0.10, axis=1),
         "p50": np.quantile(ros, 0.50, axis=1),

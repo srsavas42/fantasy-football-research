@@ -31,9 +31,10 @@ what separates "he is questionable and his backup just got promoted" from a
 projection built entirely out of history.
 
 Both horizons are written, because they answer different questions:
-``week_<n>.csv`` is the start/sit call and ``rest_of_season.csv`` is the waiver
+``start_sit.csv`` is the start/sit call and ``rest_of_season.csv`` is the waiver
 call -- a player worth rostering for fourteen weeks and a player worth starting
-on Sunday are not the same player.
+on Sunday are not the same player. They land in
+``projections/weekly/<season>/week<NN>/``; see ``projections/README.md``.
 """
 
 from __future__ import annotations
@@ -90,7 +91,7 @@ FIRST_SEASON = 2016
 # the rest of the record looks.
 IR_MINIMUM_GAMES = 4
 
-MANUAL_STATUS = Path("projections/manual_status_2026.csv")
+MANUAL_STATUS = Path("projections/overrides/manual_status_2026.csv")
 
 
 def schedule_for(season: int) -> pd.DataFrame:
@@ -219,7 +220,10 @@ def main(argv=None) -> int:
     parser.add_argument("--week", type=int, required=True)
     parser.add_argument("--draws", type=int, default=2000)
     parser.add_argument("--top", type=int, default=25)
-    parser.add_argument("--outdir", type=Path, default=Path("projections"))
+    parser.add_argument(
+        "--outdir", type=Path, default=Path("projections/weekly"),
+        help="root for weekly output; files land in <outdir>/<season>/week<NN>/",
+    )
     args = parser.parse_args(argv)
 
     print(f"building the panel through {args.season} week {args.week - 1} ...")
@@ -264,7 +268,8 @@ def main(argv=None) -> int:
 
     weekly_target = train["points"].to_numpy(float)
     seed = args.season * 100 + args.week
-    args.outdir.mkdir(parents=True, exist_ok=True)
+    outdir = args.outdir / str(args.season) / f"week{args.week:02d}"
+    outdir.mkdir(parents=True, exist_ok=True)
 
     # ---------------------------------------------------------------- week
     hurdle = Hurdle(
@@ -301,7 +306,7 @@ def main(argv=None) -> int:
     # spot is a choice among running backs and receivers, never among everybody.
     week_out.insert(0, "overall_rank", week_out.index + 1)
     week_out.insert(1, "pos_rank", week_out.groupby("position").cumcount() + 1)
-    week_path = args.outdir / f"{args.season}_week{args.week}_projections.csv"
+    week_path = outdir / "start_sit.csv"
     week_out.round(3).to_csv(week_path, index=False)
 
     # ------------------------------------------------------- rest of season
@@ -381,7 +386,7 @@ def main(argv=None) -> int:
     }).sort_values("rest_of_season_points", ascending=False).reset_index(drop=True)
     ros_out.insert(0, "overall_rank", ros_out.index + 1)
     ros_out.insert(1, "pos_rank", ros_out.groupby("position").cumcount() + 1)
-    ros_path = args.outdir / f"{args.season}_week{args.week}_rest_of_season.csv"
+    ros_path = outdir / "rest_of_season.csv"
     ros_out.round(3).to_csv(ros_path, index=False)
 
     print(f"\n=== {args.season} week {args.week}: start/sit ===")

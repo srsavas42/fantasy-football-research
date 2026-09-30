@@ -105,7 +105,7 @@ def main(argv=None) -> int:
     parser.add_argument("--draws", type=int, default=1000)
     parser.add_argument("--chains", type=int, default=4)
     parser.add_argument("--weight", type=float, default=BLEND_WEIGHT)
-    parser.add_argument("--out-dir", type=Path, default=Path("projections"))
+    parser.add_argument("--out-dir", type=Path, default=Path("projections/preseason"))
     parser.add_argument(
         "--per-game-allocation",
         action="store_true",

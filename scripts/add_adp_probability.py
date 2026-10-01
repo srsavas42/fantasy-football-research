@@ -20,7 +20,7 @@ availability regression has a number to read, not a real board position -- there
 is no board expectation for them to beat, so a stated probability would be an
 opinion about a comparison that does not exist.
 
-    python scripts/add_adp_probability.py --projection projections/2026_ppr.csv
+    python scripts/add_adp_probability.py --projection projections/preseason/2026_ppr.csv
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ def fit_edge_model(report_paths: list[Path]) -> AdpEdgeModel:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--projection", type=Path, default=Path("projections/2026_ppr.csv"))
+    parser.add_argument("--projection", type=Path, default=Path("projections/preseason/2026_ppr.csv"))
     parser.add_argument("--cache-dir", type=Path, default=Path(".cache/ffmodel-2026"))
     parser.add_argument("--season", type=int, default=2026)
     parser.add_argument("--scoring", default="ppr")

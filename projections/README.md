@@ -42,6 +42,7 @@ Wednesday run has none (see the caveats below).
 | `points_per_scheduled_game` | the total over scheduled games, so it carries the absence; a cost, not a rate |
 | `p10`, `p50`, `p90` | quantiles of the total, from measured residuals |
 | `roster_status`, `out_through_week` | reserve-list players and overrides; the last week he is certain to miss |
+| `on_bye_this_week` | his club has no game in the projected week. He has a rest of season but no row in `start_sit.csv` |
 
 The identity holds to the CSV's rounding (about 0.02 points). See
 `docs/ros-reconciliation-2026-10.md`.

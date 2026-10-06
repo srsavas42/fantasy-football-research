@@ -150,7 +150,7 @@ def manual_out_through(rows: pd.DataFrame) -> pd.Series:
 
 
 def build_live_rows(season: int, week: int, panel: pd.DataFrame) -> pd.DataFrame:
-    """One row per rostered skill player on a club playing in ``week``.
+    """One row per rostered skill player, including those on a club on its bye.
 
     Shaped exactly like a panel row so the feature layer cannot tell the
     difference. Every stat column is zero and none of them is ever read: the
@@ -172,7 +172,21 @@ def build_live_rows(season: int, week: int, panel: pd.DataFrame) -> pd.DataFrame
         roster = roster[roster["week"] == latest].assign(week=week)
         print(f"  week {week} roster filings absent; using week {latest}")
 
-    rows = roster.merge(playing[["team", "opponent"]], on="team", how="inner")
+    # A club on its bye is kept, with no opponent and no line: it plays no game this
+    # week, so it has no start/sit row, but its players still have a rest of season and
+    # dropping them would hide exactly the players a waiver or trade call is about.
+    # The filings for a week leave out a club on its bye, so such a club is carried
+    # forward from the last week it filed.
+    everyone = _roster_weeks([season])
+    absent = sorted(set(schedule["team"]) - set(roster["team"]))
+    for club in absent:
+        filed = everyone[(everyone["team"] == club) & (everyone["week"] < week)]
+        if not filed.empty:
+            roster = pd.concat(
+                [roster, filed[filed["week"] == filed["week"].max()].assign(week=week)],
+                ignore_index=True,
+            )
+    rows = roster.merge(playing[["team", "opponent"]], on="team", how="left")
     rows = rows[rows["position"].isin(PANEL_POSITIONS)]
 
     lines = _market_lines([season])
@@ -255,6 +269,10 @@ def main(argv=None) -> int:
         f"{len(rows)} players, {rows[OFFSET].min():.0f}-{rows[OFFSET].max():.0f} games left"
     )
 
+    # Clubs on a bye have no start/sit row; the rest-of-season file keeps them.
+    playing_teams = set(schedule[schedule["week"] == args.week]["team"])
+    all_rows = rows
+    rows = all_rows[all_rows["team"].isin(playing_teams)]
     weekly_target = train["points"].to_numpy(float)
     seed = args.season * 100 + args.week
     outdir = args.outdir / str(args.season) / f"week{args.week:02d}"
@@ -302,6 +320,10 @@ def main(argv=None) -> int:
     # One calculation, not three: total = expected games x points per game played,
     # so every column of the row is a breakdown of the same number and none can
     # disagree with another. See ffmodel.weekly.ros_reconciled.
+    rows = all_rows
+    floor = reserve_out_through(args.season, args.week, schedule)
+    out_through = rows["player_key"].map(floor).fillna(0.0)
+    out_through = np.maximum(out_through, manual_out_through(rows)).to_numpy(float)
     fit_rows = train[np.isfinite(pd.to_numeric(train[TARGET], errors="coerce"))]
     model = ReconciledROS().fit(fit_rows).fit_intervals(fit_rows)
     parts = model.predict(rows)
@@ -341,6 +363,7 @@ def main(argv=None) -> int:
         "adp_rank": rows["adp_rank"].to_numpy(),
         "roster_status": rows["status"].to_numpy(),
         "out_through_week": np.where(out_through >= args.week, out_through, np.nan),
+        "on_bye_this_week": ~rows["team"].isin(playing_teams).to_numpy(),
     }).sort_values("rest_of_season_points", ascending=False).reset_index(drop=True)
     ros_out.insert(0, "overall_rank", ros_out.index + 1)
     ros_out.insert(1, "pos_rank", ros_out.groupby("position").cumcount() + 1)

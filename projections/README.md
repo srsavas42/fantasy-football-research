@@ -72,6 +72,7 @@ the code has changed since.
 |---|---|
 | `week02/` | the active-game rate and the reserve-list handling; `points_per_game` assumes he plays every remaining game |
 | `week03/` | the reserve-list handling and the direct rate; its `points_per_active_game` is the superseded ratio and overstates returning stars |
-| `week04/` | current schema and model. Built on a Wednesday: no game-status designations yet |
+| `week04/` | the same schema and model as `week05/`. Built on a Wednesday: no game-status designations yet |
+| `week05/` | current schema and model, built from weeks 1-4 (Dart and Achane out for the season via the override file) |
 
 Do not use `week02/` or `week03/` for a decision in a later week.

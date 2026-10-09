@@ -1,0 +1,84 @@
+name: Probe injury sources
+
+# The nflverse injury feed names a body part and nothing else. ESPN's injury
+# endpoint and Sleeper's player records may carry the nature of the injury and a
+# timeline, but neither keeps history, and neither host is reachable from the
+# research sandbox. This runs here, prints what each endpoint actually serves,
+# and commits a dated raw snapshot so every run adds history nothing else will.
+#
+# Manual trigger. Run it weekly (Wednesday and Friday are the useful days: the
+# game-status designations are filed Friday) to build the archive.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Upload the snapshot as a workflow artifact but do not commit it."
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: injury-sources-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project
+        run: pip install -e "."
+
+      - name: Fetch ESPN and Sleeper
+        run: |
+          set -euo pipefail
+          python scripts/probe_injury_sources.py | tee injury-probe.log
+
+      - name: Summarize the run
+        if: always()
+        run: |
+          {
+            echo "### Injury source probe"
+            echo ""
+            echo '```'
+            head -n 200 injury-probe.log || echo "no log produced"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the snapshot as an artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: injury-snapshot
+          path: |
+            data/injury_snapshots/
+            injury-probe.log
+          if-no-files-found: warn
+
+      - name: Commit and push the snapshot
+        if: ${{ always() && inputs.dry_run != true && inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/injury_snapshots
+          if git diff --cached --quiet; then
+            echo "no new snapshot; nothing to commit"
+            exit 0
+          fi
+          git commit -m "Archive injury source snapshot" \
+            -m "Automated pull from the Probe injury sources workflow."
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"

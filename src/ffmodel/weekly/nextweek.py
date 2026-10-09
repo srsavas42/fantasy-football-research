@@ -41,6 +41,43 @@ from ffmodel.weekly.fitting import LocalResiduals, Logistic, Ridge
 
 POSITIONS = ("QB", "RB", "WR", "TE")
 
+# The previous game was played but cut short (far fewer snaps than usual), and how many
+# of the last three were. Needs ``ffmodel.weekly.partial_game.add_partial_game``. Used
+# for whether he plays only: added to the points model as well it moved the mean for
+# everyone else without helping (see ``scripts/validate_partial_weekly.py``).
+PARTIAL_FEATURES = ("partial_prev", "partial_prev_early", "partial_recent")
+
+# Usage with the scoreboard taken out: shares of his team's plays in neutral and non-garbage
+# game states, how much of his work came trailing or leading, and the team's neutral pass
+# rate. Needs ``ffmodel.weekly.state_usage.attach_state_usage``.
+STATE_FEATURES = (
+    "prior_neutral_target_share_recent",
+    "prior_neutral_target_share_level",
+    "prior_neutral_rush_share_recent",
+    "prior_neutral_rush_share_level",
+    "prior_clean_target_share_recent",
+    "prior_clean_rush_share_recent",
+    "prior_trailing_target_frac_recent",
+    "prior_leading_rush_frac_recent",
+    "team_neutral_pass_rate_recent",
+    "prior_last_game_garbage_frac",
+)
+
+# Usage per opportunity rather than as a share of the team's work: targets per pass snap,
+# rushes per run snap, how much of the time he is on the field, and what a snap yields.
+# Needs ``ffmodel.weekly.opportunity_rates.attach_opportunity_rates``.
+OPPORTUNITY_FEATURES = (
+    "prior_targets_per_snap_recent", "prior_targets_per_snap_level",
+    "prior_rushes_per_snap_recent", "prior_rushes_per_snap_level",
+    "prior_pass_snap_share_recent", "prior_pass_snap_share_level",
+    "prior_run_snap_share_recent", "prior_run_snap_share_level",
+    "prior_targets_per_pass_snap_recent", "prior_targets_per_pass_snap_level",
+    "prior_rushes_per_run_snap_recent", "prior_rushes_per_run_snap_level",
+    "prior_rec_yards_per_pass_snap_recent",
+    "prior_points_per_snap_recent", "prior_points_per_snap_level",
+    "prior_touches_per_snap_recent", "prior_touches_per_snap_level",
+)
+
 # Whether he suits up: history of doing so, and how recently.
 AVAILABILITY_FEATURES = (
     "prior_play_rate",
@@ -367,6 +404,9 @@ class Hurdle:
     use_weather: bool = False
     use_roof: bool = False
     use_wind: bool = False
+    use_partial: bool = False
+    use_state: bool = False
+    use_rates: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -398,6 +438,8 @@ class Hurdle:
             + (WEATHER_FEATURES if self.use_weather else ())
             + (ROOF_FEATURES if self.use_roof else ())
             + (WIND_FEATURES if self.use_wind else ())
+            + (STATE_FEATURES if self.use_state else ())
+            + (OPPORTUNITY_FEATURES if self.use_rates else ())
         )
 
     @property
@@ -415,6 +457,7 @@ class Hurdle:
             + (WEATHER_FEATURES if self.use_weather else ())
             + (ROOF_FEATURES if self.use_roof else ())
             + (WIND_FEATURES if self.use_wind else ())
+            + (PARTIAL_FEATURES if self.use_partial else ())
         )
 
     def _fit_magnitude(

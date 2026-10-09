@@ -47,6 +47,22 @@ POSITIONS = ("QB", "RB", "WR", "TE")
 # everyone else without helping (see ``scripts/validate_partial_weekly.py``).
 PARTIAL_FEATURES = ("partial_prev", "partial_prev_early", "partial_recent")
 
+# Usage with the scoreboard taken out: shares of his team's plays in neutral and non-garbage
+# game states, how much of his work came trailing or leading, and the team's neutral pass
+# rate. Needs ``ffmodel.weekly.state_usage.attach_state_usage``.
+STATE_FEATURES = (
+    "prior_neutral_target_share_recent",
+    "prior_neutral_target_share_level",
+    "prior_neutral_rush_share_recent",
+    "prior_neutral_rush_share_level",
+    "prior_clean_target_share_recent",
+    "prior_clean_rush_share_recent",
+    "prior_trailing_target_frac_recent",
+    "prior_leading_rush_frac_recent",
+    "team_neutral_pass_rate_recent",
+    "prior_last_game_garbage_frac",
+)
+
 # Whether he suits up: history of doing so, and how recently.
 AVAILABILITY_FEATURES = (
     "prior_play_rate",
@@ -374,6 +390,7 @@ class Hurdle:
     use_roof: bool = False
     use_wind: bool = False
     use_partial: bool = False
+    use_state: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -405,6 +422,7 @@ class Hurdle:
             + (WEATHER_FEATURES if self.use_weather else ())
             + (ROOF_FEATURES if self.use_roof else ())
             + (WIND_FEATURES if self.use_wind else ())
+            + (STATE_FEATURES if self.use_state else ())
         )
 
     @property

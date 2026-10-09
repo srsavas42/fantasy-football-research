@@ -89,7 +89,9 @@ _INTERACTIONS = ("adp_log_rank", "prior_points_given_played", "prior_snap_share_
 _STREAK = ("missed_n", "log_missed")
 
 #: Whether the previous game was cut short (he played, on far fewer snaps than usual),
-#: and how many of the last three were. See :mod:`ffmodel.weekly.partial_game`.
+#: and how many of the last three were. See :mod:`ffmodel.weekly.partial_game`. The
+#: weeks 1-2 depth-chart label (``partial_prev_early``) is left out: it predicts the next
+#: game and not the rest of the season (``scripts/validate_partial_game.py``).
 PARTIAL_FEATURES = ("partial_prev", "partial_recent")
 
 #: Fit "left early last game" players as a group of their own, as the reserve list and

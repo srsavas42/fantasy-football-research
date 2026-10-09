@@ -60,7 +60,7 @@ your own replacement level at each position rather than on `overall_rank`.
 - **A game cut short counts as a signal.** A player who played last week on far fewer
   snaps than usual (hurt at halftime, say) is projected as more likely to miss time, and
   his play probability and games drop accordingly. It is read from snap counts, so it
-  cannot tell an injury from rest, and it does not exist for weeks 1-2. See
+  cannot tell an injury from rest, and in weeks 1-2 it is judged against the depth chart and last season rather than his own recent snaps. See
   `docs/partial-game-2026-10.md`.
 - **Rates are unreliable when `expected_games_played` is small.** Rookies and long absences
   can read wildly high or low; filter on it before ranking on the rate.

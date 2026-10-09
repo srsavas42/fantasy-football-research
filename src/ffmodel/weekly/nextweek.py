@@ -45,7 +45,7 @@ POSITIONS = ("QB", "RB", "WR", "TE")
 # of the last three were. Needs ``ffmodel.weekly.partial_game.add_partial_game``. Used
 # for whether he plays only: added to the points model as well it moved the mean for
 # everyone else without helping (see ``scripts/validate_partial_weekly.py``).
-PARTIAL_FEATURES = ("partial_prev", "partial_recent")
+PARTIAL_FEATURES = ("partial_prev", "partial_prev_early", "partial_recent")
 
 # Whether he suits up: history of doing so, and how recently.
 AVAILABILITY_FEATURES = (

@@ -20,16 +20,20 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
+from ffmodel.weekly import partial_game as PG
 from ffmodel.weekly import ros_reconciled as R
 from ffmodel.weekly.features import relevant_population
 from ffmodel.weekly.injury_type import attach_injury_type
 from ffmodel.weekly.restofseason import TARGET, add_rest_of_season_target
 
+# Each arm is a way of labelling games and of giving the label to the games model. The
+# rate model is the same in every arm.
 ARMS = {
-    "none": dict(features=(), group=False),
-    "flag": dict(features=("partial_prev",), group=False),
-    "flag+count": dict(features=("partial_prev", "partial_recent"), group=False),
-    "group": dict(features=("partial_prev", "partial_recent"), group=True),
+    "none": dict(features=(), group=False, early=False),
+    "flag": dict(features=("partial_prev",), group=False, early=False),
+    "flag+count": dict(features=("partial_prev", "partial_recent"), group=False, early=False),
+    "group": dict(features=("partial_prev", "partial_recent"), group=True, early=False),
+    "group+early": dict(features=("partial_prev", "partial_prev_early", "partial_recent"), group=True, early=True),
 }
 
 
@@ -45,33 +49,47 @@ def main(argv=None) -> int:
         frame = add_rest_of_season_target(frame)
     if "mechc_muscle" not in frame.columns:
         frame = attach_injury_type(frame)
-    frame = R.add_absence_state(frame)
-    frame = frame[np.isfinite(pd.to_numeric(frame[TARGET], errors="coerce"))].reset_index(drop=True)
+    base = frame
+    frames = {}
+    for early in (False, True):
+        PG.EARLY_BASELINE = early
+        made = R.add_absence_state(base)
+        frames[early] = made[np.isfinite(pd.to_numeric(made[TARGET], errors="coerce"))].reset_index(drop=True)
+    PG.EARLY_BASELINE = True
 
     parts = []
     for holdout in args.holdouts:
-        train = frame[frame["season"] < holdout]
-        test = frame[frame["season"] == holdout]
+        canon = frames[True]
+        test = canon[canon["season"] == holdout]
         test = test[relevant_population(test).to_numpy(bool)].copy()
         for name, arm in ARMS.items():
             R.PARTIAL_FEATURES, R.PARTIAL_GROUP = arm["features"], arm["group"]
-            predicted = R.ReconciledROS().fit(train).predict(test)
+            data = frames[arm["early"]]
+            train = data[data["season"] < holdout]
+            this = data[data["season"] == holdout]
+            this = this[relevant_population(this).to_numpy(bool)]
+            predicted = R.ReconciledROS().fit(train).predict(this)
             test[f"T_{name}"] = predicted["total"].to_numpy()
             test[f"E_{name}"] = predicted["expected_games"].to_numpy()
         print(f"  {holdout} done", flush=True)
         parts.append(test)
-    R.PARTIAL_FEATURES, R.PARTIAL_GROUP = ARMS["flag+count"]["features"], False
+    R.PARTIAL_FEATURES, R.PARTIAL_GROUP = ARMS["group"]["features"], True
 
     t = pd.concat(parts, ignore_index=True)
     y = pd.to_numeric(t[TARGET], errors="coerce").to_numpy(float)
     left = pd.to_numeric(t["games_remaining"], errors="coerce").to_numpy(float)
     drafted = t["adp_drafted"].eq(1)
-    flagged = t["partial_prev"].eq(1)
+    in_season = t["partial_prev"].eq(1)
+    early_only = t["partial_prev_early"].eq(1) & ~in_season
+    flagged = in_season | early_only
     populations = {
         "everyone": pd.Series(True, index=t.index),
         "drafted": drafted,
-        "cut short last game": flagged,
+        "cut short last game (either label)": flagged,
+        "cut short last game (in-season)": in_season,
         "  drafted": flagged & drafted,
+        "cut short, weeks 1-2 rule only": early_only,
+        "  next game is week 2-3": early_only & t["week"].between(2, 3),
         "  with >=3 games left": flagged & pd.Series(left >= 3, index=t.index),
         "played full last game": ~flagged & t["missed_last"].eq(0),
         "missed last game": t["missed_last"].eq(1),
@@ -101,7 +119,7 @@ def main(argv=None) -> int:
             base[["player_key", "season", "week", "played_rate_rest"]],
             on=["player_key", "season", "week"], how="left")["played_rate_rest"]
         gp = gp * left
-    for label in ("cut short last game", "  with >=3 games left", "played full last game"):
+    for label in ("cut short last game (either label)", "  with >=3 games left", "cut short, weeks 1-2 rule only", "played full last game"):
         m = populations[label].to_numpy() & np.isfinite(gp.to_numpy(float))
         if m.sum() < 25:
             continue
@@ -112,7 +130,7 @@ def main(argv=None) -> int:
 
     rng = np.random.default_rng(0)
     print("\n=== paired bootstrap over player-seasons (gain in MAE vs 'none', points) ===")
-    for label in ("cut short last game", "  with >=3 games left", "drafted", "everyone"):
+    for label in ("cut short last game (either label)", "cut short, weeks 1-2 rule only", "drafted", "everyone"):
         m = populations[label].to_numpy()
         for arm in names[1:]:
             d = pd.DataFrame({"k": t["player_key"].astype(str) + t["season"].astype(str),

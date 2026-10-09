@@ -20,6 +20,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 
+from ffmodel.weekly import partial_game as PG
 from ffmodel.weekly import ros_reconciled as R
 from ffmodel.weekly.features import relevant_population
 from ffmodel.weekly.injury_type import attach_injury_type
@@ -48,51 +49,64 @@ def main(argv=None) -> int:
         frame = add_rest_of_season_target(frame)
     if "mechc_muscle" not in frame.columns:
         frame = attach_injury_type(frame)
-    frame = R.add_absence_state(frame)
+    base = frame
+    frames = {}
+    for early in (False, True):
+        PG.EARLY_BASELINE = early
+        frames[early] = R.add_absence_state(base)
+    PG.EARLY_BASELINE = True
 
+    # arm -> (use the flag, weeks 1-2 depth-chart rule on)
+    arms = {"base": (False, False), "partial": (True, False), "partial+early": (True, True)}
     parts = []
     for holdout in args.holdouts:
-        train = frame[frame["season"] < holdout]
-        test = frame[frame["season"] == holdout]
+        canon = frames[True]
+        test = canon[canon["season"] == holdout]
         test = test[relevant_population(test).to_numpy(bool)].copy()
-        target = train["points"].to_numpy(float)
-        for use in (False, True):
-            tag = "partial" if use else "base"
-            model = build(use).fit(train, target)
-            samples = model.predict_samples(test, draws=args.draws, seed=holdout)
+        for tag, (use, early) in arms.items():
+            data = frames[early]
+            train = data[data["season"] < holdout]
+            this = data[data["season"] == holdout]
+            this = this[relevant_population(this).to_numpy(bool)]
+            model = build(use).fit(train, train["points"].to_numpy(float))
+            samples = model.predict_samples(this, draws=args.draws, seed=holdout)
             test[f"mean_{tag}"] = samples.mean(axis=1)
-            test[f"p_{tag}"] = model.play_probability(test)
+            test[f"p_{tag}"] = model.play_probability(this)
         print(f"  {holdout} done", flush=True)
         parts.append(test)
 
     t = pd.concat(parts, ignore_index=True)
     y = pd.to_numeric(t["points"], errors="coerce").to_numpy(float)
     played = pd.to_numeric(t["played"], errors="coerce").fillna(0).to_numpy(float)
-    flagged = t["partial_prev"].eq(1).to_numpy()
+    in_season = t["partial_prev"].eq(1).to_numpy()
+    early_only = (t["partial_prev_early"].eq(1) & t["partial_prev"].eq(0)).to_numpy()
+    flagged = in_season | early_only
     populations = {
         "everyone": np.ones(len(t), bool),
         "drafted": t["adp_drafted"].eq(1).to_numpy(),
         "after a game cut short": flagged,
         "  drafted": flagged & t["adp_drafted"].eq(1).to_numpy(),
+        "  weeks 1-2 rule only": early_only,
+        "  weeks 1-2 rule only, week 2-3 games": early_only & t["week"].between(2, 3).to_numpy(),
         "played full last game": ~flagged & t["missed_last"].eq(0).to_numpy(),
     }
     report: dict = {"holdouts": args.holdouts, "weekly": {}}
-    print("\n=== weekly points: MAE of the mean (bias = actual - projected) | play probability: Brier ===")
-    print(f"  {'':26s}{'n':>7s}{'base MAE':>18s}{'partial MAE':>18s}{'base Brier':>12s}{'part Brier':>12s}  actual plays / predicted base / partial")
+    tags = list(arms)
+    print("\n=== weekly points: MAE of the mean (bias) | play probability: Brier | mean predicted vs actual play rate ===")
+    print(f"  {'':38s}{'n':>6s}" + "".join(f"{tg:>26s}" for tg in tags))
     for label, m in populations.items():
         if m.sum() < 25:
             continue
-        row = {}
-        for tag in ("base", "partial"):
-            e = y[m] - t[f"mean_{tag}"].to_numpy()[m]
-            row[tag] = {"mae": float(np.abs(e).mean()), "bias": float(e.mean()),
-                        "brier": float(((played[m] - t[f"p_{tag}"].to_numpy()[m]) ** 2).mean()),
-                        "p_mean": float(t[f"p_{tag}"].to_numpy()[m].mean())}
-        row["actual_play_rate"] = float(played[m].mean())
-        report["weekly"][label.strip()] = {"n": int(m.sum()), **row}
-        b, p = row["base"], row["partial"]
-        print(f"  {label:26s}{int(m.sum()):7d}  {b['mae']:7.3f} ({b['bias']:+6.2f})  {p['mae']:7.3f} ({p['bias']:+6.2f})"
-              f"{b['brier']:12.4f}{p['brier']:12.4f}   {row['actual_play_rate']:.3f} / {b['p_mean']:.3f} / {p['p_mean']:.3f}")
+        row = {"n": int(m.sum()), "actual_play_rate": float(played[m].mean())}
+        cells = []
+        for tg in tags:
+            e = y[m] - t[f"mean_{tg}"].to_numpy()[m]
+            br = float(((played[m] - t[f"p_{tg}"].to_numpy()[m]) ** 2).mean())
+            row[tg] = {"mae": float(np.abs(e).mean()), "bias": float(e.mean()), "brier": br,
+                       "p_mean": float(t[f"p_{tg}"].to_numpy()[m].mean())}
+            cells.append(f"{np.abs(e).mean():6.3f} ({e.mean():+5.2f}) {br:.4f} {t[f'p_{tg}'].to_numpy()[m].mean():.3f}")
+        report["weekly"][label.strip()] = row
+        print(f"  {label:38s}{int(m.sum()):6d}" + "".join(f"{c:>26s}" for c in cells) + f"   actual {row['actual_play_rate']:.3f}")
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

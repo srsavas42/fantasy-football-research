@@ -35,9 +35,8 @@ noisy by construction. Two things that might have cleaned it did not:
   the next-game miss rate is 48% in games decided by 0-6, 45% by 7-13, 53% by 14-16, 43%
   by 17-20 and 36% by 21 or more, against 13-17% for unflagged players in the same games.
   A blowout lowers the signal a little and does not remove it, so no margin filter is used.
-- **The baseline needs history.** It needs two prior games in the same season, so weeks
-  1-2 are never flagged. A player hurt in week 1 carries no flag into week 3, which is a
-  known gap.
+- **The in-season baseline needs history.** It needs two prior games in the same season,
+  so weeks 1-2 have none. They get a depth-chart baseline instead; see below.
 
 ## Rest-of-season total
 
@@ -82,12 +81,56 @@ added there they moved the mean for everyone else (MAE 4.696 to 4.709) without h
 After a cut-short game the play probability falls from 65.5% to 57.7% against an actual
 53.4%: closer, and still too high.
 
+## Weeks 1-2: the depth chart as the baseline
+
+With no games yet, a player's expected snap share has to come from somewhere else. Two
+sources, both from earlier seasons only: the median snap share of players in his position
+and depth slot (`depth_rank`, capped at 3), and his own average over the last six games
+of the previous season. The label compares the game with the *lower* of the two; with
+only one source the threshold is stricter.
+
+How well it picks out trouble, on 5,759 week 1-2 player-games, 2017-2025:
+
+| rule | flagged | misses next game, flagged | not | on next report, flagged | not |
+|---|---:|---:|---:|---:|---:|
+| both sources, under 0.60 of the lower | 147 | 40.8% | 5.2% | 26.5% | 7.1% |
+| **both sources, under 0.65** (shipped) | 187 | 41.2% | 4.5% | 26.7% | 6.7% |
+| both sources, under 0.70 | 218 | 36.2% | 4.5% | 25.7% | 6.6% |
+| **depth chart alone, under 0.50** (shipped for one source) | 165 | 38.2% | 5.7% | 20.6% | 7.3% |
+| depth chart alone, under 0.60 | 268 | 32.8% | 5.0% | 18.7% | 7.0% |
+| his own last season alone, under 0.50 | 285 | 38.9% | 6.5% | 10.9% | 6.8% |
+
+That is nearly as clean as the in-season label (41.7% against 6.7%). By position, on the
+depth chart alone at 0.60: quarterbacks flagged this way miss the next game 94% of the
+time (they have been replaced), tight ends 34%, receivers 30%, running backs only 19%,
+because a running back's snaps rotate with no injury behind them.
+
+A WR1 plays a median 81% of snaps, so 50% is flagged against that bar only in a lopsided
+case: 0.65 x 0.81 is 53%.
+
+**It helps the next game and not the rest of the season.** These flagged players go on to
+play 71% of their remaining games, the same as everyone else, because most were not seriously hurt.
+
+| | no early rule | with it |
+|---|---:|---:|
+| Rest of season, the 51 flagged players: MAE (bias) | 43.55 (-2.3) | 43.74 (+3.0) |
+| ...share of games played (actual 0.709) | 0.715 | 0.671 |
+| Weekly play probability, those 51: Brier | 0.2073 | 0.2040 |
+| ...the 30 played in week 2 or 3 | 0.2621 | 0.2490 |
+| ...predicted play rate for those 30 (actual 0.467) | 0.698 | 0.667 |
+
+So the early label feeds the weekly play probability (`partial_prev_early`) and is not
+given to the games model, where it over-corrected. Both results rest on 51 events; the
+direction matches the 41% against 4.5% miss rate and the effect is small. Overall MAE
+does not move.
+
 ## What this does not do
 
 - **It cannot see an exit that did not cut the snap share enough.** A receiver who goes
   down in the fourth quarter has played most of the snaps.
-- **Weeks 1-2 are never flagged** (no baseline), and the flag does not carry across
-  seasons.
+- **The flag does not carry across seasons**, and the weeks 1-2 version is a population
+  average, not his own history: a player who is normally a 55% receiver on a WR1 line is
+  held to a bar of 53%.
 - **It does not replace the Friday report.** The designation for the projected week is
   still the strongest signal; this fills the Wednesday gap before it exists. How much it
   adds once that report is known was not measured separately.

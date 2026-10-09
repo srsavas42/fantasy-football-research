@@ -153,3 +153,112 @@ def test_the_games_model_uses_the_flag():
     frame["missed_last"] = 0.0
     design, _ = R._games_design(frame)
     assert {"partial_prev", "partial_recent"} <= set(design.columns)
+
+
+# ------------------------------------------------------ weeks 1-2: the depth-chart baseline
+
+def _early_frame(*, last_snap=0.80, first_snap=0.40, history=0.85, rookie=False, depth=1.0):
+    """A 2024 WR1 league to learn from, and one 2025 player whose opener we judge."""
+    hist = []
+    for i in range(40):
+        hist.append(
+            pd.DataFrame(
+                {
+                    "player_key": f"h{i}", "season": 2024, "week": range(1, 9), "position": "WR",
+                    "played": 1, "snap_share": history, "depth_rank": 1.0,
+                }
+            )
+        )
+    snaps = [first_snap, 0.80, 0.80]
+    mine = pd.DataFrame(
+        {"player_key": "x", "season": 2025, "week": [1, 2, 3], "position": "WR",
+         "played": 1, "snap_share": snaps, "depth_rank": depth}
+    )
+    parts = hist + [mine]
+    if not rookie:
+        prior = pd.DataFrame(
+            {"player_key": "x", "season": 2024, "week": range(1, 9), "position": "WR",
+             "played": 1, "snap_share": last_snap, "depth_rank": 1.0}
+        )
+        parts.append(prior)
+    return pd.concat(parts, ignore_index=True)
+
+
+def _row(frame, week):
+    return frame[(frame["player_key"] == "x") & (frame["season"] == 2025) & (frame["week"] == week)].iloc[0]
+
+
+def test_a_wr1_on_half_his_usual_snaps_in_week_one_is_flagged():
+    out = add_partial_game(_early_frame(first_snap=0.40))
+    assert _row(out, 1)["left_early_depth"] == 1
+    assert _row(out, 1)["left_early"] == 1
+
+
+def test_it_reaches_week_two_through_its_own_column_and_not_the_in_season_one():
+    out = add_partial_game(_early_frame(first_snap=0.40))
+    assert _row(out, 2)["partial_prev_early"] == 1
+    assert _row(out, 2)["partial_prev"] == 0
+    assert _row(out, 2)["partial_recent"] == 0     # counts the in-season label only
+
+
+def test_a_normal_week_one_is_not_flagged():
+    out = add_partial_game(_early_frame(first_snap=0.78))
+    assert _row(out, 1)["left_early_depth"] == 0
+
+
+def test_the_in_season_baseline_takes_over_once_it_exists():
+    # By week 3 he has two games of his own; the depth rule is no longer consulted.
+    out = add_partial_game(_early_frame(first_snap=0.40))
+    assert _row(out, 3)["left_early_depth"] == 0
+
+
+def test_a_rookie_is_judged_on_the_depth_chart_alone_and_more_strictly():
+    # No last season: one source, so the threshold is the stricter 0.5 x 0.85 = 0.425.
+    assert add_partial_game(_early_frame(first_snap=0.40, rookie=True)).pipe(_row, 1)["left_early_depth"] == 1
+    assert add_partial_game(_early_frame(first_snap=0.50, rookie=True)).pipe(_row, 1)["left_early_depth"] == 0
+
+
+def test_a_player_who_is_a_part_timer_by_both_measures_is_not_flagged():
+    out = add_partial_game(_early_frame(first_snap=0.10, last_snap=0.30, history=0.35))
+    assert _row(out, 1)["left_early_depth"] == 0
+
+
+def test_earlier_seasons_set_the_expectation_and_the_same_season_does_not():
+    base = _early_frame(first_snap=0.40)
+    later = base.copy()
+    # Rewriting everyone's 2025 snaps (the season being judged) must change nothing...
+    later.loc[later["season"] == 2025, "snap_share"] = later.loc[later["season"] == 2025, "snap_share"].where(
+        later["player_key"] == "x", 0.99
+    )
+    a, b = add_partial_game(base), add_partial_game(later)
+    assert _row(a, 1)["left_early_depth"] == _row(b, 1)["left_early_depth"]
+    # ... while rewriting 2024, the season it learns from, does.
+    lower = base.copy()
+    lower.loc[(lower["season"] == 2024) & (lower["player_key"] != "x"), "snap_share"] = 0.40
+    lower.loc[(lower["season"] == 2024) & (lower["player_key"] == "x"), "snap_share"] = 0.40
+    assert _row(add_partial_game(lower), 1)["left_early_depth"] == 0
+
+
+def test_the_first_season_has_nothing_to_learn_from():
+    out = add_partial_game(_early_frame(first_snap=0.40)[lambda d: d["season"] == 2025])
+    assert out["left_early_depth"].sum() == 0
+
+
+def test_a_frame_with_no_depth_chart_still_works(monkeypatch):
+    frame = _early_frame(first_snap=0.40).drop(columns="depth_rank")
+    out = add_partial_game(frame)
+    # last season's own average is still a baseline of one source
+    assert _row(out, 1)["left_early_depth"] in (0, 1)
+
+
+def test_the_early_rule_can_be_switched_off(monkeypatch):
+    from ffmodel.weekly import partial_game
+
+    monkeypatch.setattr(partial_game, "EARLY_BASELINE", False)
+    out = add_partial_game(_early_frame(first_snap=0.40))
+    assert out["left_early_depth"].sum() == 0
+
+
+def test_the_hurdle_gets_the_early_flag_and_the_games_model_does_not():
+    assert "partial_prev_early" in Hurdle(use_partial=True).availability_features
+    assert "partial_prev_early" not in R.PARTIAL_FEATURES

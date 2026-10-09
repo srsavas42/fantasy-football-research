@@ -41,6 +41,12 @@ from ffmodel.weekly.fitting import LocalResiduals, Logistic, Ridge
 
 POSITIONS = ("QB", "RB", "WR", "TE")
 
+# The previous game was played but cut short (far fewer snaps than usual), and how many
+# of the last three were. Needs ``ffmodel.weekly.partial_game.add_partial_game``. Used
+# for whether he plays only: added to the points model as well it moved the mean for
+# everyone else without helping (see ``scripts/validate_partial_weekly.py``).
+PARTIAL_FEATURES = ("partial_prev", "partial_recent")
+
 # Whether he suits up: history of doing so, and how recently.
 AVAILABILITY_FEATURES = (
     "prior_play_rate",
@@ -367,6 +373,7 @@ class Hurdle:
     use_weather: bool = False
     use_roof: bool = False
     use_wind: bool = False
+    use_partial: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -415,6 +422,7 @@ class Hurdle:
             + (WEATHER_FEATURES if self.use_weather else ())
             + (ROOF_FEATURES if self.use_roof else ())
             + (WIND_FEATURES if self.use_wind else ())
+            + (PARTIAL_FEATURES if self.use_partial else ())
         )
 
     def _fit_magnitude(

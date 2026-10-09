@@ -57,6 +57,11 @@ your own replacement level at each position rather than on `overall_rank`.
   timetable information, which the feeds do not carry.
 - **Weeks 1-3 of a season are slightly less accurate** than the draft-board blend the file
   used before (1-2%); from week 4 the new total is at least as good.
+- **A game cut short counts as a signal.** A player who played last week on far fewer
+  snaps than usual (hurt at halftime, say) is projected as more likely to miss time, and
+  his play probability and games drop accordingly. It is read from snap counts, so it
+  cannot tell an injury from rest, and it does not exist for weeks 1-2. See
+  `docs/partial-game-2026-10.md`.
 - **Rates are unreliable when `expected_games_played` is small.** Rookies and long absences
   can read wildly high or low; filter on it before ranking on the rate.
 - **The reserve-list floor is a floor, not a return date.** It is the fourth missed club game
@@ -74,6 +79,6 @@ the code has changed since.
 | `week02/` | the active-game rate and the reserve-list handling; `points_per_game` assumes he plays every remaining game |
 | `week03/` | the reserve-list handling and the direct rate; its `points_per_active_game` is the superseded ratio and overstates returning stars |
 | `week04/` | the same schema and model as `week05/`. Built on a Wednesday: no game-status designations yet |
-| `week05/` | current schema and model, built from weeks 1-4 (Dart and Achane out for the season via the override file) |
+| `week05/` | current schema and model, built from weeks 1-4 (Dart and Achane out for the season via the override file); includes the clubs on a bye and the cut-short-game signal |
 
 Do not use `week02/` or `week03/` for a decision in a later week.

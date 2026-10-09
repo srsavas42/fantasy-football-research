@@ -282,7 +282,7 @@ def main(argv=None) -> int:
     hurdle = Hurdle(
         use_team=True, use_matchup=True, use_phase=True, use_script=True,
         use_adp=True, use_news=True, use_snaps=True, use_recent=True,
-        use_pedigree=True, use_charting=True, by_position=True,
+        use_pedigree=True, use_charting=True, use_partial=True, by_position=True,
     ).fit(train, weekly_target)
     samples = hurdle.predict_samples(rows, draws=args.draws, seed=seed)
     # Who cannot play, and for how long. Reserve status from the roster feed sets

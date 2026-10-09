@@ -255,6 +255,9 @@ expected-games fit (the rate is unchanged):
   section. The missing information is probably severity and timetable news, which the
   feeds do not carry.
 - **Weeks 1-3 are slightly worse**, as above.
+- **A game cut short** was invisible to the games model (`played` is one flag); it is now
+  read as a group of its own, which fixes a 9-point over-projection of games for the
+  players it covers. See `docs/partial-game-2026-10.md`.
 - **The intervals** for returners are too narrow.
 - **A live run on Wednesday** has no game-status designations yet (they are filed Friday), so
   a player who was Out last week and may be back reads as if nothing were known. Re-running

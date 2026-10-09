@@ -69,6 +69,7 @@ from ffmodel.weekly.availability_rate import (
 from ffmodel.weekly.features import relevant_population
 from ffmodel.weekly.fitting import Ridge
 from ffmodel.weekly.injury_type import mechanism_columns
+from ffmodel.weekly.partial_game import add_partial_game
 from ffmodel.weekly.restofseason import OFFSET, RIDGE_PENALTY, TARGET, DirectTotal
 
 #: First season of the newer return-to-play regime.
@@ -86,6 +87,15 @@ _P10, _P50, _P90 = 9, 49, 89
 _EXTRA = ("missed_last", "adp_log_rank", "adp_drafted", "prior_points_given_played", "depth_rank")
 _INTERACTIONS = ("adp_log_rank", "prior_points_given_played", "prior_snap_share_recent")
 _STREAK = ("missed_n", "log_missed")
+
+#: Whether the previous game was cut short (he played, on far fewer snaps than usual),
+#: and how many of the last three were. See :mod:`ffmodel.weekly.partial_game`.
+PARTIAL_FEATURES = ("partial_prev", "partial_recent")
+
+#: Fit "left early last game" players as a group of their own, as the reserve list and
+#: designated Out already are, rather than only shifting the intercept of the group
+#: that played last. Measured best of four arms; see ``scripts/validate_partial_game.py``.
+PARTIAL_GROUP = True
 
 
 def _lagged(frame: pd.DataFrame, column: str) -> pd.Series:
@@ -107,7 +117,10 @@ def add_absence_state(frame: pd.DataFrame) -> pd.DataFrame:
     played_prev = _lagged(out, "played")
     out["missed_last"] = (1.0 - pd.to_numeric(played_prev, errors="coerce")).fillna(0.0)
     status_prev = _lagged(out, "status")
-    injury_prev = pd.to_numeric(out.get("inj_status_lagged", 0.0), errors="coerce").fillna(0.0)
+    injury_prev = pd.to_numeric(
+        out["inj_status_lagged"] if "inj_status_lagged" in out else pd.Series(0.0, index=out.index),
+        errors="coerce",
+    ).fillna(0.0)
     out["res_prev"] = status_prev.eq("RES").astype(float)
     out["out_prev"] = (injury_prev >= 3).astype(float)
     out["qd_prev"] = ((injury_prev >= 1) & (injury_prev < 3)).astype(float)
@@ -116,11 +129,11 @@ def add_absence_state(frame: pd.DataFrame) -> pd.DataFrame:
     out["missed_n"] = streak.clip(lower=0.0).fillna(0.0)
     out["log_missed"] = np.log1p(out["missed_n"])
     out["era21"] = (pd.to_numeric(out["season"], errors="coerce") >= ERA_START).astype(float)
-    return out
+    return add_partial_game(out)
 
 
 def _games_design(frame: pd.DataFrame, medians: pd.Series | None = None):
-    extra = _EXTRA + mechanism_columns() + _STREAK + ("era21",)
+    extra = _EXTRA + mechanism_columns() + _STREAK + ("era21",) + PARTIAL_FEATURES
     columns = [c for c in RATE_FEATURES if c in frame.columns] + [c for c in extra if c in frame.columns]
     block = frame[columns].apply(pd.to_numeric, errors="coerce")
     for name in _INTERACTIONS:
@@ -144,7 +157,11 @@ def _absence_groups(frame: pd.DataFrame) -> np.ndarray:
     length = np.select([n <= 1, n == 2, n <= 4], [0, 1, 2], default=3)
     # Reserve-list and inactive players are one group each: the reason is most of
     # the story. The rest split by how long the streak has run.
-    return np.where(np.isin(reason, (2, 3, 5)), 10 * reason + length, reason)
+    groups = np.where(np.isin(reason, (2, 3, 5)), 10 * reason + length, reason)
+    if PARTIAL_GROUP and "partial_prev" in frame.columns:
+        # He played last game but was cut short: not absent, and not a normal game.
+        groups = np.where((reason == 0) & (frame["partial_prev"].to_numpy() == 1), 6, groups)
+    return groups
 
 
 @dataclass

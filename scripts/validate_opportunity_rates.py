@@ -105,8 +105,6 @@ def main(argv=None) -> int:
         "top-50 ADP": (t["adp_drafted"].eq(1) & (adp <= 50)).to_numpy(),
         "weeks 1-4": t["week"].le(4).to_numpy(),
         "weeks 5+": t["week"].ge(5).to_numpy(),
-        "fewer than 4 prior games": (pd.to_numeric(t["prior_games"], errors="coerce") < 4).to_numpy(),
-        "4+ prior games": (pd.to_numeric(t["prior_games"], errors="coerce") >= 4).to_numpy(),
     }
     names = list(GROUPS)
     report: dict = {"holdouts": args.holdouts, "mae": {}, "rmse": {}, "paired": {}}
@@ -126,7 +124,7 @@ def main(argv=None) -> int:
     rng = np.random.default_rng(0)
     print("\n=== paired bootstrap over player-seasons: gain in MAE vs base, points per game ===")
     key = t["player_key"].astype(str) + t["season"].astype(str)
-    for label in ("everyone", "drafted", "RB", "WR", "TE", "QB", "top-50 ADP", "weeks 1-4", "fewer than 4 prior games"):
+    for label in ("everyone", "drafted", "RB", "WR", "TE", "QB", "top-50 ADP", "weeks 1-4"):
         m = populations[label]
         for n in names[1:]:
             d = pd.DataFrame({"k": key[m], "g": (np.abs(y - t["mean_base"].to_numpy()) - np.abs(y - t[f"mean_{n}"].to_numpy()))[m]})

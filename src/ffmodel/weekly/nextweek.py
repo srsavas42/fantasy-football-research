@@ -63,6 +63,21 @@ STATE_FEATURES = (
     "prior_last_game_garbage_frac",
 )
 
+# Usage per opportunity rather than as a share of the team's work: targets per pass snap,
+# rushes per run snap, how much of the time he is on the field, and what a snap yields.
+# Needs ``ffmodel.weekly.opportunity_rates.attach_opportunity_rates``.
+OPPORTUNITY_FEATURES = (
+    "prior_targets_per_snap_recent", "prior_targets_per_snap_level",
+    "prior_rushes_per_snap_recent", "prior_rushes_per_snap_level",
+    "prior_pass_snap_share_recent", "prior_pass_snap_share_level",
+    "prior_run_snap_share_recent", "prior_run_snap_share_level",
+    "prior_targets_per_pass_snap_recent", "prior_targets_per_pass_snap_level",
+    "prior_rushes_per_run_snap_recent", "prior_rushes_per_run_snap_level",
+    "prior_rec_yards_per_pass_snap_recent",
+    "prior_points_per_snap_recent", "prior_points_per_snap_level",
+    "prior_touches_per_snap_recent", "prior_touches_per_snap_level",
+)
+
 # Whether he suits up: history of doing so, and how recently.
 AVAILABILITY_FEATURES = (
     "prior_play_rate",
@@ -391,6 +406,7 @@ class Hurdle:
     use_wind: bool = False
     use_partial: bool = False
     use_state: bool = False
+    use_rates: bool = False
     by_position: bool = False
     availability: Logistic | None = None
     magnitude: Ridge | None = None
@@ -423,6 +439,7 @@ class Hurdle:
             + (ROOF_FEATURES if self.use_roof else ())
             + (WIND_FEATURES if self.use_wind else ())
             + (STATE_FEATURES if self.use_state else ())
+            + (OPPORTUNITY_FEATURES if self.use_rates else ())
         )
 
     @property

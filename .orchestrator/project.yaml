@@ -1,0 +1,6 @@
+# Read by the orchestrator from the BASE branch. Declares the only commands a behavioral-acceptance scenario may invoke (by id).
+# A ticket supplies arguments, never a command line.
+acceptance:
+  commands:
+    - {id: python, command: "python", timeout: 300}
+    - {id: pytest, command: "python -m pytest -q", kind: pytest, timeout: 600}
